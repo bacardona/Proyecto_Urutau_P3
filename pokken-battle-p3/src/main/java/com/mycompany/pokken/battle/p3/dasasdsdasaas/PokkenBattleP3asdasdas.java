@@ -4,8 +4,6 @@
 
 package com.mycompany.pokken.battle.p3.dasasdsdasaas;
 
-import com.mycompany.pokken.battle.p3.*;
-
 /**
  *
  * @author Ghost198
