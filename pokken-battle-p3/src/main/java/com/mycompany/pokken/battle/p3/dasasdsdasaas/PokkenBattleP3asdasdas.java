@@ -2,15 +2,13 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  */
 
-package newpackage2;
-
-import com.mycompany.pokken.battle.p3.*;
+package com.mycompany.pokken.battle.p3.dasasdsdasaas;
 
 /**
  *
  * @author Ghost198
  */
-public class PokkenBattleP3132123213 {
+public class PokkenBattleP3asdasdas {
 
     public static void main(String[] args) {
         System.out.println("Hello World!");
