@@ -7,10 +7,10 @@ import java.sql.SQLException;
 public class DatabaseConnection {
 
     // Apunta directamente a la carpeta config/wallet en la raíz del proyecto
-    private static final String TNS_ADMIN_DIR = System.getProperty("user.dir") + "/config/wallet";
+    private static final String TNS_ADMIN_DIR =
+            (System.getProperty("user.dir") + "/config/wallet").replace("\\", "/");
 
-    // Alias de tu tnsnames.ora
-    private static final String DB_URL = "jdbc:oracle:thin:@pokkenbd_low?TNS_ADMIN=" + TNS_ADMIN_DIR;
+    private static final String DB_URL = "jdbc:oracle:thin:@pokkenbd_low";
 
     private static final String USER = "POKKEN_ADMIN";
     private static final String PASSWORD = "@Chiripa100%";
