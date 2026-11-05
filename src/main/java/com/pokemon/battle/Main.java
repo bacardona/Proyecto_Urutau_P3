@@ -2,10 +2,7 @@ package com.pokemon.battle;
 
 import com.pokemon.battle.model.RandomProvider;
 import com.pokemon.battle.model.TypeEffectiveness;
-import com.pokemon.battle.persistence.CsvMoveRepository;
-import com.pokemon.battle.persistence.CsvPokemonRepository;
-import com.pokemon.battle.persistence.MoveRepository;
-import com.pokemon.battle.persistence.PokemonRepository;
+import com.pokemon.battle.persistence.*;
 import com.pokemon.battle.service.BattleController;
 import com.pokemon.battle.service.BattleService;
 import com.pokemon.battle.service.PokemonService;
@@ -28,10 +25,8 @@ public class Main {
      */
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-
-        MoveRepository moveRepository = new CsvMoveRepository(Paths.get("data", "moves.csv"));
-        PokemonRepository pokemonRepository =
-                new CsvPokemonRepository(Paths.get("data", "pokemon.csv"), moveRepository);
+        MoveRepository moveRepository = new JdbcMoveRepository();
+        PokemonRepository pokemonRepository = new JdbcPokemonRepository(moveRepository);
         PokemonService pokemonService = new PokemonService(pokemonRepository);
 
         RandomProvider random = new ThreadLocalRandomProvider();
@@ -40,7 +35,7 @@ public class Main {
         BattleController controller = new BattleController(pokemonService, battleService);
 
         BattleConsoleUI ui = new BattleConsoleUI(controller, scanner);
-        ui.start("EEVEE", "PIKACHU");
+        ui.start("SQUIRTLE", "BULBASAUR");
 
         System.out.print("Presione ENTER para cerrar el programa...");
         scanner.nextLine();
