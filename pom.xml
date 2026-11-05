@@ -16,6 +16,23 @@
         <exec.mainClass>com.pokemon.battle.Main</exec.mainClass>
     </properties>
 
+    <!-- Dependencias para conexión a Oracle Database en OCI -->
+    <dependencies>
+        <!-- Driver JDBC oficial de Oracle para Java 17/21 -->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
+            <version>23.4.0.24.05</version>
+        </dependency>
+
+        <!-- Librería de seguridad para autenticación por Wallet (mTLS). Desde la 23.x basta con oraclepki -->
+        <dependency>
+            <groupId>com.oracle.database.security</groupId>
+            <artifactId>oraclepki</artifactId>
+            <version>23.4.0.24.05</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
