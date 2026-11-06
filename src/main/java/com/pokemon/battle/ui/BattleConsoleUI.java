@@ -4,16 +4,22 @@ import com.pokemon.battle.exceptions.BusinessRuleException;
 import com.pokemon.battle.exceptions.InvalidDataException;
 import com.pokemon.battle.exceptions.PersistenceException;
 import com.pokemon.battle.exceptions.ResourceNotFoundException;
+import com.pokemon.battle.model.CombatHistoryEntry;
 import com.pokemon.battle.model.Combatant;
+import com.pokemon.battle.model.Machine;
 import com.pokemon.battle.model.Move;
+import com.pokemon.battle.model.Player;
+import com.pokemon.battle.model.Pokemon;
+import com.pokemon.battle.model.Trainer;
 import com.pokemon.battle.service.BattleController;
 import com.pokemon.battle.service.RoundResult;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Scanner;
 
 /**
- * Console view of a battle. It only reads input and prints; every rule lives
+ * Console view of the game. It only reads input and prints; every rule lives
  * in the controller and the services.
  */
 public class BattleConsoleUI {
@@ -23,6 +29,7 @@ public class BattleConsoleUI {
     private static final String YELLOW = "\u001B[33m";
     private static final String RED = "\u001B[31m";
     private static final int BAR_WIDTH = 20;
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final BattleController controller;
     private final Scanner scanner;
@@ -37,37 +44,62 @@ public class BattleConsoleUI {
     }
 
     /**
-     * Runs a whole battle, showing a different message for each kind of error.
-     *
-     * @param name1 name of the first player's Pokemon
-     * @param name2 name of the second player's Pokemon
+     * Shows the main menu until the user leaves. Each option runs on its own,
+     * so an error returns to the menu with a message for that kind of error.
      */
-    public void start(String name1, String name2) {
-        try {
-            runBattle(name1, name2);
-        } catch (ResourceNotFoundException e) {
-            System.out.println("No se encontro el recurso solicitado: " + e.getMessage());
-        } catch (BusinessRuleException e) {
-            System.out.println("No se puede completar la operacion: " + e.getMessage());
-        } catch (InvalidDataException e) {
-            System.out.println("Los datos ingresados no son validos: " + e.getMessage());
-        } catch (PersistenceException e) {
-            System.out.println("Ocurrio un problema al acceder a los datos del sistema. Contacte al administrador.");
+    public void start() {
+        boolean exit = false;
+        while (!exit) {
+            System.out.println("=== POKKEN ===");
+            System.out.println("1. Jugar contra una maquina");
+            System.out.println("2. Ver historial de combates");
+            System.out.println("3. Salir");
+            System.out.print("Opcion: ");
+            try {
+                switch (readOption()) {
+                    case 1:
+                        runBattle();
+                        break;
+                    case 2:
+                        showHistory();
+                        break;
+                    case 3:
+                        exit = true;
+                        break;
+                    default:
+                        throw new InvalidDataException("opcion", "debe ser un numero entre 1 y 3");
+                }
+            } catch (ResourceNotFoundException e) {
+                System.out.println("No se encontro el recurso solicitado: " + e.getMessage());
+            } catch (BusinessRuleException e) {
+                System.out.println("No se puede completar la operacion: " + e.getMessage());
+            } catch (InvalidDataException e) {
+                System.out.println("Los datos ingresados no son validos: " + e.getMessage());
+            } catch (PersistenceException e) {
+                System.out.println("Ocurrio un problema al acceder a los datos del sistema. Contacte al administrador.");
+            }
+            System.out.println();
         }
     }
 
-    private void runBattle(String name1, String name2) {
-        controller.startBattle(name1, name2);
+    private void runBattle() {
+        Player player = chooseFrom("JUGADOR", controller.listPlayers());
+        Machine machine = chooseFrom("MAQUINA", controller.listMachines());
+        Pokemon pokemon = choosePokemon(controller.listPokemon());
+
+        controller.startBattle(player, pokemon, machine);
         Combatant c1 = controller.getFirstCombatant();
         Combatant c2 = controller.getSecondCombatant();
+        System.out.println(player.getName() + " (" + c1.getName() + ") vs "
+                + machine.getName() + " (" + c2.getName() + ")");
+        System.out.print("Presione ENTER para comenzar...");
+        scanner.nextLine();
+        clearScreen();
 
         while (!controller.isFinished()) {
             showBattleData(c1, c2);
             Move move1 = askMove(c1);
-            clearScreen();
-
-            showBattleData(c1, c2);
-            Move move2 = askMove(c2);
+            Move move2 = controller.chooseMachineMove();
             clearScreen();
 
             showBattleData(c1, c2);
@@ -78,12 +110,57 @@ public class BattleConsoleUI {
                 clearScreen();
                 showBattleData(c1, c2);
                 System.out.println(result.getFainted().getName() + " se ha debilitado!");
+                int combatId = controller.registerResult(result);
+                System.out.println("Combate #" + combatId + " guardado en el historial.");
                 break;
             }
             System.out.print("Presione ENTER para continuar...");
             scanner.nextLine();
             clearScreen();
         }
+    }
+
+    private void showHistory() {
+        Player player = chooseFrom("JUGADOR", controller.listPlayers());
+        List<CombatHistoryEntry> history = controller.getHistory(player);
+        if (history.isEmpty()) {
+            System.out.println(player.getName() + " todavia no tiene combates registrados.");
+            return;
+        }
+        System.out.println("HISTORIAL DE " + player.getName());
+        for (CombatHistoryEntry entry : history) {
+            String date = entry.getDate() == null ? "sin fecha" : entry.getDate().format(DATE_FORMAT);
+            String rival = entry.getRivalName() == null ? "desconocido" : entry.getRivalName();
+            System.out.println("#" + entry.getCombatId() + "  " + date + "  vs " + rival
+                    + "  -> " + entry.getResult());
+        }
+    }
+
+    private <T extends Trainer> T chooseFrom(String title, List<T> options) {
+        System.out.println("Elija " + title + ":");
+        for (int i = 0; i < options.size(); i++) {
+            System.out.println((i + 1) + ". " + options.get(i).getDescription());
+        }
+        System.out.print("Opcion: ");
+        int option = readOption();
+        if (option < 1 || option > options.size()) {
+            throw new InvalidDataException(title.toLowerCase(), "debe ser un numero entre 1 y " + options.size());
+        }
+        return options.get(option - 1);
+    }
+
+    private Pokemon choosePokemon(List<Pokemon> options) {
+        System.out.println("Elija su POKKEN:");
+        for (int i = 0; i < options.size(); i++) {
+            Pokemon p = options.get(i);
+            System.out.println((i + 1) + ". " + p.getName() + " (" + p.getPrimaryType() + ")");
+        }
+        System.out.print("Opcion: ");
+        int option = readOption();
+        if (option < 1 || option > options.size()) {
+            throw new InvalidDataException("pokken", "debe ser un numero entre 1 y " + options.size());
+        }
+        return options.get(option - 1);
     }
 
     // Si el Pokemon esta cargando Vuelo/Excavar no elige: debe completar ese ataque
