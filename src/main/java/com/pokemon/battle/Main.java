@@ -5,12 +5,15 @@ import com.pokemon.battle.model.TypeEffectiveness;
 import com.pokemon.battle.persistence.*;
 import com.pokemon.battle.service.BattleController;
 import com.pokemon.battle.service.BattleService;
+import com.pokemon.battle.service.CombatService;
+import com.pokemon.battle.service.MachineStrategy;
 import com.pokemon.battle.service.PokemonService;
+import com.pokemon.battle.service.RandomMachineStrategy;
 import com.pokemon.battle.service.ThreadLocalRandomProvider;
+import com.pokemon.battle.service.TrainerService;
 import com.pokemon.battle.service.TypeChartService;
 import com.pokemon.battle.ui.BattleConsoleUI;
 
-import java.nio.file.Paths;
 import java.util.Scanner;
 
 /**
@@ -19,7 +22,8 @@ import java.util.Scanner;
 public class Main {
 
     /**
-     * Starts the game: Eevee against Pikachu.
+     * Starts the game: a player against a machine, with the data read from
+     * and saved to the Oracle database.
      *
      * @param args not used
      */
@@ -29,15 +33,17 @@ public class Main {
         PokemonRepository pokemonRepository = new JdbcPokemonRepository(moveRepository);
         PokemonService pokemonService = new PokemonService(pokemonRepository);
 
+        TrainerService trainerService = new TrainerService(new JdbcTrainerRepository());
+        CombatService combatService = new CombatService(new JdbcCombatRepository());
+
         RandomProvider random = new ThreadLocalRandomProvider();
+        MachineStrategy machineStrategy = new RandomMachineStrategy(random);
         TypeEffectiveness effectiveness = new TypeChartService();
         BattleService battleService = new BattleService(random, effectiveness);
-        BattleController controller = new BattleController(pokemonService, battleService);
+        BattleController controller = new BattleController(
+                pokemonService, battleService, trainerService, combatService, machineStrategy);
 
         BattleConsoleUI ui = new BattleConsoleUI(controller, scanner);
-        ui.start("SQUIRTLE", "BULBASAUR");
-
-        System.out.print("Presione ENTER para cerrar el programa...");
-        scanner.nextLine();
+        ui.start();
     }
 }
