@@ -2,9 +2,12 @@ package com.pokemon.battle.service;
 
 import com.pokemon.battle.model.Machine;
 import com.pokemon.battle.model.Player;
-import com.pokemon.battle.persistence.TrainerReader;
+import com.pokemon.battle.model.Trainer;
+import com.pokemon.battle.persistence.TrainerRepository;
 import com.pokemon.battle.validation.CombatValidator;
+import com.pokemon.battle.validation.TrainerValidator;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -12,25 +15,21 @@ import java.util.List;
  */
 public class TrainerService implements TrainerCatalog {
 
-    private final TrainerReader reader;
+    private final TrainerRepository repository;
 
     /**
-     * @param reader read access to the stored trainers (injected)
+     * @param repository storage of the trainers (injected)
      */
-    public TrainerService(TrainerReader reader) {
-        this.reader = reader;
+    public TrainerService(TrainerRepository repository) {
+        this.repository = repository;
     }
 
     /**
      * {@inheritDoc}
-     *
-     * @throws com.pokemon.battle.exceptions.BusinessRuleException when there are no players
      */
     @Override
     public List<Player> listPlayers() {
-        List<Player> players = reader.loadPlayers();
-        CombatValidator.validateNotEmpty(players, "jugadores");
-        return players;
+        return repository.loadPlayers();
     }
 
     /**
@@ -40,8 +39,25 @@ public class TrainerService implements TrainerCatalog {
      */
     @Override
     public List<Machine> listMachines() {
-        List<Machine> machines = reader.loadMachines();
+        List<Machine> machines = repository.loadMachines();
         CombatValidator.validateNotEmpty(machines, "maquinas");
         return machines;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws com.pokemon.battle.exceptions.InvalidDataException  when the name is empty or too long
+     * @throws com.pokemon.battle.exceptions.BusinessRuleException when the name is already used
+     */
+    @Override
+    public Player createPlayer(String name) {
+        TrainerValidator.validateName(name);
+        // ENTRENADOR guarda jugadores y maquinas: el nombre no debe repetirse en ninguno
+        List<Trainer> all = new ArrayList<>();
+        all.addAll(repository.loadPlayers());
+        all.addAll(repository.loadMachines());
+        TrainerValidator.validateNameIsFree(name, all);
+        return repository.createPlayer(name.trim());
     }
 }

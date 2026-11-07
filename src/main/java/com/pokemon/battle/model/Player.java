@@ -1,5 +1,4 @@
 package com.pokemon.battle.model;
-
 import com.pokemon.battle.exceptions.InvalidDataException;
 
 /**
@@ -37,25 +36,17 @@ public class Player extends Trainer {
     }
 
     /**
-     * @param battlesWon the new number of battles won
-     * @throws InvalidDataException when the value is negative
+     * increment in one the Battles won counter
      */
-    public void setBattlesWon(int battlesWon) {
-        if (battlesWon < 0) {
-            throw new InvalidDataException("batallas ganadas", "no puede ser negativo");
-        }
-        this.battlesWon = battlesWon;
+    public void incrementBattlesWon() {
+        this.battlesWon++;
     }
 
     /**
-     * @param battlesLost the new number of battles lost
-     * @throws InvalidDataException when the value is negative
+     * increment in one the Battles lost counter
      */
-    public void setBattlesLost(int battlesLost) {
-        if (battlesLost < 0) {
-            throw new InvalidDataException("batallas perdidas", "no puede ser negativo");
-        }
-        this.battlesLost = battlesLost;
+    public void incrementBattlesLost() {
+        this.battlesLost++;
     }
 
     /**

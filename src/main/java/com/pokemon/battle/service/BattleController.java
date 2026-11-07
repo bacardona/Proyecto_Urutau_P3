@@ -61,6 +61,16 @@ public class BattleController {
         return trainerCatalog.listMachines();
     }
 
+        /**
+     * Creates and stores a new human player.
+     *
+     * @param name name of the new player
+     * @return the player created
+     */
+    public Player createPlayer(String name) {
+        return trainerCatalog.createPlayer(name);
+    }
+    
     /**
      * @return the Pokemon stored in the database
      */
@@ -197,9 +207,9 @@ public class BattleController {
                 : combatRegistry.register(player, machine);
         // Ya guardado en la BD: se actualiza tambien el contador del jugador en memoria
         if (playerLost) {
-            player.setBattlesLost(player.getBattlesLost() + 1);
+            player.incrementBattlesLost();
         } else {
-            player.setBattlesWon(player.getBattlesWon() + 1);
+            player.incrementBattlesWon();
         }
         return combatId;
     }

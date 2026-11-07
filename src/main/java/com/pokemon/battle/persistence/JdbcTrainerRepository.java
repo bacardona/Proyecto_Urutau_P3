@@ -15,7 +15,7 @@ import java.util.List;
  * Reads the trainers from Oracle. JUGADOR and MAQUINA share their identifier
  * with ENTRENADOR, so each one is joined with it to get the name.
  */
-public class JdbcTrainerRepository implements TrainerReader {
+public class JdbcTrainerRepository implements TrainerRepository {
 
     private static final String PLAYERS_SQL =
             "SELECT e.id_entrenador, e.nombre, j.batallas_ganadas, j.batallas_perdidas " +
@@ -29,6 +29,15 @@ public class JdbcTrainerRepository implements TrainerReader {
                     "JOIN maquina m ON m.id_entrenador = e.id_entrenador " +
                     "ORDER BY e.nombre";
 
+    private static final String NEXT_ID_SQL =
+            "SELECT NVL(MAX(id_entrenador), 0) + 1 FROM entrenador";
+
+    private static final String INSERT_TRAINER_SQL =
+            "INSERT INTO entrenador (id_entrenador, nombre) VALUES (?, ?)";
+
+    private static final String INSERT_PLAYER_SQL =
+            "INSERT INTO jugador (id_entrenador, batallas_ganadas, batallas_perdidas) VALUES (?, 0, 0)";
+    
     /**
      * {@inheritDoc}
      */
@@ -72,5 +81,51 @@ public class JdbcTrainerRepository implements TrainerReader {
             throw new PersistenceException("Error al consultar maquinas en Oracle BD", e);
         }
         return machines;
+    }
+    
+     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Player createPlayer(String name) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            // Sin autocommit, ENTRENADOR y JUGADOR se confirman juntos con commit() o se deshacen con rollback()
+            conn.setAutoCommit(false);
+            try {
+                int id = nextTrainerId(conn);
+                insertTrainer(conn, id, name);
+                insertPlayer(conn, id);
+                conn.commit();
+                return new Player(id, name, 0, 0);
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new PersistenceException("Error al crear el jugador en Oracle BD", e);
+        }
+    }
+
+    private int nextTrainerId(Connection conn) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(NEXT_ID_SQL);
+             ResultSet rs = stmt.executeQuery()) {
+            rs.next();
+            return rs.getInt(1);
+        }
+    }
+
+    private void insertTrainer(Connection conn, int id, String name) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(INSERT_TRAINER_SQL)) {
+            stmt.setInt(1, id);
+            stmt.setString(2, name);
+            stmt.executeUpdate();
+        }
+    }
+
+    private void insertPlayer(Connection conn, int id) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(INSERT_PLAYER_SQL)) {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+        }
     }
 }

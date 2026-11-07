@@ -83,7 +83,7 @@ public class BattleConsoleUI {
     }
 
     private void runBattle() {
-        Player player = chooseFrom("JUGADOR", controller.listPlayers());
+        Player player = chooseOrCreatePlayer();
         Machine machine = chooseFrom("MAQUINA", controller.listMachines());
         Pokemon pokemon = choosePokemon(controller.listPokemon());
 
@@ -121,7 +121,13 @@ public class BattleConsoleUI {
     }
 
     private void showHistory() {
-        Player player = chooseFrom("JUGADOR", controller.listPlayers());
+        List<Player> players = controller.listPlayers();
+        if (players.isEmpty()) {
+            System.out.println("Todavia no hay jugadores registrados.");
+            return;
+        }
+        Player player = chooseFrom("JUGADOR", players);
+        
         List<CombatHistoryEntry> history = controller.getHistory(player);
         if (history.isEmpty()) {
             System.out.println(player.getName() + " todavia no tiene combates registrados.");
@@ -136,6 +142,29 @@ public class BattleConsoleUI {
         }
     }
 
+    // Muestra los jugadores de la BD y, como ultima opcion, crear uno nuevo
+    private Player chooseOrCreatePlayer() {
+        List<Player> players = controller.listPlayers();
+        System.out.println("Elija JUGADOR:");
+        for (int i = 0; i < players.size(); i++) {
+            System.out.println((i + 1) + ". " + players.get(i).getDescription());
+        }
+        int createOption = players.size() + 1;
+        System.out.println(createOption + ". Crear un entrenador nuevo");
+        System.out.print("Opcion: ");
+        int option = readOption();
+        if (option == createOption) {
+            System.out.print("Nombre del nuevo entrenador: ");
+            Player created = controller.createPlayer(scanner.nextLine());
+            System.out.println("Entrenador " + created.getName() + " creado.");
+            return created;
+        }
+        if (option < 1 || option > players.size()) {
+            throw new InvalidDataException("jugador", "debe ser un numero entre 1 y " + createOption);
+        }
+        return players.get(option - 1);
+    }
+    
     private <T extends Trainer> T chooseFrom(String title, List<T> options) {
         System.out.println("Elija " + title + ":");
         for (int i = 0; i < options.size(); i++) {
