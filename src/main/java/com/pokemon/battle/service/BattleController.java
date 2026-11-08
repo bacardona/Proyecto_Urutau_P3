@@ -229,6 +229,24 @@ public class BattleController {
     }
 
     /**
+     * The given side gives up and loses the battle automatically. The result is
+     * stored later with {@link #registerResult()}, like any other battle.
+     *
+     * @param side side that surrenders
+     * @throws BusinessRuleException when the battle is over or the side is a machine
+     */
+    public void surrender(BattleSide side) {
+        ensureStarted();
+        if (battle.isOver()) {
+            throw new BusinessRuleException("La batalla ya termino");
+        }
+        if (side.isMachine()) {
+            throw new BusinessRuleException("La maquina no puede rendirse");
+        }
+        battle.surrender(side);
+    }
+
+    /**
      * @param side side to check
      * @return true when its active Pokemon fainted and it still has others to send
      */
