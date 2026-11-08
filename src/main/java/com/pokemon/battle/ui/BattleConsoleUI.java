@@ -33,6 +33,7 @@ public class BattleConsoleUI {
     private static final String YELLOW = "\u001B[33m";
     private static final String RED = "\u001B[31m";
     private static final int BAR_WIDTH = 20;
+    private static final int SURRENDER_OPTION = 0;
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final BattleController controller;
@@ -136,6 +137,9 @@ public class BattleConsoleUI {
         while (!controller.isFinished()) {
             showBattleData(battle);
             TurnAction action1 = askAction(side1);
+            if (action1 == null) {
+                break; // El jugador 1 se rindio
+            }
             TurnAction action2;
             if (side2.isMachine()) {
                 action2 = controller.chooseMachineAction();
@@ -144,6 +148,9 @@ public class BattleConsoleUI {
                 clearScreen();
                 showBattleData(battle);
                 action2 = askAction(side2);
+                if (action2 == null) {
+                    break; // El jugador 2 se rindio
+                }
             }
             clearScreen();
 
@@ -166,6 +173,9 @@ public class BattleConsoleUI {
 
         clearScreen();
         showBattleData(battle);
+        if (battle.getSurrendered() != null) {
+            System.out.println(battle.getSurrendered().getTrainer().getName() + " se ha rendido.");
+        }
         System.out.println(battle.getWinner().getTrainer().getName() + " gana el combate!");
         int combatId = controller.registerResult();
         System.out.println("Combate #" + combatId + " guardado en el historial.");
@@ -293,7 +303,8 @@ public class BattleConsoleUI {
         return team;
     }
 
-    // Cada lado hace una sola accion por turno: atacar o cambiar de Pokemon
+    // Cada lado hace una sola accion por turno: atacar, cambiar de Pokemon o rendirse.
+    // Devuelve null cuando el jugador se rinde.
     private TurnAction askAction(BattleSide side) {
         Team team = side.getTeam();
         Combatant active = team.getActive();
@@ -311,11 +322,19 @@ public class BattleConsoleUI {
             int moves = active.getPokemon().getMoves().size();
             boolean canSwitch = team.hasBench();
             if (canSwitch) {
-                System.out.println((moves + 1) + ". Cambiar de Pokemon\n");
+                System.out.println((moves + 1) + ". Cambiar de Pokemon");
             }
+            System.out.println(SURRENDER_OPTION + ". Rendirse\n");
             System.out.print("Opcion: ");
             try {
                 int option = readOption();
+                if (option == SURRENDER_OPTION) {
+                    if (confirmSurrender()) {
+                        controller.surrender(side);
+                        return null;
+                    }
+                    continue;
+                }
                 if (canSwitch && option == moves + 1) {
                     TurnAction switchAction = askSwitch(side);
                     if (switchAction != null) {
@@ -328,6 +347,12 @@ public class BattleConsoleUI {
                 System.out.println("Los datos ingresados no son validos: " + e.getMessage());
             }
         }
+    }
+
+    // Pide confirmacion para no rendirse por equivocacion
+    private boolean confirmSurrender() {
+        System.out.print("Seguro que desea rendirse? Perdera el combate (s/n): ");
+        return scanner.nextLine().trim().equalsIgnoreCase("s");
     }
 
     // Devuelve null si el jugador prefiere volver al menu de ataques
