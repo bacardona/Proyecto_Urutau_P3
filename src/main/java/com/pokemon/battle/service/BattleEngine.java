@@ -18,4 +18,15 @@ public interface BattleEngine {
      * @return the messages of the round and who fainted, if anyone
      */
     RoundResult playRound(Combatant c1, Combatant c2, Move m1, Move m2);
+    
+    /**
+     * Plays a round in which only one side attacks because the other side
+     * switched Pokemon. The target is the Pokemon that came in.
+     *
+     * @param attacker the Pokemon that attacks
+     * @param target   the Pokemon that receives the attack
+     * @param move     the move used by the attacker
+     * @return the messages of the round and the Pokemon that fainted, if any
+     */
+    RoundResult playSingleAttack(Combatant attacker, Combatant target, Move move);
 }

@@ -13,13 +13,20 @@ public interface MachineStrategy {
 
     /**
      * @param available Pokemon the machine can use
-     * @return the Pokemon the machine takes to the battle
+     * @param size      number of Pokemon the team needs
+     * @return the Pokemon the machine takes to the battle, without repeating any
      */
-    Pokemon choosePokemon(List<Pokemon> available);
+    List<Pokemon> chooseTeam(List<Pokemon> available, int size);
 
     /**
      * @param combatant combatant controlled by the machine
      * @return the move it uses this turn
      */
     Move chooseMove(Combatant combatant);
+
+    /**
+     * @param options how many Pokemon of its team can come in
+     * @return the position (starting at 0) of the one it sends, between 0 and options - 1
+     */
+    int chooseReplacement(int options);
 }
