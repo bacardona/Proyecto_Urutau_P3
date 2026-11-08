@@ -2,12 +2,13 @@ package com.pokemon.battle.model;
 
 /**
  * A battle between two sides. It is over when one of the teams has no Pokemon
- * able to fight.
+ * able to fight, or when a side surrenders.
  */
 public class Battle {
 
     private final BattleSide first;
     private final BattleSide second;
+    private BattleSide surrendered;
 
     /**
      * @param first  the first side (always a player)
@@ -43,7 +44,24 @@ public class Battle {
      * @return true when at least one team has no Pokemon able to fight
      */
     public boolean isOver() {
-        return !first.getTeam().hasAvailable() || !second.getTeam().hasAvailable();
+        return surrendered != null
+                || !first.getTeam().hasAvailable() || !second.getTeam().hasAvailable();
+    }
+
+    /**
+     * Ends the battle because a side gives up. That side loses automatically.
+     *
+     * @param side the side that surrenders
+     */
+    public void surrender(BattleSide side) {
+        this.surrendered = side;
+    }
+
+    /**
+     * @return the side that surrendered, or null when nobody gave up
+     */
+    public BattleSide getSurrendered() {
+        return surrendered;
     }
 
     /**
@@ -55,6 +73,10 @@ public class Battle {
     public BattleSide getWinner() {
         if (!isOver()) {
             return null;
+        }
+        // Si alguien se rindio, gana el otro lado sin importar los Pokemon que le queden
+        if (surrendered != null) {
+            return surrendered == first ? second : first;
         }
         boolean secondWins = second.getTeam().hasAvailable() && !first.getTeam().hasAvailable();
         return secondWins ? second : first;
