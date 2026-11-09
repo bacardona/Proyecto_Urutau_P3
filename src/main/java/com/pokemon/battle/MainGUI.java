@@ -1,17 +1,19 @@
 package com.pokemon.battle;
 
+import com.pokemon.battle.model.Machine;
 import com.pokemon.battle.model.Player;
-import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.service.BattleController;
 import com.pokemon.battle.ui.GameWindow;
 import com.pokemon.battle.ui.IntroScreen;
 import com.pokemon.battle.ui.MenuScreen;
+import com.pokemon.battle.ui.PveBattleFlow;
 import com.pokemon.battle.ui.TeamBuilderScreen;
 import com.pokemon.battle.ui.TrainerNameScreen;
 
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Punto de entrada de la interfaz gráfica. Construye las pantallas y las
@@ -31,9 +33,10 @@ public class MainGUI {
         GameWindow window = new GameWindow();
         BattleController controller = AppFactory.createController();
 
-        // Lo que se va eligiendo en el flujo PvE (se usará en la batalla)
+        // El entrenador elegido en el flujo PvE
         Player[] pvePlayer = new Player[1];
-        List<Pokemon>[] pveTeam = new List[1];
+        PveBattleFlow pveFlow = new PveBattleFlow(window, controller,
+                () -> window.showScreen("menu"));
 
         // 1. Intro
         IntroScreen intro = new IntroScreen(PROJECT_TITLE, MEMBERS,
@@ -48,12 +51,22 @@ public class MainGUI {
                         () -> window.showScreen("history"),
                         () -> System.exit(0)});
 
-        // 3. PvE, paso 2: armar equipo (se declara antes que el nombre porque éste lo usa)
+        // 3. PvE, paso 2: armar equipo y empezar la batalla
         TeamBuilderScreen pveTeamScreen = new TeamBuilderScreen(
                 team -> {
-                    pveTeam[0] = team;
-                    System.out.println("Equipo de " + pvePlayer[0].getName() + ": " + team.size() + " pokemon");
-                    window.showScreen("pveBattle");
+                    try {
+                        List<Machine> machines = controller.listMachines();
+                        if (machines.isEmpty()) {
+                            JOptionPane.showMessageDialog(window, "No hay maquinas registradas.");
+                            return;
+                        }
+                        Machine machine = machines.get(
+                                ThreadLocalRandom.current().nextInt(machines.size()));
+                        pveFlow.start(pvePlayer[0], team, machine);
+                    } catch (RuntimeException e) {
+                        JOptionPane.showMessageDialog(window,
+                                "No se pudo iniciar el combate: " + e.getMessage());
+                    }
                 },
                 () -> window.showScreen("pveName"));
 
@@ -61,9 +74,8 @@ public class MainGUI {
         TrainerNameScreen pveName = new TrainerNameScreen(controller, "ENTRENADOR",
                 player -> {
                     try {
-                        List<Pokemon> catalog = controller.listPokemon();
                         pvePlayer[0] = player;
-                        pveTeamScreen.prepare(player.getName(), catalog);
+                        pveTeamScreen.prepare(player.getName(), controller.listPokemon());
                         window.showScreen("pveTeam");
                     } catch (RuntimeException e) {
                         JOptionPane.showMessageDialog(window,
@@ -88,7 +100,6 @@ public class MainGUI {
         window.addScreen("combatMenu", combatMenu);
         window.addScreen("pveName", pveName);
         window.addScreen("pveTeam", pveTeamScreen);
-        window.addScreen("pveBattle", window.placeholder("BATALLA PVE (pendiente)"));
         window.addScreen("pvp", window.placeholder("PVP (pendiente)"));
         window.addScreen("pokedex", window.placeholder("POKEDEX (pendiente)"));
         window.addScreen("history", window.placeholder("HISTORIAL (pendiente)"));

@@ -3,11 +3,14 @@ package com.pokemon.battle.ui;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GameWindow extends JFrame {
 
     private final CardLayout cards = new CardLayout();
     private final JPanel container = new JPanel(cards);
+    private final Map<String, JComponent> screens = new HashMap<>();
 
     public GameWindow() {
         setTitle("Pokken Battle");
@@ -20,8 +23,14 @@ public class GameWindow extends JFrame {
         setLocationRelativeTo(null);
     }
 
+    // Si ya existía una pantalla con ese nombre, la reemplaza
     public void addScreen(String name, JComponent screen) {
+        JComponent old = screens.put(name, screen);
+        if (old != null) {
+            container.remove(old);
+        }
         container.add(screen, name);
+        container.revalidate();
     }
 
     public void showScreen(String name) {

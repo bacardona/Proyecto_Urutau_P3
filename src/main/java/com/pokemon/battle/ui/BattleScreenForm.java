@@ -20,7 +20,7 @@ public class BattleScreenForm {
     private JPanel battlefieldPanel;
     private JPanel bottomPanel;
 
-    // Componentes que ahora crea el codigo
+    // Componentes que crea el codigo
     private JPanel promptPanel;
     private JPanel movesPanel;
     private JPanel detailPanel;
@@ -37,16 +37,24 @@ public class BattleScreenForm {
     private static final Color NAVY = new Color(0x2D3A52);
 
     private BattleField field;
-    private final Combatant player;
+    private Combatant player;   // cambia cuando el jugador cambia de pokemon
+    private Combatant rival;
     private final JLabel[] moveLabels;
     private int selected = 0;
     private boolean inputEnabled = true;
-    private IntConsumer onMoveChosen = index -> {
+
+    // Modo ataques (usa los movimientos del pokemon) o modo opciones (textos libres)
+    private boolean movesMode = true;
+    private String[] choices = new String[0];
+    private IntConsumer onChoice = index -> {
+    };
+    private Runnable onBack = () -> {
     };
 
     public BattleScreenForm(Combatant player, Combatant rival) {
         $$$setupUI$$$();
         this.player = player;
+        this.rival = rival;
         buildBottomBar();
         this.moveLabels = new JLabel[]{move1Label, move2Label, move3Label, move4Label};
 
@@ -55,7 +63,7 @@ public class BattleScreenForm {
         bindKeys();
         bindMouse();
         showPrompt();
-        refreshMoves();
+        refreshOptions();
     }
 
     // El diseñador llama a este metodo para crear los paneles marcados "Custom Create"
@@ -64,7 +72,7 @@ public class BattleScreenForm {
         battlefieldPanel = field;
     }
 
-    // Construye las tres cajas de abajo: texto, ataques (2x2) y PP/tipo
+    // Construye las tres cajas de abajo: texto, opciones (2x2) y PP/tipo
     private void buildBottomBar() {
         bottomPanel.setLayout(new GridBagLayout());
         GridBagConstraints gc = new GridBagConstraints();
@@ -110,16 +118,32 @@ public class BattleScreenForm {
      * Lo que pasa cuando el jugador confirma un ataque (recibe su posicion 0 a 3).
      */
     public void setOnMoveChosen(IntConsumer onMoveChosen) {
-        this.onMoveChosen = onMoveChosen;
+        this.onChoice = onMoveChosen;
     }
 
     public void setInputEnabled(boolean enabled) {
         this.inputEnabled = enabled;
     }
 
+    /**
+     * Cambia los pokemon que se ven en el campo (por un cambio o un reemplazo).
+     * Si son los mismos, solo anima las barras de vida.
+     */
+    public void setCombatants(Combatant player, Combatant rival) {
+        if (this.player == player && this.rival == rival) {
+            refresh();
+            return;
+        }
+        this.player = player;
+        this.rival = rival;
+        field.setCombatants(player, rival);
+        selected = 0;
+        refreshOptions();
+    }
+
     public void refresh() {
         field.refresh();
-        refreshMoves();
+        refreshOptions();
     }
 
     public void showPrompt() {
@@ -134,6 +158,34 @@ public class BattleScreenForm {
             }
         }
         promptLabel.setText(sb.append("</html>").toString());
+    }
+
+    /**
+     * Muestra los ataques del pokemon activo. ESC ejecuta onBack.
+     */
+    public void showMoves(IntConsumer onMove, Runnable onBack) {
+        this.movesMode = true;
+        this.onChoice = onMove;
+        this.onBack = onBack;
+        this.selected = 0;
+        this.inputEnabled = true;
+        showPrompt();
+        refreshOptions();
+    }
+
+    /**
+     * Muestra hasta 4 opciones de texto (menu de acciones, equipo, confirmaciones).
+     * ESC ejecuta onBack.
+     */
+    public void showChoices(String prompt, String[] labels, IntConsumer onChosen, Runnable onBack) {
+        this.movesMode = false;
+        this.choices = labels;
+        this.onChoice = onChosen;
+        this.onBack = onBack;
+        this.selected = 0;
+        this.inputEnabled = true;
+        promptLabel.setText("<html>" + prompt.toUpperCase() + "</html>");
+        refreshOptions();
     }
 
     private void applyStyle() {
@@ -167,8 +219,13 @@ public class BattleScreenForm {
         bind("LEFT", () -> moveSelection(0, -1));
         bind("RIGHT", () -> moveSelection(0, 1));
         bind("ENTER", () -> {
-            if (inputEnabled && selected < moveCount()) {
-                onMoveChosen.accept(selected);
+            if (inputEnabled && selected < optionCount()) {
+                onChoice.accept(selected);
+            }
+        });
+        bind("ESCAPE", () -> {
+            if (inputEnabled) {
+                onBack.run();
             }
         });
     }
@@ -184,28 +241,25 @@ public class BattleScreenForm {
         });
     }
 
-    // Mouse: pasar encima selecciona el ataque y hacer clic lo ejecuta
+    // Mouse: pasar encima selecciona y hacer clic ejecuta
     private void bindMouse() {
         for (int i = 0; i < moveLabels.length; i++) {
             final int index = i;
-            if (index < moveCount()) {
-                moveLabels[i].setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            }
             moveLabels[i].addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    if (index < moveCount()) {
+                    if (index < optionCount()) {
                         selected = index;
-                        refreshMoves();
+                        refreshOptions();
                     }
                 }
 
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    if (inputEnabled && index < moveCount()) {
+                    if (inputEnabled && index < optionCount()) {
                         selected = index;
-                        refreshMoves();
-                        onMoveChosen.accept(index);
+                        refreshOptions();
+                        onChoice.accept(index);
                     }
                 }
             });
@@ -216,33 +270,47 @@ public class BattleScreenForm {
         return player.getPokemon().getMoves().size();
     }
 
-    // Los ataques estan en cuadricula 2x2: se mueve por fila y columna
+    private int optionCount() {
+        return movesMode ? moveCount() : choices.length;
+    }
+
+    private String optionText(int i) {
+        return movesMode ? player.getPokemon().getMove(i).getName().toUpperCase() : choices[i];
+    }
+
+    // Las opciones estan en cuadricula 2x2: se mueve por fila y columna
     private void moveSelection(int dRow, int dCol) {
         int row = Math.floorMod(selected / 2 + dRow, 2);
         int col = Math.floorMod(selected % 2 + dCol, 2);
         int target = row * 2 + col;
-        if (target < moveCount()) {
+        if (target < optionCount()) {
             selected = target;
-            refreshMoves();
+            refreshOptions();
         }
     }
 
-    private void refreshMoves() {
+    private void refreshOptions() {
+        int count = optionCount();
         for (int i = 0; i < moveLabels.length; i++) {
-            if (i < moveCount()) {
-                String name = player.getPokemon().getMove(i).getName().toUpperCase();
-                moveLabels[i].setText((i == selected ? "> " : "  ") + name);
+            if (i < count) {
+                moveLabels[i].setText((i == selected ? "> " : "  ") + optionText(i));
+                moveLabels[i].setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             } else {
-                moveLabels[i].setText("  -");
+                moveLabels[i].setText(movesMode ? "  -" : " ");
+                moveLabels[i].setCursor(Cursor.getDefaultCursor());
             }
         }
-        if (selected < moveCount()) {
+        if (movesMode && selected < count) {
             Move move = player.getPokemon().getMove(selected);
             // El modelo aun no guarda los PP actuales, por ahora se muestran los maximos
             ppLabel.setText("PP " + move.getPp() + "/" + move.getPp());
             Icon icon = SpriteLoader.typeIcon(move.getType(), 96);
             typeLabel.setIcon(icon);
             typeLabel.setText(icon == null ? "TIPO/" + move.getType() : "");
+        } else {
+            ppLabel.setText(" ");
+            typeLabel.setIcon(null);
+            typeLabel.setText(" ");
         }
     }
 
