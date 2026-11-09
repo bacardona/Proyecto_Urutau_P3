@@ -8,6 +8,8 @@ import com.pokemon.battle.model.Move;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.function.IntConsumer;
 
@@ -51,6 +53,7 @@ public class BattleScreenForm {
         field.setCombatants(player, rival);
         applyStyle();
         bindKeys();
+        bindMouse();
         showPrompt();
         refreshMoves();
     }
@@ -181,6 +184,34 @@ public class BattleScreenForm {
         });
     }
 
+    // Mouse: pasar encima selecciona el ataque y hacer clic lo ejecuta
+    private void bindMouse() {
+        for (int i = 0; i < moveLabels.length; i++) {
+            final int index = i;
+            if (index < moveCount()) {
+                moveLabels[i].setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            }
+            moveLabels[i].addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    if (index < moveCount()) {
+                        selected = index;
+                        refreshMoves();
+                    }
+                }
+
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (inputEnabled && index < moveCount()) {
+                        selected = index;
+                        refreshMoves();
+                        onMoveChosen.accept(index);
+                    }
+                }
+            });
+        }
+    }
+
     private int moveCount() {
         return player.getPokemon().getMoves().size();
     }
@@ -209,7 +240,9 @@ public class BattleScreenForm {
             Move move = player.getPokemon().getMove(selected);
             // El modelo aun no guarda los PP actuales, por ahora se muestran los maximos
             ppLabel.setText("PP " + move.getPp() + "/" + move.getPp());
-            typeLabel.setText("TIPO/" + move.getType());
+            Icon icon = SpriteLoader.typeIcon(move.getType(), 96);
+            typeLabel.setIcon(icon);
+            typeLabel.setText(icon == null ? "TIPO/" + move.getType() : "");
         }
     }
 

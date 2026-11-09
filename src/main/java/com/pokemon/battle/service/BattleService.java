@@ -57,6 +57,27 @@ public class BattleService implements BattleEngine {
         return new RoundResult(log.getMessages(), null);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public RoundResult playSingleAttack(Combatant attacker, Combatant target, Move move) {
+        BattleLog log = new BattleLog();
+        BattleContext context = new BattleContext(random, effectiveness, log);
+
+        // Daño residual de veneno y quemadura al inicio del ciclo
+        attacker.getStatus().onCycleStart(attacker, context);
+        target.getStatus().onCycleStart(target, context);
+        if (attacker.isFainted() || target.isFainted()) {
+            Combatant fainted = attacker.isFainted() ? attacker : target;
+            return new RoundResult(log.getMessages(), fainted);
+        }
+
+        context.log("");
+        executeTurn(attacker, target, move, context);
+        return new RoundResult(log.getMessages(), target.isFainted() ? target : null);
+    }
+    
     private boolean executeTurn(Combatant attacker, Combatant defender, Move move, BattleContext context) {
         if (canAct(attacker, context)) {
             move.execute(attacker, defender, context);
@@ -65,7 +86,7 @@ public class BattleService implements BattleEngine {
         }
         return defender.isFainted();
     }
-
+    
     // Se evalua justo antes de mover: un estado contraido en este mismo ciclo ya cuenta
     private boolean canAct(Combatant combatant, BattleContext context) {
         if (combatant.isFainted()) {

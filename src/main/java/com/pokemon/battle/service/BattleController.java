@@ -1,113 +1,339 @@
 package com.pokemon.battle.service;
 
 import com.pokemon.battle.exceptions.BusinessRuleException;
+import com.pokemon.battle.exceptions.InvalidDataException;
+import com.pokemon.battle.model.Battle;
+import com.pokemon.battle.model.BattleSide;
+import com.pokemon.battle.model.CombatHistoryEntry;
 import com.pokemon.battle.model.Combatant;
+import com.pokemon.battle.model.Machine;
 import com.pokemon.battle.model.Move;
+import com.pokemon.battle.model.Player;
 import com.pokemon.battle.model.Pokemon;
+import com.pokemon.battle.model.Team;
+import com.pokemon.battle.model.Trainer;
+import com.pokemon.battle.model.TurnAction;
 import com.pokemon.battle.validation.BattleValidator;
-import com.pokemon.battle.validation.PokemonValidator;
+import com.pokemon.battle.validation.CombatValidator;
+import com.pokemon.battle.validation.TeamValidator;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Receives the events of the user interface and coordinates a battle
+ * Receives the events of the user interface and coordinates a 3 vs 3 battle
  * (GRASP Controller). It keeps the battle state so the UI only reads and shows.
+ * Each side does one action per turn: attack or switch Pokemon.
  */
 public class BattleController {
 
     private final PokemonCatalog pokemonCatalog;
     private final BattleEngine battleEngine;
+    private final TrainerCatalog trainerCatalog;
+    private final CombatRegistry combatRegistry;
+    private final MachineStrategy machineStrategy;
 
-    private Combatant first;
-    private Combatant second;
-    private boolean finished = true;
+    private Battle battle;
 
     /**
-     * @param pokemonCatalog catalog of Pokemon (injected)
-     * @param battleEngine   battle rules (injected)
+     * @param pokemonCatalog  catalog of Pokemon (injected)
+     * @param battleEngine    battle rules (injected)
+     * @param trainerCatalog  catalog of players and machines (injected)
+     * @param combatRegistry  record of the finished combats (injected)
+     * @param machineStrategy decisions of the machine trainer (injected)
      */
-    public BattleController(PokemonCatalog pokemonCatalog, BattleEngine battleEngine) {
+    public BattleController(PokemonCatalog pokemonCatalog, BattleEngine battleEngine,
+                            TrainerCatalog trainerCatalog, CombatRegistry combatRegistry,
+                            MachineStrategy machineStrategy) {
         this.pokemonCatalog = pokemonCatalog;
         this.battleEngine = battleEngine;
+        this.trainerCatalog = trainerCatalog;
+        this.combatRegistry = combatRegistry;
+        this.machineStrategy = machineStrategy;
     }
 
     /**
-     * Starts a new battle between two Pokemon of the catalog.
+     * @return the players stored in the database
+     */
+    public List<Player> listPlayers() {
+        return trainerCatalog.listPlayers();
+    }
+
+    /**
+     * @return the machines stored in the database
+     */
+    public List<Machine> listMachines() {
+        return trainerCatalog.listMachines();
+    }
+
+    /**
+     * Creates and stores a new human player.
      *
-     * @param name1 name of the first player's Pokemon
-     * @param name2 name of the second player's Pokemon
+     * @param name name of the new player
+     * @return the player created
      */
-    public void startBattle(String name1, String name2) {
-        Pokemon p1 = pokemonCatalog.findByName(name1);
-        Pokemon p2 = pokemonCatalog.findByName(name2);
-        PokemonValidator.validateHasMoves(p1);
-        PokemonValidator.validateHasMoves(p2);
-        first = new Combatant(p1);
-        second = new Combatant(p2);
-        finished = false;
+    public Player createPlayer(String name) {
+        return trainerCatalog.createPlayer(name);
     }
 
     /**
-     * @return the first player's combatant
+     * @return the Pokemon stored in the database
+     * @throws BusinessRuleException when there are not enough Pokemon to build a team
      */
-    public Combatant getFirstCombatant() {
-        ensureStarted();
-        return first;
+    public List<Pokemon> listPokemon() {
+        List<Pokemon> all = pokemonCatalog.listAll();
+        TeamValidator.validateCatalogSize(all);
+        return all;
     }
 
     /**
-     * @return the second player's combatant
+     * Starts a battle between a player and a machine. The machine takes a random
+     * team from the catalog.
+     *
+     * @param player      player that fights
+     * @param playerTeam  the Pokemon chosen by the player (exactly 3)
+     * @param machine     machine that fights
+     * @return the battle that started
      */
-    public Combatant getSecondCombatant() {
+    public Battle startBattleVsMachine(Player player, List<Pokemon> playerTeam, Machine machine) {
+        TeamValidator.validateTeam(playerTeam);
+        List<Pokemon> machineTeam = machineStrategy.chooseTeam(listPokemon(), Team.SIZE);
+        TeamValidator.validateTeam(machineTeam);
+        battle = new Battle(new BattleSide(player, new Team(playerTeam)),
+                new BattleSide(machine, new Team(machineTeam)));
+        return battle;
+    }
+
+    /**
+     * Starts a battle between two players.
+     *
+     * @param player1 first player
+     * @param team1   the Pokemon chosen by the first player (exactly 3)
+     * @param player2 second player
+     * @param team2   the Pokemon chosen by the second player (exactly 3)
+     * @return the battle that started
+     */
+    public Battle startBattleVsPlayer(Player player1, List<Pokemon> team1,
+                                      Player player2, List<Pokemon> team2) {
+        CombatValidator.validateParticipants(player1, player2);
+        TeamValidator.validateTeam(team1);
+        TeamValidator.validateTeam(team2);
+        battle = new Battle(new BattleSide(player1, new Team(team1)),
+                new BattleSide(player2, new Team(team2)));
+        return battle;
+    }
+
+    /**
+     * @return the battle in progress
+     */
+    public Battle getBattle() {
         ensureStarted();
-        return second;
+        return battle;
     }
 
     /**
      * @return true when the battle is over (or was never started)
      */
     public boolean isFinished() {
-        return finished;
+        return battle == null || battle.isOver();
     }
 
     /**
-     * @param combatant combatant to check
-     * @return the move it must finish (Fly, Dig...), or null when it can choose
+     * @param side side to check
+     * @return the action it must repeat (Fly, Dig...), or null when it can choose
      */
-    public Move getForcedMove(Combatant combatant) {
-        return combatant.getChargingMove();
+    public TurnAction getForcedAction(BattleSide side) {
+        Move forced = side.getTeam().getActive().getChargingMove();
+        return forced == null ? null : TurnAction.attack(forced);
     }
 
     /**
-     * Translates a menu option into a move.
+     * Translates a menu option into an attack.
      *
-     * @param combatant combatant that chooses
-     * @param option    option typed by the player, starting at 1
-     * @return the chosen move
-     * @throws com.pokemon.battle.exceptions.InvalidDataException when the option does not exist
+     * @param side   side that chooses
+     * @param option option typed by the player, starting at 1
+     * @return the attack action
+     * @throws InvalidDataException when the option does not exist
      */
-    public Move chooseMove(Combatant combatant, int option) {
-        int available = combatant.getPokemon().getMoves().size();
-        BattleValidator.validateMoveChoice(option, available);
-        return combatant.getPokemon().getMove(option - 1);
+    public TurnAction chooseAttack(BattleSide side, int option) {
+        Combatant active = side.getTeam().getActive();
+        BattleValidator.validateMoveChoice(option, active.getPokemon().getMoves().size());
+        return TurnAction.attack(active.getPokemon().getMove(option - 1));
     }
 
     /**
-     * Plays a round with the moves chosen by both players.
+     * Translates a team position into a switch.
      *
-     * @param move1 move of the first player
-     * @param move2 move of the second player
-     * @return the result of the round
+     * @param side         side that chooses
+     * @param memberNumber position typed by the player, starting at 1
+     * @return the switch action
+     * @throws InvalidDataException when that Pokemon cannot come in
      */
-    public RoundResult playRound(Move move1, Move move2) {
-        ensureStarted();
-        RoundResult result = battleEngine.playRound(first, second, move1, move2);
-        if (result.isBattleOver()) {
-            finished = true;
+    public TurnAction chooseSwitch(BattleSide side, int memberNumber) {
+        int index = memberNumber - 1;
+        if (!side.getTeam().canSwitchTo(index)) {
+            throw new InvalidDataException("pokemon", "no puede entrar al combate (activo, debilitado o inexistente)");
         }
-        return result;
+        return TurnAction.switchTo(index);
+    }
+
+    /**
+     * Chooses the action of the machine: the one it must repeat, or a random move.
+     *
+     * @return the action of the machine for this turn
+     */
+    public TurnAction chooseMachineAction() {
+        ensureStarted();
+        BattleSide machineSide = battle.getSecond();
+        TurnAction forced = getForcedAction(machineSide);
+        if (forced != null) {
+            return forced;
+        }
+        return TurnAction.attack(machineStrategy.chooseMove(machineSide.getTeam().getActive()));
+    }
+
+    /**
+     * Plays a turn with the action chosen by each side. Switches happen first,
+     * then the attacks are resolved by priority and speed.
+     *
+     * @param action1 action of the first side
+     * @param action2 action of the second side
+     * @return the messages of the turn
+     */
+    public List<String> playRound(TurnAction action1, TurnAction action2) {
+        ensureStarted();
+        if (battle.isOver()) {
+            throw new BusinessRuleException("La batalla ya termino");
+        }
+        BattleSide side1 = battle.getFirst();
+        BattleSide side2 = battle.getSecond();
+        List<String> messages = new ArrayList<>();
+
+        applySwitch(side1, action1, messages);
+        applySwitch(side2, action2, messages);
+
+        Combatant active1 = side1.getTeam().getActive();
+        Combatant active2 = side2.getTeam().getActive();
+        RoundResult fight = null;
+        if (!action1.isSwitch() && !action2.isSwitch()) {
+            fight = battleEngine.playRound(active1, active2, action1.getMove(), action2.getMove());
+        } else if (!action1.isSwitch()) {
+            fight = battleEngine.playSingleAttack(active1, active2, action1.getMove());
+        } else if (!action2.isSwitch()) {
+            fight = battleEngine.playSingleAttack(active2, active1, action2.getMove());
+        }
+        if (fight != null) {
+            messages.addAll(fight.getMessages());
+        }
+        return messages;
+    }
+
+    /**
+     * The given side gives up and loses the battle automatically. The result is
+     * stored later with {@link #registerResult()}, like any other battle.
+     *
+     * @param side side that surrenders
+     * @throws BusinessRuleException when the battle is over or the side is a machine
+     */
+    public void surrender(BattleSide side) {
+        ensureStarted();
+        if (battle.isOver()) {
+            throw new BusinessRuleException("La batalla ya termino");
+        }
+        if (side.isMachine()) {
+            throw new BusinessRuleException("La maquina no puede rendirse");
+        }
+        battle.surrender(side);
+    }
+
+    /**
+     * @param side side to check
+     * @return true when its active Pokemon fainted and it still has others to send
+     */
+    public boolean needsReplacement(BattleSide side) {
+        ensureStarted();
+        return side.getTeam().getActive().isFainted() && side.getTeam().hasAvailable();
+    }
+
+    /**
+     * Sends a new Pokemon to replace the one that fainted.
+     *
+     * @param side         side that replaces
+     * @param memberNumber position typed by the player, starting at 1
+     * @return the Pokemon that came in
+     * @throws InvalidDataException when that Pokemon cannot come in
+     */
+    public Combatant replaceFainted(BattleSide side, int memberNumber) {
+        if (!needsReplacement(side)) {
+            throw new BusinessRuleException("Este lado no necesita reemplazo");
+        }
+        chooseSwitch(side, memberNumber);
+        side.getTeam().switchTo(memberNumber - 1);
+        return side.getTeam().getActive();
+    }
+
+    /**
+     * Sends a random Pokemon of the machine to replace the one that fainted.
+     *
+     * @return the Pokemon that came in
+     */
+    public Combatant replaceMachineFainted() {
+        ensureStarted();
+        BattleSide machineSide = battle.getSecond();
+        if (!needsReplacement(machineSide)) {
+            throw new BusinessRuleException("La maquina no necesita reemplazo");
+        }
+        List<Integer> bench = machineSide.getTeam().getBenchIndexes();
+        int chosen = machineStrategy.chooseReplacement(bench.size());
+        machineSide.getTeam().switchTo(bench.get(chosen));
+        return machineSide.getTeam().getActive();
+    }
+
+    /**
+     * Stores the result of the finished battle in the database and updates the
+     * win/loss counter of every human player that took part.
+     *
+     * @return the identifier given to the combat
+     * @throws BusinessRuleException when the battle is not over
+     */
+    public int registerResult() {
+        ensureStarted();
+        if (!battle.isOver()) {
+            throw new BusinessRuleException("La batalla todavia no ha terminado");
+        }
+        Trainer winner = battle.getWinner().getTrainer();
+        Trainer loser = battle.getLoser().getTrainer();
+        int combatId = combatRegistry.register(winner, loser);
+        // Ya guardado en la BD: se actualizan tambien los contadores en memoria
+        if (winner instanceof Player) {
+            ((Player) winner).incrementBattlesWon();
+        }
+        if (loser instanceof Player) {
+            ((Player) loser).incrementBattlesLost();
+        }
+        return combatId;
+    }
+
+    /**
+     * @param trainerPlayer player whose combats are wanted
+     * @return its combats, newest first
+     */
+    public List<CombatHistoryEntry> getHistory(Player trainerPlayer) {
+        return combatRegistry.historyOf(trainerPlayer);
+    }
+
+    private void applySwitch(BattleSide side, TurnAction action, List<String> messages) {
+        if (!action.isSwitch()) {
+            return;
+        }
+        String leaving = side.getTeam().getActive().getName();
+        side.getTeam().switchTo(action.getSwitchIndex());
+        messages.add(side.getTrainer().getName() + " retira a " + leaving
+                + " y envia a " + side.getTeam().getActive().getName() + "!");
     }
 
     private void ensureStarted() {
-        if (first == null || second == null) {
+        if (battle == null) {
             throw new BusinessRuleException("La batalla todavia no ha sido iniciada");
         }
     }

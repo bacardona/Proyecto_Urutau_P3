@@ -83,11 +83,13 @@ public class BattleField extends JPanel {
         g2.setColor(GROUND);
         g2.fillRect(0, groundY, w, h - groundY);
 
-        // Sombras y marcadores de sprite (luego se cambian por imagenes)
+        // Sombras
         drawShadow(g2, 0.72 * w, 0.43 * h, 0.354 * w, 0.136 * h);
         drawShadow(g2, 0.30 * w, 0.89 * h, 0.417 * w, 0.17 * h);
-        drawSpritePlaceholder(g2, 0.72 * w, 0.26 * h, 0.17 * w, "RIVAL");
-        drawSpritePlaceholder(g2, 0.30 * w, 0.71 * h, 0.20 * w, "JUGADOR");
+
+        // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
+        drawCombatant(g2, rival, false, 0.72 * w, 0.43 * h, 170, 3);
+        drawCombatant(g2, player, true, 0.30 * w, 0.89 * h, 230, 4);
 
         // Cuadros de informacion
         if (rival != null) {
@@ -106,12 +108,40 @@ public class BattleField extends JPanel {
         g2.fill(new Ellipse2D.Double(cx - w / 2, cy - h / 2, w, h));
     }
 
+    // Dibuja el sprite con los pies sobre la sombra. Escala en numeros enteros
+    // para que el pixel art se vea nitido, sin pasar del tamaño de la caja.
+    private void drawCombatant(Graphics2D g2, Combatant c, boolean back, double cx,
+                               double feetY, int box, int maxScale) {
+        if (c == null || c.isFainted()) {
+            return;
+        }
+        Image img = back ? SpriteLoader.pokemonBack(c.getName())
+                : SpriteLoader.pokemonFront(c.getName());
+        if (img == null) {
+            drawSpritePlaceholder(g2, cx, feetY - box / 2.0, box, back ? "JUGADOR" : "RIVAL");
+            return;
+        }
+        int iw = img.getWidth(this);
+        int ih = img.getHeight(this);
+        if (iw <= 0 || ih <= 0) {
+            return;
+        }
+        int scale = Math.max(1, Math.min(maxScale, box / Math.max(iw, ih)));
+        int w = iw * scale;
+        int h = ih * scale;
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        // "this" como observador es lo que hace que el GIF se siga animando
+        g2.drawImage(img, (int) (cx - w / 2.0), (int) (feetY - h), w, h, this);
+    }
+
+    // Marcador que se usa solo cuando falta la imagen del Pokemon
     private void drawSpritePlaceholder(Graphics2D g2, double cx, double cy, double d, String text) {
         g2.setColor(new Color(0x4A7A4A));
         g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
                 10f, new float[]{8f, 8f}, 0f));
         g2.draw(new Ellipse2D.Double(cx - d / 2, cy - d / 2, d, d));
-        g2.setFont(PixelFont.get(10));
+        g2.setFont(PixelFont.get(20));
         FontMetrics fm = g2.getFontMetrics();
         g2.drawString(text, (int) (cx - fm.stringWidth(text) / 2.0), (int) cy);
     }
@@ -127,15 +157,15 @@ public class BattleField extends JPanel {
         int pad = 16;
 
         // Nombre y nivel
-        g2.setFont(PixelFont.get(14));
+        g2.setFont(PixelFont.get(30));
         g2.drawString(c.getName().toUpperCase(), x + pad, y + 30);
         String level = "Nv" + c.getPokemon().getLevel();
         g2.drawString(level, x + w - pad - g2.getFontMetrics().stringWidth(level), y + 30);
 
         // Etiqueta HP y barra
-        g2.setFont(PixelFont.get(10));
+        g2.setFont(PixelFont.get(20));
         g2.setColor(new Color(0xC0392B));
-        g2.drawString("HP", x + pad, y + 58);
+        g2.drawString("HP", x + pad, y + 60);
         int barX = x + pad + 34;
         int barW = w - pad * 2 - 34;
         int barH = 12;
