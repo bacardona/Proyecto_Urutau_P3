@@ -11,6 +11,9 @@ import com.pokemon.battle.ui.PveBattleFlow;
 import com.pokemon.battle.ui.PvpBattleFlow;
 import com.pokemon.battle.ui.TeamBuilderScreen;
 import com.pokemon.battle.ui.TrainerNameScreen;
+import com.pokemon.battle.ui.HistoryPanel;
+import com.pokemon.battle.ui.PokedexPanel;
+import com.pokemon.battle.ui.TrainerSelectPanel;
 
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
@@ -34,7 +37,8 @@ public class MainGUI {
 
     private static void start() {
         GameWindow window = new GameWindow();
-        BattleController controller = AppFactory.createController();
+        AppFactory.Services services = AppFactory.create();
+        BattleController controller = services.controller;
         Runnable backToMenu = () -> window.showScreen("menu");
 
         PveBattleFlow pveFlow = new PveBattleFlow(window, controller, backToMenu);
@@ -149,6 +153,19 @@ public class MainGUI {
                             window.showScreen("pvpName1");
                         },
                         backToMenu});
+        // 6. Pokédex (de tu compañero)
+        PokedexPanel pokedex = new PokedexPanel(services.pokemonCatalog, backToMenu);
+
+        // 7. Historial: primero se elige el entrenador y luego se ven sus combates
+        HistoryPanel historyPanel = new HistoryPanel(services.combatRegistry,
+                () -> window.showScreen("history"));
+        TrainerSelectPanel historySelect = new TrainerSelectPanel(services.trainerCatalog,
+                "ELIGE UN ENTRENADOR",
+                player -> {
+                    historyPanel.showPlayer(player);
+                    window.showScreen("historyView");
+                },
+                backToMenu);
 
         window.addScreen("intro", intro);
         window.addScreen("menu", mainMenu);
@@ -159,8 +176,9 @@ public class MainGUI {
         window.addScreen("pvpTeam1", pvpTeam1Screen);
         window.addScreen("pvpName2", pvpName2);
         window.addScreen("pvpTeam2", pvpTeam2Screen);
-        window.addScreen("pokedex", window.placeholder("POKEDEX (pendiente)"));
-        window.addScreen("history", window.placeholder("HISTORIAL (pendiente)"));
+        window.addScreen("pokedex", pokedex);
+        window.addScreen("history", historySelect);
+        window.addScreen("historyView", historyPanel);
 
         window.showScreen("intro");
         window.setVisible(true);
