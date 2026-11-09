@@ -3,6 +3,8 @@ package com.pokemon.battle.ui;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class MainMenuForm {
 
@@ -24,6 +26,7 @@ public class MainMenuForm {
         this.window = window;
         applyStyle();
         bindKeys();
+        bindMouse();
         refreshArrow();
     }
 
@@ -62,6 +65,28 @@ public class MainMenuForm {
                 action.run();
             }
         });
+    }
+
+    private void bindMouse() {
+        JLabel[] options = {towerOption, pokedexOption};
+        for (int i = 0; i < options.length; i++) {
+            final int index = i;
+            options[i].setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            options[i].addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    selected = index;
+                    refreshArrow();
+                }
+
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    selected = index;
+                    refreshArrow();
+                    choose();
+                }
+            });
+        }
     }
 
     private void move(int delta) {
