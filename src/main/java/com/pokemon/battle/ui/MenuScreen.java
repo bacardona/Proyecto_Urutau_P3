@@ -1,112 +1,105 @@
 package com.pokemon.battle.ui;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
 
 /**
- * Menú reutilizable: un título y una lista de opciones.
- * Se usa para el menú principal y para el submenú de combate.
+ * Menu reutilizable con el estilo retro: una lista de opciones.
+ * Sirve para el menu principal y para el submenu de combate.
  */
-public class MenuScreen extends JPanel {
+public class MenuScreen extends RetroScreen {
 
-    private static final Color CREAM = new Color(0xF7F3E0);
-    private static final Color DARK = new Color(0x2D3A52);
+    private static final int ROW_H = 52;
+    private static final int LIST_W = 420;
 
     private final String[] options;
     private final Runnable[] actions;
-    private final JLabel[] optionLabels;
+    private final Runnable onBack;
+    private final Rectangle list;
     private int selected = 0;
 
+    // Menu sin boton de volver (el principal)
     public MenuScreen(String title, String[] options, Runnable[] actions) {
+        this(title, options, actions, null);
+    }
+
+    // Con onBack, ESC y el boton "ESC VOLVER" ejecutan esa accion
+    public MenuScreen(String title, String[] options, Runnable[] actions, Runnable onBack) {
+        super(title);
         this.options = options;
         this.actions = actions;
-        this.optionLabels = new JLabel[options.length];
-
-        setLayout(new GridBagLayout());
-        setBackground(CREAM);
-        setBorder(BorderFactory.createLineBorder(DARK, 8));
-
-        JPanel content = new JPanel();
-        content.setOpaque(false);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(PixelFont.get(28));
-        titleLabel.setForeground(DARK);
-        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        content.add(titleLabel);
-        content.add(Box.createVerticalStrut(40));
-
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        list.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        for (int i = 0; i < options.length; i++) {
-            final int index = i;
-            JLabel label = new JLabel();
-            label.setFont(PixelFont.get(20));
-            label.setForeground(DARK);
-            label.setAlignmentX(Component.LEFT_ALIGNMENT);
-            label.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
-            label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            label.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    selected = index;
-                    refresh();
-                }
-
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    selected = index;
-                    refresh();
-                    choose();
-                }
-            });
-            optionLabels[i] = label;
-            list.add(label);
-        }
-        content.add(list);
-        add(content);
-
-        bind("UP", () -> move(-1));
-        bind("DOWN", () -> move(1));
-        bind("ENTER", this::choose);
-        refresh();
+        this.onBack = onBack;
+        int height = options.length * ROW_H + 24;
+        int x = (BOARD_W - LIST_W) / 2;
+        int y = CONTENT_TOP + (FOOTER_Y - CONTENT_TOP - height) / 2;
+        this.list = new Rectangle(x, y, LIST_W, height);
+        bindKey("UP", () -> move(-1));
+        bindKey("DOWN", () -> move(1));
+        bindKey("ENTER", this::choose);
     }
 
-    // Llamar cuando se vuelve a mostrar el menú, para que empiece en la primera opción
+    // Llamar cuando se vuelve a mostrar el menu, para que empiece en la primera opcion
     public void reset() {
         selected = 0;
-        refresh();
+        repaint();
     }
 
-    private void bind(String key, Runnable action) {
-        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key), key);
-        getActionMap().put(key, new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                action.run();
-            }
-        });
+    @Override
+    protected void goBack() {
+        if (onBack != null) {
+            onBack.run();
+        }
     }
 
     private void move(int delta) {
         selected = Math.floorMod(selected + delta, options.length);
-        refresh();
+        repaint();
     }
 
     private void choose() {
         actions[selected].run();
     }
 
-    private void refresh() {
-        for (int i = 0; i < optionLabels.length; i++) {
-            optionLabels[i].setText((i == selected ? "> " : "  ") + options[i]);
+    @Override
+    protected void onBoardClick(int x, int y, int clickCount) {
+        int top = list.y + 12;
+        if (list.contains(x, y) && y >= top) {
+            int index = (y - top) / ROW_H;
+            if (index < options.length) {
+                selected = index;
+                repaint();
+                choose();
+            }
+        }
+    }
+
+    @Override
+    protected void onWheel(int rotation) {
+        move(rotation);
+    }
+
+    @Override
+    protected void paintFooterButtons(Graphics2D g) {
+        if (onBack != null) {
+            super.paintFooterButtons(g);
+        }
+        RetroStyle.drawArrowKeyButton(g, true, "MOVER", 214, 598, 170, 36);
+        RetroStyle.drawKeyButton(g, "ENTER  ELEGIR", 404, 598, 190, 36);
+    }
+
+    @Override
+    protected void paintContent(Graphics2D g) {
+        RetroStyle.drawListFrame(g, list.x, list.y, list.width, list.height);
+        g.setFont(RetroStyle.font(32));
+        for (int i = 0; i < options.length; i++) {
+            int y = list.y + 12 + i * ROW_H;
+            boolean isSelected = i == selected;
+            if (isSelected) {
+                RetroStyle.drawSelectedRow(g, list.x + 22, y - 3, list.width - 44, ROW_H + 6);
+            }
+            RetroStyle.drawListDot(g, list.x + 46, y + ROW_H / 2, isSelected);
+            RetroStyle.shadowText(g, options[i], list.x + 74, y + 36,
+                    isSelected ? RetroStyle.RED_DARK : RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         }
     }
 }
