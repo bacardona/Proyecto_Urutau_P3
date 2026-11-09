@@ -25,6 +25,12 @@
             <version>23.4.0.24.05</version>
         </dependency>
 
+    <dependency>
+    <groupId>com.intellij</groupId>
+    <artifactId>forms_rt</artifactId>
+    <version>7.0.3</version>
+    </dependency>
+
         <!-- Librería de seguridad para autenticación por Wallet (mTLS). Desde la 23.x basta con oraclepki -->
         <dependency>
             <groupId>com.oracle.database.security</groupId>
@@ -32,6 +38,7 @@
             <version>23.4.0.24.05</version>
         </dependency>
     </dependencies>
+    
 
     <build>
         <plugins>
