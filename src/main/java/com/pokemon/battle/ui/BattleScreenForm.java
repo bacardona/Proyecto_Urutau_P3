@@ -1,7 +1,5 @@
 package com.pokemon.battle.ui;
 
-import com.intellij.uiDesigner.core.GridConstraints;
-import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.pokemon.battle.model.Combatant;
 import com.pokemon.battle.model.Move;
 
@@ -52,7 +50,7 @@ public class BattleScreenForm {
     };
 
     public BattleScreenForm(Combatant player, Combatant rival) {
-        $$$setupUI$$$();
+        buildLayout();
         this.player = player;
         this.rival = rival;
         buildBottomBar();
@@ -64,12 +62,6 @@ public class BattleScreenForm {
         bindMouse();
         showPrompt();
         refreshOptions();
-    }
-
-    // El diseñador llama a este metodo para crear los paneles marcados "Custom Create"
-    private void createUIComponents() {
-        field = new BattleField();
-        battlefieldPanel = field;
     }
 
     // Construye las tres cajas de abajo: texto, opciones (2x2) y PP/tipo
@@ -321,21 +313,16 @@ public class BattleScreenForm {
      *
      * @noinspection ALL
      */
-    private void $$$setupUI$$$() {
-        createUIComponents();
-        rootPanel = new JPanel();
-        rootPanel.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        rootPanel.add(battlefieldPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        bottomPanel = new JPanel();
-        bottomPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        rootPanel.add(bottomPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-    }
 
     /**
      * @noinspection ALL
      */
-    public JComponent $$$getRootComponent$$$() {
-        return rootPanel;
+    private void buildLayout() {
+        field = new BattleField();
+        battlefieldPanel = field;
+        bottomPanel = new JPanel();
+        rootPanel = new JPanel(new BorderLayout());
+        rootPanel.add(battlefieldPanel, BorderLayout.CENTER);
+        rootPanel.add(bottomPanel, BorderLayout.SOUTH);
     }
-
 }
