@@ -3,7 +3,6 @@ package com.pokemon.battle.ui;
 import com.pokemon.battle.model.Combatant;
 import com.pokemon.battle.model.Move;
 import com.pokemon.battle.model.StatusCondition;
-import com.pokemon.battle.model.Type;
 
 import javax.swing.JPanel;
 import javax.swing.Timer;
@@ -12,12 +11,11 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.event.HierarchyEvent;
 import java.awt.Rectangle;
 import java.awt.Shape;
+import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
-import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +37,9 @@ public class BattleScreenForm extends RetroScreen {
 
     // Zonas de la pantalla, en coordenadas del tablero de 960x640
     private static final Rectangle FIELD = new Rectangle(24, 74, 912, 318);
-    private static final Rectangle PROMPT_BOX = new Rectangle(24, 404, 300, 176);
-    private static final Rectangle OPTIONS_BOX = new Rectangle(336, 404, 372, 176);
+    private static final Rectangle PROMPT_BOX = new Rectangle(24, 404, 424, 176);
+    // Antes medía 372 de ancho; ahora 2/3 de eso (248). El espacio que sobra lo usa la caja de mensajes
+    private static final Rectangle OPTIONS_BOX = new Rectangle(460, 404, 248, 176);
     private static final Rectangle DETAIL_BOX = new Rectangle(720, 404, 216, 176);
 
     private Combatant player;   // cambia cuando el jugador cambia de pokemon
@@ -50,7 +49,6 @@ public class BattleScreenForm extends RetroScreen {
     private double playerShownHp;
     private double rivalShownHp;
     private final Timer hpTimer;
-    // Mismos sprites y misma animacion que la Pokedex
     private final SpriteLoader sprites = SpriteLoader.shared();
     private final Timer animationTimer;
     private int frame;
@@ -72,7 +70,7 @@ public class BattleScreenForm extends RetroScreen {
         this.rival = rival;
         this.playerShownHp = player.getHitPoints().getCurrent();
         this.rivalShownHp = rival.getHitPoints().getCurrent();
-        requestSprites();
+
         this.hpTimer = new Timer(30, e -> animateHp());
         this.animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
             frame++;
@@ -143,6 +141,7 @@ public class BattleScreenForm extends RetroScreen {
         this.rival = rival;
         this.playerShownHp = player.getHitPoints().getCurrent();
         this.rivalShownHp = rival.getHitPoints().getCurrent();
+        requestSprites();
         this.selected = 0;
         repaint();
     }
@@ -291,7 +290,7 @@ public class BattleScreenForm extends RetroScreen {
     private Rectangle optionCell(int i) {
         int col = i % 2;
         int row = i / 2;
-        return new Rectangle(OPTIONS_BOX.x + 12 + col * 178, OPTIONS_BOX.y + 12 + row * 80, 170, 72);
+        return new Rectangle(OPTIONS_BOX.x + 12 + col * 116, OPTIONS_BOX.y + 12 + row * 80, 108, 72);
     }
 
     private int optionAt(int x, int y) {
@@ -337,16 +336,16 @@ public class BattleScreenForm extends RetroScreen {
 
         // Sombras
         g.setColor(SHADOW);
-        g.fill(new Ellipse2D.Double(700 - 140, 226 - 20, 280, 40));
-        g.fill(new Ellipse2D.Double(250 - 170, 372 - 20, 340, 40));
+        drawCombatant(g, rival, false, 700, 226, 130);
+        drawCombatant(g, player, true, 250, 372, 190);
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
         drawCombatant(g, rival, false, 700, 226, 130);
         drawCombatant(g, player, true, 250, 372, 190);
 
         // Cuadros de informacion
-        drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false);
-        drawInfoBox(g, 548, 292, 364, 92, player, playerShownHp, true);
+        drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false, true);
+        drawInfoBox(g, 548, 282, 364, 92, player, playerShownHp, true, false);
 
         g.setClip(oldClip);
         g.setColor(RetroStyle.OUTLINE);
@@ -379,8 +378,11 @@ public class BattleScreenForm extends RetroScreen {
         RetroStyle.drawPixelImage(g, sprite.frame(frame), cx - w / 2, feetY - h, w, h);
     }
 
+    // tailRight: la punta de la cola sale hacia la derecha (rival) o hacia la izquierda (jugador),
+    // siempre apuntando al pokemon al que pertenece el cuadro
     private void drawInfoBox(Graphics2D g, int x, int y, int w, int h, Combatant c,
-                             double shownHp, boolean showNumbers) {
+                             double shownHp, boolean showNumbers, boolean tailRight) {
+        drawTail(g, x, y, w, h, tailRight);
         RetroStyle.drawPanel(g, x, y, w, h);
         int pad = 18;
 
@@ -422,6 +424,19 @@ public class BattleScreenForm extends RetroScreen {
             int hpW = g.getFontMetrics().stringWidth(hp);
             RetroStyle.shadowText(g, hp, x + w - pad - hpW, textY, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         }
+    }
+
+    // La "flechita" del cuadro: una franja oscura bajo el cuadro que termina en punta hacia el pokemon
+    private void drawTail(Graphics2D g, int x, int y, int w, int h, boolean tailRight) {
+        int[] xs;
+        if (tailRight) {
+            xs = new int[]{x + 16, x + w - 8, x + w + 44, x + 16};
+        } else {
+            xs = new int[]{x + w - 16, x + 8, x - 44, x + w - 16};
+        }
+        int[] ys = new int[]{y + h - 8, y + h - 8, y + h + 14, y + h + 14};
+        g.setColor(new Color(26, 31, 43, 150));
+        g.fillPolygon(xs, ys, 4);
     }
 
     private Color barColor(double ratio) {
@@ -504,53 +519,93 @@ public class BattleScreenForm extends RetroScreen {
             if (isSelected) {
                 RetroStyle.drawSelectedRow(g, cell.x, cell.y, cell.width, cell.height);
             }
-            RetroStyle.drawListDot(g, cell.x + 20, cell.y + cell.height / 2, isSelected);
+            RetroStyle.drawListDot(g, cell.x + 16, cell.y + cell.height / 2, isSelected);
             drawFitted(g, optionText(i), cell, inputEnabled ? RetroStyle.DARK : RetroStyle.SHADOW_LIGHT);
         }
     }
 
-    // Escribe el texto dentro de la celda, reduciendo la letra si no cabe
+    // Escribe el texto dentro de la celda: primero intenta una sola linea, despues dos lineas
+    // (por ejemplo "PISTOLA / AGUA") y solo si no cabe reduce mas la letra
     private void drawFitted(Graphics2D g, String text, Rectangle cell, Color color) {
-        int maxWidth = cell.width - 46;
-        int size = 28;
-        g.setFont(RetroStyle.font(size));
-        while (size > 16 && g.getFontMetrics().stringWidth(text) > maxWidth) {
-            size--;
+        int textX = cell.x + 32;
+        int maxWidth = cell.width - 32 - 6;
+
+        for (int size = 26; size >= 18; size--) {
             g.setFont(RetroStyle.font(size));
+            List<String> lines = wrapWords(g.getFontMetrics(), text, maxWidth, 1);
+            if (lines != null) {
+                drawLines(g, lines, textX, cell, color);
+                return;
+            }
         }
-        FontMetrics fm = g.getFontMetrics();
-        int baseline = cell.y + (cell.height + fm.getAscent() - fm.getDescent()) / 2;
-        RetroStyle.shadowText(g, text, cell.x + 38, baseline, color, RetroStyle.WHITE);
+        for (int size = 22; size >= 14; size--) {
+            g.setFont(RetroStyle.font(size));
+            List<String> lines = wrapWords(g.getFontMetrics(), text, maxWidth, 2);
+            if (lines != null) {
+                drawLines(g, lines, textX, cell, color);
+                return;
+            }
+        }
+        g.setFont(RetroStyle.font(14));
+        List<String> single = new ArrayList<>();
+        single.add(text);
+        drawLines(g, single, textX, cell, color);
     }
 
-    // Caja de la derecha: datos del ataque elegido, o los tipos del pokemon activo
+    private void drawLines(Graphics2D g, List<String> lines, int x, Rectangle cell, Color color) {
+        FontMetrics fm = g.getFontMetrics();
+        int lineHeight = fm.getAscent() + fm.getDescent();
+        int top = cell.y + (cell.height - lineHeight * lines.size()) / 2;
+        for (int i = 0; i < lines.size(); i++) {
+            RetroStyle.shadowText(g, lines.get(i), x, top + i * lineHeight + fm.getAscent(),
+                    color, RetroStyle.WHITE);
+        }
+    }
+
+    // Parte el texto por palabras. Devuelve null si necesita mas lineas de las permitidas
+    // o si una sola palabra es mas ancha que el espacio
+    private List<String> wrapWords(FontMetrics fm, String text, int maxWidth, int maxLines) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        for (String word : text.split(" ")) {
+            if (fm.stringWidth(word) > maxWidth) {
+                return null;
+            }
+            String candidate = current.length() == 0 ? word : current + " " + word;
+            if (fm.stringWidth(candidate) <= maxWidth) {
+                current = new StringBuilder(candidate);
+            } else {
+                lines.add(current.toString());
+                current = new StringBuilder(word);
+            }
+        }
+        lines.add(current.toString());
+        return lines.size() <= maxLines ? lines : null;
+    }
+
+    // Caja de la derecha: info del ataque elegido (tipo, categoria y potencia).
+    // Los tipos del pokemon no se muestran en ninguna parte del combate.
     private void drawDetailBox(Graphics2D g) {
         RetroStyle.drawPanel(g, DETAIL_BOX.x, DETAIL_BOX.y, DETAIL_BOX.width, DETAIL_BOX.height);
+        if (!movesMode || selected >= optionCount()) {
+            return;   // fuera del menu de ataques la caja queda vacia
+        }
+        Move move = player.getPokemon().getMove(selected);
         int x = DETAIL_BOX.x + 18;
         int y = DETAIL_BOX.y;
 
-        if (movesMode && selected < optionCount()) {
-            Move move = player.getPokemon().getMove(selected);
-            g.setFont(RetroStyle.font(26));
-            // El modelo aun no guarda los PP actuales, por ahora se muestran los maximos
-            RetroStyle.shadowText(g, "PP " + move.getPp() + "/" + move.getPp(), x, y + 36,
-                    RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-            g.setFont(RetroStyle.font(22));
-            RetroStyle.drawTypeBadge(g, move.getType(), x, y + 52, 96, 30);
-            RetroStyle.drawCategory(g, move.getCategory(), x + 106, y + 52, 60, 30);
-            g.setFont(RetroStyle.font(24));
-            RetroStyle.shadowText(g, "PODER " + (move.getPower() > 0 ? move.getPower() : "-"),
-                    x, y + 118, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-            RetroStyle.shadowText(g, "PREC " + move.getAccuracy(), x, y + 148,
-                    RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-        } else {
-            g.setFont(RetroStyle.font(24));
-            RetroStyle.shadowText(g, "TIPO", x, y + 36, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-            g.setFont(RetroStyle.font(22));
-            RetroStyle.drawTypeBadge(g, player.getPokemon().getPrimaryType(), x, y + 52, 96, 30);
-            if (player.getPokemon().getSecondaryType() != Type.NONE) {
-                RetroStyle.drawTypeBadge(g, player.getPokemon().getSecondaryType(), x, y + 92, 96, 30);
-            }
-        }
+        // Fila 1: tipo del ataque
+        g.setFont(RetroStyle.font(22));
+        RetroStyle.shadowText(g, "TIPO", x, y + 38, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.drawTypeBadge(g, move.getType(), x + 76, y + 14, 96, 30);
+
+        // Fila 2: categoria (estado, fisico o especial)
+        RetroStyle.shadowText(g, "CATEGORIA", x, y + 90, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.drawCategory(g, move.getCategory(), x + 106, y + 64, 60, 30);
+
+        // Fila 3: potencia
+        g.setFont(RetroStyle.font(24));
+        RetroStyle.shadowText(g, "POTENCIA " + (move.getPower() > 0 ? String.valueOf(move.getPower()) : "-"),
+                x, y + 142, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 }
