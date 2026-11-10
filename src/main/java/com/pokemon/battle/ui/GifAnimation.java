@@ -25,6 +25,11 @@ import java.util.List;
  */
 public final class GifAnimation {
 
+    /**
+     * Frames per second used by every screen, so all the Pokemon move at the same rhythm.
+     */
+    public static final int FPS = 12;
+
     private final BufferedImage[] frames;
 
     private GifAnimation(BufferedImage[] frames) {
