@@ -3,10 +3,12 @@ package com.pokemon.battle.ui;
 import com.pokemon.battle.model.Move;
 import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.model.Team;
+import com.pokemon.battle.model.Type;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -207,8 +209,13 @@ public class TeamBuilderScreen extends JPanel {
             infoLabel.setText(" ");
             return;
         }
+        // Tipos en espanol, como en la Pokedex
         StringBuilder sb = new StringBuilder("<html>TIPO: ")
-                .append(p.getPrimaryType().name()).append("<br>ATAQUES:<br>");
+                .append(RetroStyle.typeName(p.getPrimaryType()));
+        if (p.getSecondaryType() != null && p.getSecondaryType() != Type.NONE) {
+            sb.append(" / ").append(RetroStyle.typeName(p.getSecondaryType()));
+        }
+        sb.append("<br>ATAQUES:<br>");
         for (Move m : p.getMoves()) {
             sb.append("- ").append(m.getName().toUpperCase()).append("<br>");
         }
@@ -251,29 +258,54 @@ public class TeamBuilderScreen extends JPanel {
         }
     }
 
-    // Sprite grande de frente, animado, con escala entera para que se vea nítido
+    // Sprite grande de frente, animado igual que en la Pokedex
     private static class PreviewPanel extends JPanel {
+        // Lado del cuadro donde cabe cualquier sprite, asi todos se ven del mismo tamano
+        private static final int SPRITE_TARGET = 200;
+
+        private final SpriteLoader sprites = SpriteLoader.shared();
+        private final Timer animationTimer;
         private Pokemon pokemon;
+        private int frame;
 
         PreviewPanel() {
             setOpaque(false);
             setPreferredSize(new Dimension(300, 260));
+            animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
+                frame++;
+                repaint();
+            });
+            // La animacion solo corre mientras la pantalla se ve
+            addHierarchyListener(e -> {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) {
+                    if (isShowing()) {
+                        animationTimer.start();
+                    } else {
+                        animationTimer.stop();
+                    }
+                }
+            });
         }
 
         void show(Pokemon p) {
             this.pokemon = p;
+            frame = 0;
+            if (p != null) {
+                // Se lee en el otro hilo; al terminar se vuelve a dibujar
+                sprites.getOrLoad(p.getName(), false, this::repaint);
+            }
             repaint();
         }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            if (pokemon == null) {
-                return;
+            if (pokemon == null || !sprites.isLoaded(pokemon.getName(), false)) {
+                return; // Nada elegido o el GIF todavia se esta leyendo
             }
             Graphics2D g2 = (Graphics2D) g.create();
-            Image img = SpriteLoader.pokemonFront(pokemon.getName());
-            if (img == null) {
+            GifAnimation sprite = sprites.getOrLoad(pokemon.getName(), false, this::repaint);
+            if (sprite == null) {
                 g2.setFont(PixelFont.get(16));
                 g2.setColor(DARK);
                 String text = "SIN IMAGEN";
@@ -282,18 +314,11 @@ public class TeamBuilderScreen extends JPanel {
                 g2.dispose();
                 return;
             }
-            int iw = img.getWidth(this);
-            int ih = img.getHeight(this);
-            if (iw > 0 && ih > 0) {
-                int box = Math.min(getWidth(), getHeight()) - 20;
-                int scale = Math.max(1, Math.min(4, box / Math.max(iw, ih)));
-                int w = iw * scale;
-                int h = ih * scale;
-                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                        RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                // "this" como observador mantiene viva la animación del GIF
-                g2.drawImage(img, (getWidth() - w) / 2, (getHeight() - h) / 2, w, h, this);
-            }
+            int box = Math.min(SPRITE_TARGET, Math.min(getWidth(), getHeight()) - 20);
+            double factor = Math.min(box / (double) sprite.width(), box / (double) sprite.height());
+            int w = (int) Math.round(sprite.width() * factor);
+            int h = (int) Math.round(sprite.height() * factor);
+            RetroStyle.drawPixelImage(g2, sprite.frame(frame), (getWidth() - w) / 2, (getHeight() - h) / 2, w, h);
             g2.dispose();
         }
     }

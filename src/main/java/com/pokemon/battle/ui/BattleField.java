@@ -5,6 +5,7 @@ import com.pokemon.battle.model.StatusCondition;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.HierarchyEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
 
@@ -24,9 +25,28 @@ public class BattleField extends JPanel {
     private double rivalShownHp;
     private final Timer timer;
 
+    // Mismos sprites y misma animacion que la Pokedex
+    private final SpriteLoader sprites = SpriteLoader.shared();
+    private final Timer animationTimer;
+    private int frame;
+
     public BattleField() {
         setPreferredSize(new Dimension(960, 440));
         timer = new Timer(30, e -> animateHp());
+        animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
+            frame++;
+            repaint();
+        });
+        // La animacion solo corre mientras el campo se ve en pantalla
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) {
+                if (isShowing()) {
+                    animationTimer.start();
+                } else {
+                    animationTimer.stop();
+                }
+            }
+        });
     }
 
     public void setCombatants(Combatant player, Combatant rival) {
@@ -34,6 +54,9 @@ public class BattleField extends JPanel {
         this.rival = rival;
         this.playerShownHp = player.getHitPoints().getCurrent();
         this.rivalShownHp = rival.getHitPoints().getCurrent();
+        // Se piden los GIF de una vez para que esten listos al dibujar
+        sprites.getOrLoad(player.getName(), true, this::repaint);
+        sprites.getOrLoad(rival.getName(), false, this::repaint);
         repaint();
     }
 
@@ -88,8 +111,8 @@ public class BattleField extends JPanel {
         drawShadow(g2, 0.30 * w, 0.89 * h, 0.417 * w, 0.17 * h);
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
-        drawCombatant(g2, rival, false, 0.72 * w, 0.43 * h, 170, 3);
-        drawCombatant(g2, player, true, 0.30 * w, 0.89 * h, 230, 4);
+        drawCombatant(g2, rival, false, 0.72 * w, 0.43 * h, 170);
+        drawCombatant(g2, player, true, 0.30 * w, 0.89 * h, 230);
 
         // Cuadros de informacion
         if (rival != null) {
@@ -108,31 +131,28 @@ public class BattleField extends JPanel {
         g2.fill(new Ellipse2D.Double(cx - w / 2, cy - h / 2, w, h));
     }
 
-    // Dibuja el sprite con los pies sobre la sombra. Escala en numeros enteros
-    // para que el pixel art se vea nitido, sin pasar del tamaño de la caja.
+    // Dibuja el sprite con los pies sobre la sombra. Igual que en la Pokedex,
+    // todos los Pokemon se ajustan al mismo cuadro, asi se ven del mismo tamano.
     private void drawCombatant(Graphics2D g2, Combatant c, boolean back, double cx,
-                               double feetY, int box, int maxScale) {
+                               double feetY, int box) {
         if (c == null || c.isFainted()) {
             return;
         }
-        Image img = back ? SpriteLoader.pokemonBack(c.getName())
-                : SpriteLoader.pokemonFront(c.getName());
-        if (img == null) {
+        String name = c.getName();
+        if (!sprites.isLoaded(name, back)) {
+            // Todavia se esta leyendo el GIF; al terminar se vuelve a dibujar
+            sprites.getOrLoad(name, back, this::repaint);
+            return;
+        }
+        GifAnimation sprite = sprites.getOrLoad(name, back, this::repaint);
+        if (sprite == null) {
             drawSpritePlaceholder(g2, cx, feetY - box / 2.0, box, back ? "JUGADOR" : "RIVAL");
             return;
         }
-        int iw = img.getWidth(this);
-        int ih = img.getHeight(this);
-        if (iw <= 0 || ih <= 0) {
-            return;
-        }
-        int scale = Math.max(1, Math.min(maxScale, box / Math.max(iw, ih)));
-        int w = iw * scale;
-        int h = ih * scale;
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        // "this" como observador es lo que hace que el GIF se siga animando
-        g2.drawImage(img, (int) (cx - w / 2.0), (int) (feetY - h), w, h, this);
+        double factor = Math.min(box / (double) sprite.width(), box / (double) sprite.height());
+        int w = (int) Math.round(sprite.width() * factor);
+        int h = (int) Math.round(sprite.height() * factor);
+        RetroStyle.drawPixelImage(g2, sprite.frame(frame), (int) (cx - w / 2.0), (int) (feetY - h), w, h);
     }
 
     // Marcador que se usa solo cuando falta la imagen del Pokemon
