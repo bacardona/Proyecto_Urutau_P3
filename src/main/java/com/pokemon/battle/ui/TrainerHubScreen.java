@@ -31,7 +31,7 @@ import java.util.function.BiConsumer;
 /**
  * Pantalla de entrenador para PvE y PvP: un encabezado y tres columnas.
  * 1) lista de entrenadores, 2) resumen de sus combates, 3) crear el entrenador
- * (nombre) o armar su equipo de 3 Pokemon.
+ * (nombre) o pasar a elegir su equipo (pantalla TeamSelectScreen).
  */
 public class TrainerHubScreen extends RetroScreen {
 
@@ -57,56 +57,43 @@ public class TrainerHubScreen extends RetroScreen {
     private static final int SUMMARY_ROW_H = 36;
     private static final int SUMMARY_ROWS = 7;
 
-    // Columna 3: equipo
-    private static final int SLOT_H = 30;
-    private static final int SLOTS_TOP = COL3.y + 46;
-    private static final int POKE_ROW_H = 32;
-    private static final int POKE_TOP = COL3.y + 150;
-    private static final int POKE_ROWS = 6;
-    private static final int BTN_Y = COL3.y + 384;
-    private static final Rectangle ADD_BUTTON = new Rectangle(COL3.x + 10, BTN_Y, 88, 34);
-    private static final Rectangle REMOVE_BUTTON = new Rectangle(COL3.x + 105, BTN_Y, 88, 34);
-    private static final Rectangle DONE_BUTTON = new Rectangle(COL3.x + 200, BTN_Y, 88, 34);
-
-    // Columna 3: nombre
+    // Columna 3
     private static final Rectangle NAME_BOX = new Rectangle(COL3.x + 16, COL3.y + 104, COL_W - 32, 44);
     private static final Rectangle CREATE_BUTTON = new Rectangle(COL3.x + 16, COL3.y + 210, COL_W - 32, 40);
+    private static final Rectangle PICK_BUTTON = new Rectangle(COL3.x + 16, COL3.y + 190, COL_W - 32, 56);
 
     private final BattleController controller;
     private final String header;
-    private final BiConsumer<Player, List<Pokemon>> onReady;
+    private final BiConsumer<Player, List<Pokemon>> onPickTeam;
     private final Runnable onBack;
     private final Timer blinkTimer;
 
     private final List<Player> allPlayers = new ArrayList<>();
     private final List<Player> shown = new ArrayList<>();
     private final Map<String, List<CombatHistoryEntry>> historyCache = new HashMap<>();
-    private final List<Pokemon> chosen = new ArrayList<>();
     private final StringBuilder nameText = new StringBuilder();
     private List<Pokemon> catalog = new ArrayList<>();
     private Player excluded;
 
     private int selectedRow = -1; // 0 = "+ NUEVO ENTRENADOR"
     private int firstVisible = 0;
-    private int pokeSelected = 0;
-    private int pokeFirst = 0;
-    private boolean sideFocus = false; // true = el cursor esta en la lista de Pokemon
     private boolean cursorOn = true;
     private boolean busy = false;
     private String message = "";
 
     /**
-     * @param title   texto de la barra azul
-     * @param header  texto del encabezado
-     * @param onReady que hacer cuando hay entrenador y equipo de 3
-     * @param onBack  que hacer al salir de la pantalla
+     * @param title      texto de la barra azul
+     * @param header     texto del encabezado
+     * @param onPickTeam que hacer cuando hay un entrenador y toca elegir su equipo
+     *                   (recibe el entrenador y el catalogo de Pokemon)
+     * @param onBack     que hacer al salir de la pantalla
      */
     public TrainerHubScreen(String title, String header, BattleController controller,
-                            BiConsumer<Player, List<Pokemon>> onReady, Runnable onBack) {
+                            BiConsumer<Player, List<Pokemon>> onPickTeam, Runnable onBack) {
         super(title);
         this.header = header;
         this.controller = controller;
-        this.onReady = onReady;
+        this.onPickTeam = onPickTeam;
         this.onBack = onBack;
         setFocusable(true);
 
@@ -129,11 +116,11 @@ public class TrainerHubScreen extends RetroScreen {
 
         bindKey("UP", () -> move(-1));
         bindKey("DOWN", () -> move(1));
-        bindKey("LEFT", () -> {
-            sideFocus = false;
-            repaint();
+        bindKey("RIGHT", () -> {
+            if (!busy && !nameMode()) {
+                pickTeam(current());
+            }
         });
-        bindKey("RIGHT", this::focusSide);
         bindKey("ENTER", this::enter);
         // Las letras que se escriben (y el retroceso) llegan por aqui
         addKeyListener(new KeyAdapter() {
@@ -148,7 +135,7 @@ public class TrainerHubScreen extends RetroScreen {
      * Carga los datos y deja la pantalla lista para mostrarse.
      *
      * @param players  entrenadores existentes
-     * @param pokemon  catalogo de Pokemon
+     * @param pokemon  catalogo de Pokemon (se pasa a la pantalla de equipo)
      * @param excluded entrenador que no se puede elegir (el 1 en PvP), o null
      */
     public void prepare(List<Player> players, List<Pokemon> pokemon, Player excluded) {
@@ -160,6 +147,7 @@ public class TrainerHubScreen extends RetroScreen {
         historyCache.clear();
         nameText.setLength(0);
         busy = false;
+        message = "";
         rebuildShown();
         selectedRow = -1;
         firstVisible = 0;
@@ -203,10 +191,6 @@ public class TrainerHubScreen extends RetroScreen {
         } else if (selectedRow >= firstVisible + LIST_ROWS) {
             firstVisible = selectedRow - LIST_ROWS + 1;
         }
-        chosen.clear();
-        pokeSelected = 0;
-        pokeFirst = 0;
-        sideFocus = false;
         message = "";
         if (selectedRow > 0) {
             requestHistory(shown.get(selectedRow - 1));
@@ -246,26 +230,8 @@ public class TrainerHubScreen extends RetroScreen {
     // ------------------------------------------------------------------ acciones
 
     private void move(int delta) {
-        if (busy) {
-            return;
-        }
-        if (sideFocus && !nameMode()) {
-            pokeSelected = Math.max(0, Math.min(catalog.size() - 1, pokeSelected + delta));
-            if (pokeSelected < pokeFirst) {
-                pokeFirst = pokeSelected;
-            } else if (pokeSelected >= pokeFirst + POKE_ROWS) {
-                pokeFirst = pokeSelected - POKE_ROWS + 1;
-            }
-        } else {
+        if (!busy) {
             selectRow(selectedRow + delta);
-        }
-        repaint();
-    }
-
-    private void focusSide() {
-        if (!nameMode()) {
-            sideFocus = true;
-            repaint();
         }
     }
 
@@ -275,77 +241,38 @@ public class TrainerHubScreen extends RetroScreen {
         }
         if (nameMode()) {
             createTrainer();
-        } else if (!sideFocus) {
-            sideFocus = true;
-            repaint();
-        } else if (chosen.size() >= Team.SIZE) {
-            confirm();
         } else {
-            addSelected();
+            pickTeam(current());
+        }
+    }
+
+    // Pasa a la pantalla donde se arma el equipo de ese entrenador
+    private void pickTeam(Player player) {
+        if (player != null) {
+            onPickTeam.accept(player, new ArrayList<>(catalog));
         }
     }
 
     private void typed(char c) {
-        if (busy) {
+        if (busy || !nameMode()) {
             return;
         }
-        if (nameMode()) {
-            if (c == '\b') {
-                if (nameText.length() > 0) {
-                    nameText.setLength(nameText.length() - 1);
-                }
-            } else if ((Character.isLetterOrDigit(c) || c == ' ' || c == '_' || c == '-')
-                    && nameText.length() < MAX_NAME) {
-                nameText.append(c);
-            } else {
-                return;
+        if (c == '\b') {
+            if (nameText.length() > 0) {
+                nameText.setLength(nameText.length() - 1);
             }
-            message = "";
-            cursorOn = true;
-            repaint();
-        } else if (c == '\b') {
-            removeLast();
-        }
-    }
-
-    private void addSelected() {
-        if (catalog.isEmpty()) {
+        } else if ((Character.isLetterOrDigit(c) || c == ' ' || c == '_' || c == '-')
+                && nameText.length() < MAX_NAME) {
+            nameText.append(c);
+        } else {
             return;
         }
-        Pokemon p = catalog.get(pokeSelected);
-        if (chosen.size() >= Team.SIZE) {
-            message = "EQUIPO COMPLETO: PRESIONA LISTO";
-        } else if (chosen.contains(p)) {
-            message = "YA ESTA EN EL EQUIPO";
-        } else {
-            chosen.add(p);
-            message = "";
-        }
+        message = "";
+        cursorOn = true;
         repaint();
     }
 
-    private void removeLast() {
-        if (!chosen.isEmpty()) {
-            chosen.remove(chosen.size() - 1);
-            message = "";
-            repaint();
-        }
-    }
-
-    private void confirm() {
-        Player p = current();
-        if (p == null) {
-            return;
-        }
-        if (chosen.size() != Team.SIZE) {
-            message = "ELIGE " + Team.SIZE + " POKEMON";
-            repaint();
-            return;
-        }
-        onReady.accept(p, new ArrayList<>(chosen));
-    }
-
-    // Si el nombre ya existe lo selecciona; si no, lo crea en segundo plano
+    // Si el nombre ya existe lo usa; si no, lo crea en segundo plano. Despues abre el equipo.
     private void createTrainer() {
         String name = nameText.toString().trim();
         if (name.isEmpty()) {
@@ -357,13 +284,12 @@ public class TrainerHubScreen extends RetroScreen {
             if (p.getName().equalsIgnoreCase(name)) {
                 if (excluded != null && sameId(p, excluded)) {
                     message = "ESE ENTRENADOR YA FUE ELEGIDO. USA OTRO NOMBRE";
+                    repaint();
                 } else {
                     nameText.setLength(0);
                     selectRow(shown.indexOf(p) + 1);
-                    sideFocus = true;
-                    message = "YA EXISTIA: ARMA SU EQUIPO";
+                    pickTeam(p);
                 }
-                repaint();
                 return;
             }
         }
@@ -385,8 +311,10 @@ public class TrainerHubScreen extends RetroScreen {
                     rebuildShown();
                     nameText.setLength(0);
                     selectRow(shown.indexOf(created) + 1);
-                    sideFocus = true;
                     message = "";
+                    repaint();
+                    pickTeam(created);
+                    return;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     message = "OPERACION CANCELADA";
@@ -402,12 +330,7 @@ public class TrainerHubScreen extends RetroScreen {
 
     @Override
     protected void goBack() {
-        if (sideFocus && !nameMode()) {
-            sideFocus = false;
-            repaint();
-        } else {
-            onBack.run();
-        }
+        onBack.run();
     }
 
     // ------------------------------------------------------------------ mouse
@@ -420,10 +343,10 @@ public class TrainerHubScreen extends RetroScreen {
         }
         if (COL1.contains(x, y) && y >= LIST_TOP) {
             int row = firstVisible + (y - LIST_TOP) / ROW_H;
-            if (row <= shown.size()) {
+            if (row <= shown.size() && row < firstVisible + LIST_ROWS) {
                 selectRow(row);
                 if (clickCount >= 2 && !nameMode()) {
-                    sideFocus = true;
+                    pickTeam(current());
                 }
                 repaint();
             }
@@ -433,26 +356,8 @@ public class TrainerHubScreen extends RetroScreen {
             if (CREATE_BUTTON.contains(x, y)) {
                 createTrainer();
             }
-            return;
-        }
-        if (ADD_BUTTON.contains(x, y)) {
-            sideFocus = true;
-            addSelected();
-        } else if (REMOVE_BUTTON.contains(x, y)) {
-            removeLast();
-        } else if (DONE_BUTTON.contains(x, y)) {
-            confirm();
-        } else if (x >= COL3.x && x < COL3.x + COL3.width
-                && y >= POKE_TOP && y < POKE_TOP + POKE_ROWS * POKE_ROW_H) {
-            int index = pokeFirst + (y - POKE_TOP) / POKE_ROW_H;
-            if (index < catalog.size()) {
-                pokeSelected = index;
-                sideFocus = true;
-                if (clickCount >= 2) {
-                    addSelected();
-                }
-                repaint();
-            }
+        } else if (PICK_BUTTON.contains(x, y)) {
+            pickTeam(current());
         }
     }
 
@@ -470,11 +375,7 @@ public class TrainerHubScreen extends RetroScreen {
         if (nameMode()) {
             RetroStyle.drawKeyButton(g, "ENTER  CREAR", 374, 598, 190, 36);
         } else {
-            RetroStyle.drawArrowKeyButton(g, false, "COLUMNA", 374, 598, 170, 36);
-            String enter = !sideFocus ? "ENTER  ELEGIR"
-                    : (chosen.size() >= Team.SIZE ? "ENTER  LISTO" : "ENTER  AGREGAR");
-            RetroStyle.drawKeyButton(g, enter, 554, 598, 190, 36);
-            RetroStyle.drawKeyButton(g, "BORRAR  QUITAR", 754, 598, 190, 36);
+            RetroStyle.drawKeyButton(g, "ENTER  ELEGIR EQUIPO", 374, 598, 250, 36);
         }
     }
 
@@ -486,7 +387,7 @@ public class TrainerHubScreen extends RetroScreen {
         if (nameMode()) {
             drawNameEntry(g);
         } else {
-            drawTeamBuilder(g);
+            drawPickPanel(g);
         }
         drawFocusOutline(g);
     }
@@ -625,7 +526,7 @@ public class TrainerHubScreen extends RetroScreen {
                 RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 
-    // ----- columna 3: nombre
+    // ----- columna 3: nombre (entrenador nuevo)
 
     private void drawNameEntry(Graphics2D g) {
         RetroStyle.drawPanel(g, COL3.x, COL3.y, COL3.width, COL3.height);
@@ -661,70 +562,38 @@ public class TrainerHubScreen extends RetroScreen {
 
         g.setFont(RetroStyle.font(20));
         List<String> hint = RetroText.wrap(g.getFontMetrics(),
-                "AL CREARLO, ARMARAS SU EQUIPO DE " + Team.SIZE + " POKEMON.", COL_W - 32);
+                "AL CREARLO, ELEGIRAS SU EQUIPO DE " + Team.SIZE + " POKEMON.", COL_W - 32);
         for (int i = 0; i < hint.size(); i++) {
             RetroStyle.shadowText(g, hint.get(i), COL3.x + 16, COL3.y + 292 + i * 24,
                     RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         }
     }
 
-    // ----- columna 3: equipo
+    // ----- columna 3: entrenador existente (boton para elegir equipo)
 
-    private void drawTeamBuilder(Graphics2D g) {
+    private void drawPickPanel(Graphics2D g) {
         Player p = current();
         RetroStyle.drawPanel(g, COL3.x, COL3.y, COL3.width, COL3.height);
         g.setFont(RetroStyle.font(26));
-        String title = RetroText.fit(g.getFontMetrics(),
-                "EQUIPO: " + (p == null ? "" : p.getName().toUpperCase()), COL3.width - 32);
-        RetroStyle.shadowText(g, title, COL3.x + 16, COL3.y + 34, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "EQUIPO", COL3.x + 16, COL3.y + 34, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
 
-        // Casillas del equipo
+        g.setFont(RetroStyle.font(30));
+        String name = RetroText.fit(g.getFontMetrics(), p == null ? "" : p.getName().toUpperCase(), COL_W - 32);
+        RetroStyle.shadowText(g, name, COL3.x + 16, COL3.y + 84, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
         g.setFont(RetroStyle.font(22));
-        for (int i = 0; i < Team.SIZE; i++) {
-            int y = SLOTS_TOP + i * SLOT_H;
-            g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
-            g.fillRect(COL3.x + 10, y, COL3.width - 20, SLOT_H);
-            String name = i < chosen.size() ? chosen.get(i).getName().toUpperCase() : "---";
-            RetroStyle.shadowText(g, (i + 1) + ". " + name, COL3.x + 18, y + 22,
+        List<String> lines = RetroText.wrap(g.getFontMetrics(),
+                "ELIGE " + Team.SIZE + " POKEMON PARA EL COMBATE.", COL_W - 32);
+        for (int i = 0; i < lines.size(); i++) {
+            RetroStyle.shadowText(g, lines.get(i), COL3.x + 16, COL3.y + 122 + i * 26,
                     RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         }
-        g.setColor(new Color(0xC9C4B5));
-        g.fillRect(COL3.x + 10, COL3.y + 142, COL3.width - 20, 2);
 
-        // Lista de Pokemon: punto rojo = ya esta en el equipo
-        g.setFont(RetroStyle.font(22));
-        FontMetrics fm = g.getFontMetrics();
-        int last = Math.min(catalog.size(), pokeFirst + POKE_ROWS);
-        for (int i = pokeFirst; i < last; i++) {
-            Pokemon pokemon = catalog.get(i);
-            int y = POKE_TOP + (i - pokeFirst) * POKE_ROW_H;
-            boolean selected = i == pokeSelected;
-            if (selected) {
-                RetroStyle.drawSelectedRow(g, COL3.x + 8, y - 2, COL3.width - 34, POKE_ROW_H + 4);
-            }
-            RetroStyle.drawListDot(g, COL3.x + 26, y + POKE_ROW_H / 2, chosen.contains(pokemon));
-            String name = RetroText.fit(fm, pokemon.getName().toUpperCase(), 138);
-            RetroStyle.shadowText(g, name, COL3.x + 42, y + 23,
-                    selected ? RetroStyle.RED_DARK : RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-            g.setFont(RetroStyle.font(18));
-            RetroStyle.drawTypeBadge(g, pokemon.getPrimaryType(), COL3.x + COL3.width - 110, y + 4, 76, 24);
-            g.setFont(RetroStyle.font(22));
-        }
-        RetroStyle.drawScrollBar(g, COL3.x + COL3.width - 16, POKE_TOP, POKE_ROWS * POKE_ROW_H,
-                pokeFirst, POKE_ROWS, catalog.size());
+        g.setFont(RetroStyle.font(26));
+        RetroStyle.drawKeyButton(g, "SELECCIONAR EQUIPO", PICK_BUTTON.x, PICK_BUTTON.y,
+                PICK_BUTTON.width, PICK_BUTTON.height);
 
-        drawNote(g, COL3.x + 16, COL3.y + 366, COL_W - 32, 1);
-
-        // Botones
-        g.setFont(RetroStyle.font(20));
-        RetroStyle.drawKeyButton(g, "AGREGAR", ADD_BUTTON.x, ADD_BUTTON.y, ADD_BUTTON.width, ADD_BUTTON.height);
-        RetroStyle.drawKeyButton(g, "QUITAR", REMOVE_BUTTON.x, REMOVE_BUTTON.y, REMOVE_BUTTON.width, REMOVE_BUTTON.height);
-        RetroStyle.drawKeyButton(g, "LISTO", DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height);
-        if (chosen.size() < Team.SIZE) {
-            // LISTO se ve apagado hasta que haya 3 Pokemon
-            g.setColor(new Color(247, 243, 224, 160));
-            g.fillRoundRect(DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height, 10, 10);
-        }
+        drawNote(g, COL3.x + 16, COL3.y + 290, COL_W - 32, 2);
     }
 
     private void drawNote(Graphics2D g, int x, int y, int maxWidth, int maxLines) {
@@ -740,7 +609,7 @@ public class TrainerHubScreen extends RetroScreen {
 
     // Marco azul alrededor de la columna donde esta el cursor
     private void drawFocusOutline(Graphics2D g) {
-        Rectangle r = nameMode() || sideFocus ? COL3 : COL1;
+        Rectangle r = nameMode() ? COL3 : COL1;
         g.setColor(RetroStyle.BLUE);
         g.setStroke(new BasicStroke(4));
         g.drawRoundRect(r.x - 3, r.y - 3, r.width + 6, r.height + 6, 18, 18);
