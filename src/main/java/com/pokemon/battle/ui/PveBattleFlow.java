@@ -4,9 +4,6 @@ import com.pokemon.battle.exceptions.InvalidDataException;
 import com.pokemon.battle.model.Battle;
 import com.pokemon.battle.model.BattleSide;
 import com.pokemon.battle.model.Combatant;
-import com.pokemon.battle.model.Machine;
-import com.pokemon.battle.model.Player;
-import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.model.Team;
 import com.pokemon.battle.model.TurnAction;
 import com.pokemon.battle.service.BattleController;
@@ -38,8 +35,7 @@ public class PveBattleFlow {
         this.onExit = onExit;
     }
 
-    public void start(Player player, List<Pokemon> team, Machine machine) {
-        Battle battle = controller.startBattleVsMachine(player, team, machine);
+    public void start(Battle battle) {
         side1 = battle.getFirst();
         side2 = battle.getSecond();
 
