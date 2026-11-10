@@ -28,8 +28,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MainGUI {
 
     private static final String PROJECT_TITLE = "POKKEN BATTLE";
-    // Pon aqui los nombres reales de los integrantes
-    private static final String[] MEMBERS = {"Integrante 1", "Integrante 2", "Integrante 3"};
+
+    private static final String[] MEMBERS = {
+            "Jhonatan David Galindo Gómez",
+            "Brayan Andres Cardona Reyes",
+            "Angel David Bermudez González",
+            "Luis Javier Chávez Montes"
+    };
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(MainGUI::start);
