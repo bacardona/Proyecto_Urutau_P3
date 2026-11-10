@@ -17,6 +17,7 @@ import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -31,16 +32,18 @@ import java.util.function.IntConsumer;
  */
 public class BattleScreenForm extends RetroScreen {
 
-    private static final Color SKY = new Color(0xDFF3E0);
-    private static final Color GROUND = new Color(0xB7DFAA);
-    private static final Color SHADOW = new Color(0x8BC381);
+    // Donde quedan los pies de cada pokemon (centro de su plataforma)
+    private static final int RIVAL_X = 700;
+    private static final int RIVAL_FEET_Y = 304;
+    private static final int PLAYER_X = 250;
+    private static final int PLAYER_FEET_Y = 434;
 
     // Zonas de la pantalla, en coordenadas del tablero de 960x640
-    private static final Rectangle FIELD = new Rectangle(24, 74, 912, 318);
-    private static final Rectangle PROMPT_BOX = new Rectangle(24, 404, 424, 176);
+    private static final Rectangle FIELD = new Rectangle(24, 74, 912, 382);
+    private static final Rectangle PROMPT_BOX = new Rectangle(24, 468, 424, 112);
     // Antes medía 372 de ancho; ahora 2/3 de eso (248). El espacio que sobra lo usa la caja de mensajes
-    private static final Rectangle OPTIONS_BOX = new Rectangle(460, 404, 248, 176);
-    private static final Rectangle DETAIL_BOX = new Rectangle(720, 404, 216, 176);
+    private static final Rectangle OPTIONS_BOX = new Rectangle(460, 468, 248, 112);
+    private static final Rectangle DETAIL_BOX = new Rectangle(720, 468, 216, 112);
 
     private Combatant player;   // cambia cuando el jugador cambia de pokemon
     private Combatant rival;
@@ -290,7 +293,7 @@ public class BattleScreenForm extends RetroScreen {
     private Rectangle optionCell(int i) {
         int col = i % 2;
         int row = i / 2;
-        return new Rectangle(OPTIONS_BOX.x + 12 + col * 116, OPTIONS_BOX.y + 12 + row * 80, 108, 72);
+        return new Rectangle(OPTIONS_BOX.x + 12 + col * 116, OPTIONS_BOX.y + 10 + row * 48, 108, 44);
     }
 
     private int optionAt(int x, int y) {
@@ -328,24 +331,19 @@ public class BattleScreenForm extends RetroScreen {
         Shape oldClip = g.getClip();
         g.clip(new RoundRectangle2D.Double(FIELD.x, FIELD.y, FIELD.width, FIELD.height, 16, 16));
 
-        g.setColor(SKY);
-        g.fillRect(FIELD.x, FIELD.y, FIELD.width, FIELD.height);
-        int groundY = FIELD.y + (int) (FIELD.height * 0.60);
-        g.setColor(GROUND);
-        g.fillRect(FIELD.x, groundY, FIELD.width, FIELD.y + FIELD.height - groundY);
-
-        // Sombras
-        g.setColor(SHADOW);
-        drawCombatant(g, rival, false, 700, 226, 130);
-        drawCombatant(g, player, true, 250, 372, 190);
+        // Fondo pixel art (cielo, colinas, arboles, pasto y plataformas)
+        BufferedImage background = BattleBackground.get(FIELD.width, FIELD.height,
+                RIVAL_X - FIELD.x, RIVAL_FEET_Y - FIELD.y, PLAYER_X - FIELD.x, PLAYER_FEET_Y - FIELD.y);
+        RetroStyle.drawPixelImage(g, background, FIELD.x, FIELD.y,
+                background.getWidth() * BattleBackground.SCALE, background.getHeight() * BattleBackground.SCALE);
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
-        drawCombatant(g, rival, false, 700, 226, 130);
-        drawCombatant(g, player, true, 250, 372, 190);
+        drawCombatant(g, rival, false, RIVAL_X, RIVAL_FEET_Y, 230);
+        drawCombatant(g, player, true, PLAYER_X, PLAYER_FEET_Y, 245);
 
         // Cuadros de informacion
         drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false, true);
-        drawInfoBox(g, 548, 282, 364, 92, player, playerShownHp, true, false);
+        drawInfoBox(g, 548, 350, 364, 92, player, playerShownHp, true, false);
 
         g.setClip(oldClip);
         g.setColor(RetroStyle.OUTLINE);
@@ -474,9 +472,9 @@ public class BattleScreenForm extends RetroScreen {
         g.setFont(RetroStyle.font(22));
         List<String> lines = wrap(g, promptLines, PROMPT_BOX.width - 44);
         int lineHeight = 24;
-        int maxLines = 6;
+        int maxLines = 3;
         int first = Math.max(0, lines.size() - maxLines);   // si hay de mas, se ven los ultimos
-        int y = PROMPT_BOX.y + 36;
+        int y = PROMPT_BOX.y + 34;
         for (int i = first; i < lines.size(); i++) {
             RetroStyle.shadowText(g, lines.get(i), PROMPT_BOX.x + 22, y,
                     RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
@@ -530,7 +528,7 @@ public class BattleScreenForm extends RetroScreen {
         int textX = cell.x + 32;
         int maxWidth = cell.width - 32 - 6;
 
-        for (int size = 26; size >= 18; size--) {
+        for (int size = 24; size >= 16; size--) {
             g.setFont(RetroStyle.font(size));
             List<String> lines = wrapWords(g.getFontMetrics(), text, maxWidth, 1);
             if (lines != null) {
@@ -538,7 +536,7 @@ public class BattleScreenForm extends RetroScreen {
                 return;
             }
         }
-        for (int size = 22; size >= 14; size--) {
+        for (int size = 18; size >= 13; size--) {
             g.setFont(RetroStyle.font(size));
             List<String> lines = wrapWords(g.getFontMetrics(), text, maxWidth, 2);
             if (lines != null) {
@@ -587,25 +585,24 @@ public class BattleScreenForm extends RetroScreen {
     // Los tipos del pokemon no se muestran en ninguna parte del combate.
     private void drawDetailBox(Graphics2D g) {
         RetroStyle.drawPanel(g, DETAIL_BOX.x, DETAIL_BOX.y, DETAIL_BOX.width, DETAIL_BOX.height);
-        if (!movesMode || selected >= optionCount()) {
-            return;   // fuera del menu de ataques la caja queda vacia
+        if (!movesMode || !inputEnabled || selected >= optionCount()) {
+            return;   // sin un ataque resaltado (o fuera del menu de ataques) la caja queda vacia
         }
         Move move = player.getPokemon().getMove(selected);
         int x = DETAIL_BOX.x + 18;
         int y = DETAIL_BOX.y;
 
         // Fila 1: tipo del ataque
-        g.setFont(RetroStyle.font(22));
-        RetroStyle.shadowText(g, "TIPO", x, y + 38, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-        RetroStyle.drawTypeBadge(g, move.getType(), x + 76, y + 14, 96, 30);
+        g.setFont(RetroStyle.font(20));
+        RetroStyle.shadowText(g, "TIPO", x, y + 32, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.drawTypeBadge(g, move.getType(), x + 92, y + 11, 90, 28);
 
         // Fila 2: categoria (estado, fisico o especial)
-        RetroStyle.shadowText(g, "CATEGORIA", x, y + 90, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-        RetroStyle.drawCategory(g, move.getCategory(), x + 106, y + 64, 60, 30);
+        RetroStyle.shadowText(g, "CATEGORIA", x, y + 66, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.drawCategory(g, move.getCategory(), x + 116, y + 45, 56, 28);
 
         // Fila 3: potencia
-        g.setFont(RetroStyle.font(24));
         RetroStyle.shadowText(g, "POTENCIA " + (move.getPower() > 0 ? String.valueOf(move.getPower()) : "-"),
-                x, y + 142, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+                x, y + 100, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 }
