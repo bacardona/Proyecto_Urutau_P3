@@ -44,13 +44,13 @@ public class PokedexPanel extends RetroScreen {
     // Valor que llena la barra completa (los que pasan de aqui, como Chansey con 250, la llenan toda)
     private static final int MAX_STAT = 200;
     // Todas las animaciones se reproducen a la misma velocidad
-    private static final int ANIMATION_FPS = 12;
+    private static final int ANIMATION_FPS = GifAnimation.FPS;
     // Lado del cuadro donde debe caber cualquier sprite, para que todos se vean del mismo tamano
     private static final int SPRITE_TARGET = 172;
 
     private final PokemonCatalog catalog;
     private final Runnable onBack;
-    private final SpriteLoader sprites = new SpriteLoader();
+    private final SpriteLoader sprites = SpriteLoader.shared();
     private final Timer animationTimer;
     // Hilo aparte para leer los GIF sin trabar la ventana mientras se recorre la lista
     private final ExecutorService spriteWorker = Executors.newSingleThreadExecutor(r -> {
