@@ -12,9 +12,8 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Image;
+import java.awt.event.HierarchyEvent;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
@@ -51,6 +50,10 @@ public class BattleScreenForm extends RetroScreen {
     private double playerShownHp;
     private double rivalShownHp;
     private final Timer hpTimer;
+    // Mismos sprites y misma animacion que la Pokedex
+    private final SpriteLoader sprites = SpriteLoader.shared();
+    private final Timer animationTimer;
+    private int frame;
 
     private List<String> promptLines = new ArrayList<>();
 
@@ -69,7 +72,23 @@ public class BattleScreenForm extends RetroScreen {
         this.rival = rival;
         this.playerShownHp = player.getHitPoints().getCurrent();
         this.rivalShownHp = rival.getHitPoints().getCurrent();
+        requestSprites();
         this.hpTimer = new Timer(30, e -> animateHp());
+        this.animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
+            frame++;
+            repaint();
+        });
+        // La animacion solo corre mientras la pantalla se ve
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) {
+                if (isShowing()) {
+                    animationTimer.start();
+                } else {
+                    animationTimer.stop();
+                }
+            }
+        });
+        requestSprites();
 
         bindKey("UP", () -> moveSelection(-1, 0));
         bindKey("DOWN", () -> moveSelection(1, 0));
@@ -86,6 +105,11 @@ public class BattleScreenForm extends RetroScreen {
         });
 
         showPrompt();
+    }
+
+    private void requestSprites() {
+        sprites.getOrLoad(player.getName(), true, this::repaint);
+        sprites.getOrLoad(rival.getName(), false, this::repaint);
     }
 
     // ------------------------------------------------------------------ API que usan los flujos
@@ -317,8 +341,8 @@ public class BattleScreenForm extends RetroScreen {
         g.fill(new Ellipse2D.Double(250 - 170, 372 - 20, 340, 40));
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
-        drawCombatant(g, rival, false, 700, 226, 130, 3);
-        drawCombatant(g, player, true, 250, 372, 190, 4);
+        drawCombatant(g, rival, false, 700, 226, 130);
+        drawCombatant(g, player, true, 250, 372, 190);
 
         // Cuadros de informacion
         drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false);
@@ -333,29 +357,26 @@ public class BattleScreenForm extends RetroScreen {
 
     // Escala en numeros enteros para que el pixel art se vea nitido, sin pasar de la caja.
     // Usar "this" como observador es lo que hace que el GIF se siga animando.
-    private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx, int feetY,
-                               int box, int maxScale) {
+    // Igual que en la Pokedex: todos los pokemon se ajustan al mismo cuadro,
+// asi se ven del mismo tamano. Los pies quedan sobre la sombra.
+    private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx, int feetY, int box) {
         if (c == null || c.isFainted()) {
             return;
         }
-        Image img = back ? SpriteLoader.pokemonBack(c.getName())
-                : SpriteLoader.pokemonFront(c.getName());
-        if (img == null) {
+        String name = c.getName();
+        if (!sprites.isLoaded(name, back)) {
+            // Todavia se esta leyendo el GIF; al terminar se vuelve a dibujar
+            sprites.getOrLoad(name, back, this::repaint);
             return;
         }
-        int iw = img.getWidth(this);
-        int ih = img.getHeight(this);
-        if (iw <= 0 || ih <= 0) {
+        GifAnimation sprite = sprites.getOrLoad(name, back, this::repaint);
+        if (sprite == null) {
             return;
         }
-        int scale = Math.max(1, Math.min(maxScale, box / Math.max(iw, ih)));
-        int w = iw * scale;
-        int h = ih * scale;
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g.drawImage(img, cx - w / 2, feetY - h, w, h, this);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        double factor = Math.min(box / (double) sprite.width(), box / (double) sprite.height());
+        int w = (int) Math.round(sprite.width() * factor);
+        int h = (int) Math.round(sprite.height() * factor);
+        RetroStyle.drawPixelImage(g, sprite.frame(frame), cx - w / 2, feetY - h, w, h);
     }
 
     private void drawInfoBox(Graphics2D g, int x, int y, int w, int h, Combatant c,
