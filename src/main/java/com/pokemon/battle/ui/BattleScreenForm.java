@@ -2,108 +2,96 @@ package com.pokemon.battle.ui;
 
 import com.pokemon.battle.model.Combatant;
 import com.pokemon.battle.model.Move;
+import com.pokemon.battle.model.StatusCondition;
+import com.pokemon.battle.model.Type;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
+import javax.swing.JPanel;
+import javax.swing.Timer;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.RoundRectangle2D;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
 
-public class BattleScreenForm {
+/**
+ * Pantalla de combate con el mismo estilo que la Pokedex: usa RetroScreen (cuadricula,
+ * barra azul, barra gris de teclas y boton "ESC VOLVER") y las piezas de RetroStyle.
+ * Es codigo puro, sin diseñador. Se maneja con teclado (flechas, ENTER, ESC) y con mouse.
+ *
+ * Mantiene los mismos metodos publicos que la version anterior, asi que PveBattleFlow,
+ * PvpBattleFlow y BattleDemo no cambian.
+ */
+public class BattleScreenForm extends RetroScreen {
 
-    // Variables enlazadas con el diseñador (solo estas tres)
-    private JPanel rootPanel;
-    private JPanel battlefieldPanel;
-    private JPanel bottomPanel;
+    private static final Color SKY = new Color(0xDFF3E0);
+    private static final Color GROUND = new Color(0xB7DFAA);
+    private static final Color SHADOW = new Color(0x8BC381);
 
-    // Componentes que crea el codigo
-    private JPanel promptPanel;
-    private JPanel movesPanel;
-    private JPanel detailPanel;
-    private JLabel promptLabel;
-    private JLabel move1Label;
-    private JLabel move2Label;
-    private JLabel move3Label;
-    private JLabel move4Label;
-    private JLabel ppLabel;
-    private JLabel typeLabel;
+    // Zonas de la pantalla, en coordenadas del tablero de 960x640
+    private static final Rectangle FIELD = new Rectangle(24, 74, 912, 318);
+    private static final Rectangle PROMPT_BOX = new Rectangle(24, 404, 300, 176);
+    private static final Rectangle OPTIONS_BOX = new Rectangle(336, 404, 372, 176);
+    private static final Rectangle DETAIL_BOX = new Rectangle(720, 404, 216, 176);
 
-    private static final Color CREAM = new Color(0xF7F3E0);
-    private static final Color DARK = new Color(0x3A3A3A);
-    private static final Color NAVY = new Color(0x2D3A52);
-
-    private BattleField field;
     private Combatant player;   // cambia cuando el jugador cambia de pokemon
     private Combatant rival;
-    private final JLabel[] moveLabels;
-    private int selected = 0;
-    private boolean inputEnabled = true;
+
+    // HP que se dibuja ahora mismo: baja poco a poco hasta el HP real
+    private double playerShownHp;
+    private double rivalShownHp;
+    private final Timer hpTimer;
+
+    private List<String> promptLines = new ArrayList<>();
 
     // Modo ataques (usa los movimientos del pokemon) o modo opciones (textos libres)
     private boolean movesMode = true;
     private String[] choices = new String[0];
     private IntConsumer onChoice = index -> {
     };
-    private Runnable onBack = () -> {
-    };
+    private Runnable onBack = null;   // null = no hay a donde volver (no se muestra ESC VOLVER)
+    private int selected = 0;
+    private boolean inputEnabled = true;
 
     public BattleScreenForm(Combatant player, Combatant rival) {
-        buildLayout();
+        super("COMBATE");
         this.player = player;
         this.rival = rival;
-        buildBottomBar();
-        this.moveLabels = new JLabel[]{move1Label, move2Label, move3Label, move4Label};
+        this.playerShownHp = player.getHitPoints().getCurrent();
+        this.rivalShownHp = rival.getHitPoints().getCurrent();
+        this.hpTimer = new Timer(30, e -> animateHp());
 
-        field.setCombatants(player, rival);
-        applyStyle();
-        bindKeys();
-        bindMouse();
+        bindKey("UP", () -> moveSelection(-1, 0));
+        bindKey("DOWN", () -> moveSelection(1, 0));
+        bindKey("LEFT", () -> moveSelection(0, -1));
+        bindKey("RIGHT", () -> moveSelection(0, 1));
+        bindKey("ENTER", this::confirm);
+
+        // Mouse: pasar encima marca la opcion y cambia el cursor
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                onHover(e.getX(), e.getY());
+            }
+        });
+
         showPrompt();
-        refreshOptions();
     }
 
-    // Construye las tres cajas de abajo: texto, opciones (2x2) y PP/tipo
-    private void buildBottomBar() {
-        bottomPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.fill = GridBagConstraints.BOTH;
-        gc.weighty = 1;
-        gc.insets = new Insets(0, 6, 0, 6);
-
-        promptPanel = new JPanel(new BorderLayout());
-        promptLabel = new JLabel();
-        promptPanel.add(promptLabel, BorderLayout.CENTER);
-        gc.gridx = 0;
-        gc.weightx = 0.28;
-        bottomPanel.add(promptPanel, gc);
-
-        movesPanel = new JPanel(new GridLayout(2, 2, 8, 8));
-        move1Label = new JLabel();
-        move2Label = new JLabel();
-        move3Label = new JLabel();
-        move4Label = new JLabel();
-        movesPanel.add(move1Label);
-        movesPanel.add(move2Label);
-        movesPanel.add(move3Label);
-        movesPanel.add(move4Label);
-        gc.gridx = 1;
-        gc.weightx = 0.50;
-        bottomPanel.add(movesPanel, gc);
-
-        detailPanel = new JPanel(new GridLayout(2, 1, 0, 8));
-        ppLabel = new JLabel();
-        typeLabel = new JLabel();
-        detailPanel.add(ppLabel);
-        detailPanel.add(typeLabel);
-        gc.gridx = 2;
-        gc.weightx = 0.22;
-        bottomPanel.add(detailPanel, gc);
-    }
+    // ------------------------------------------------------------------ API que usan los flujos
 
     public JPanel getRootPanel() {
-        return rootPanel;
+        return this;
     }
 
     /**
@@ -115,6 +103,7 @@ public class BattleScreenForm {
 
     public void setInputEnabled(boolean enabled) {
         this.inputEnabled = enabled;
+        repaint();
     }
 
     /**
@@ -128,32 +117,37 @@ public class BattleScreenForm {
         }
         this.player = player;
         this.rival = rival;
-        field.setCombatants(player, rival);
-        selected = 0;
-        refreshOptions();
+        this.playerShownHp = player.getHitPoints().getCurrent();
+        this.rivalShownHp = rival.getHitPoints().getCurrent();
+        this.selected = 0;
+        repaint();
     }
 
     public void refresh() {
-        field.refresh();
-        refreshOptions();
+        if (!hpTimer.isRunning()) {
+            hpTimer.start();
+        }
+        repaint();
     }
 
     public void showPrompt() {
-        promptLabel.setText("<html>¿QUE HARA<br>" + player.getName().toUpperCase() + "?</html>");
+        promptLines = new ArrayList<>();
+        promptLines.add("¿QUE HARA " + player.getName().toUpperCase() + "?");
+        repaint();
     }
 
     public void showMessages(List<String> messages) {
-        StringBuilder sb = new StringBuilder("<html>");
+        promptLines = new ArrayList<>();
         for (String m : messages) {
             if (!m.isBlank()) {
-                sb.append(m.toUpperCase()).append("<br>");
+                promptLines.add(m.toUpperCase());
             }
         }
-        promptLabel.setText(sb.append("</html>").toString());
+        repaint();
     }
 
     /**
-     * Muestra los ataques del pokemon activo. ESC ejecuta onBack.
+     * Muestra los ataques del pokemon activo. ESC o el boton VOLVER ejecutan onBack.
      */
     public void showMoves(IntConsumer onMove, Runnable onBack) {
         this.movesMode = true;
@@ -162,12 +156,11 @@ public class BattleScreenForm {
         this.selected = 0;
         this.inputEnabled = true;
         showPrompt();
-        refreshOptions();
     }
 
     /**
      * Muestra hasta 4 opciones de texto (menu de acciones, equipo, confirmaciones).
-     * ESC ejecuta onBack.
+     * ESC o el boton VOLVER ejecutan onBack; si es null, no hay a donde volver.
      */
     public void showChoices(String prompt, String[] labels, IntConsumer onChosen, Runnable onBack) {
         this.movesMode = false;
@@ -176,153 +169,367 @@ public class BattleScreenForm {
         this.onBack = onBack;
         this.selected = 0;
         this.inputEnabled = true;
-        promptLabel.setText("<html>" + prompt.toUpperCase() + "</html>");
-        refreshOptions();
+        promptLines = new ArrayList<>();
+        promptLines.add(prompt.toUpperCase());
+        repaint();
     }
 
-    private void applyStyle() {
-        bottomPanel.setPreferredSize(new Dimension(960, 200));
-        bottomPanel.setBackground(NAVY);
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
+    // ------------------------------------------------------------------ RetroScreen
 
-        for (JPanel p : new JPanel[]{promptPanel, movesPanel, detailPanel}) {
-            p.setBackground(CREAM);
-            p.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(DARK, 4),
-                    BorderFactory.createEmptyBorder(10, 14, 10, 14)));
-        }
-
-        promptLabel.setFont(PixelFont.get(11));
-        promptLabel.setVerticalAlignment(SwingConstants.TOP);
-        promptLabel.setForeground(DARK);
-        for (JLabel l : moveLabels) {
-            l.setFont(PixelFont.get(12));
-            l.setForeground(DARK);
-        }
-        ppLabel.setFont(PixelFont.get(11));
-        typeLabel.setFont(PixelFont.get(11));
-        ppLabel.setForeground(DARK);
-        typeLabel.setForeground(DARK);
-    }
-
-    private void bindKeys() {
-        bind("UP", () -> moveSelection(-1, 0));
-        bind("DOWN", () -> moveSelection(1, 0));
-        bind("LEFT", () -> moveSelection(0, -1));
-        bind("RIGHT", () -> moveSelection(0, 1));
-        bind("ENTER", () -> {
-            if (inputEnabled && selected < optionCount()) {
-                onChoice.accept(selected);
-            }
-        });
-        bind("ESCAPE", () -> {
-            if (inputEnabled) {
-                onBack.run();
-            }
-        });
-    }
-
-    private void bind(String key, Runnable action) {
-        rootPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-                .put(KeyStroke.getKeyStroke(key), key);
-        rootPanel.getActionMap().put(key, new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                action.run();
-            }
-        });
-    }
-
-    // Mouse: pasar encima selecciona y hacer clic ejecuta
-    private void bindMouse() {
-        for (int i = 0; i < moveLabels.length; i++) {
-            final int index = i;
-            moveLabels[i].addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    if (index < optionCount()) {
-                        selected = index;
-                        refreshOptions();
-                    }
-                }
-
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (inputEnabled && index < optionCount()) {
-                        selected = index;
-                        refreshOptions();
-                        onChoice.accept(index);
-                    }
-                }
-            });
+    @Override
+    protected void goBack() {
+        if (inputEnabled && onBack != null) {
+            onBack.run();
         }
     }
 
-    private int moveCount() {
-        return player.getPokemon().getMoves().size();
+    @Override
+    protected void paintFooterButtons(Graphics2D g) {
+        if (inputEnabled && onBack != null) {
+            super.paintFooterButtons(g);   // boton "ESC VOLVER"
+        }
+        RetroStyle.drawArrowKeyButton(g, true, "MOVER", 214, 598, 170, 36);
+        RetroStyle.drawKeyButton(g, "ENTER  ELEGIR", 404, 598, 190, 36);
+    }
+
+    @Override
+    protected void onBoardClick(int x, int y, int clickCount) {
+        if (!inputEnabled) {
+            return;
+        }
+        int index = optionAt(x, y);
+        if (index >= 0) {
+            selected = index;
+            repaint();
+            onChoice.accept(index);
+        }
+    }
+
+    @Override
+    protected void paintContent(Graphics2D g) {
+        drawField(g);
+        drawPromptBox(g);
+        drawOptionsBox(g);
+        drawDetailBox(g);
+    }
+
+    // ------------------------------------------------------------------ teclado y mouse
+
+    private void confirm() {
+        if (inputEnabled && selected < optionCount()) {
+            onChoice.accept(selected);
+        }
+    }
+
+    // Las opciones estan en cuadricula 2x2: se mueve por fila y columna
+    private void moveSelection(int dRow, int dCol) {
+        if (!inputEnabled) {
+            return;
+        }
+        int row = Math.floorMod(selected / 2 + dRow, 2);
+        int col = Math.floorMod(selected % 2 + dCol, 2);
+        int target = row * 2 + col;
+        if (target < optionCount()) {
+            selected = target;
+            repaint();
+        }
+    }
+
+    private void onHover(int px, int py) {
+        int[] p = toBoardPoint(px, py);
+        int index = inputEnabled ? optionAt(p[0], p[1]) : -1;
+        boolean overBack = inputEnabled && onBack != null && BACK_BUTTON.contains(p[0], p[1]);
+        if (index >= 0 && index != selected) {
+            selected = index;
+            repaint();
+        }
+        setCursor(index >= 0 || overBack
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+    }
+
+    // Convierte un punto de la ventana a coordenadas del tablero de 960x640
+    private int[] toBoardPoint(int x, int y) {
+        double scale = Math.min(getWidth() / (double) BOARD_W, getHeight() / (double) BOARD_H);
+        double offsetX = (getWidth() - BOARD_W * scale) / 2;
+        double offsetY = (getHeight() - BOARD_H * scale) / 2;
+        return new int[]{(int) ((x - offsetX) / scale), (int) ((y - offsetY) / scale)};
     }
 
     private int optionCount() {
-        return movesMode ? moveCount() : choices.length;
+        return movesMode ? player.getPokemon().getMoves().size() : choices.length;
     }
 
     private String optionText(int i) {
         return movesMode ? player.getPokemon().getMove(i).getName().toUpperCase() : choices[i];
     }
 
-    // Las opciones estan en cuadricula 2x2: se mueve por fila y columna
-    private void moveSelection(int dRow, int dCol) {
-        int row = Math.floorMod(selected / 2 + dRow, 2);
-        int col = Math.floorMod(selected % 2 + dCol, 2);
-        int target = row * 2 + col;
-        if (target < optionCount()) {
-            selected = target;
-            refreshOptions();
-        }
+    private Rectangle optionCell(int i) {
+        int col = i % 2;
+        int row = i / 2;
+        return new Rectangle(OPTIONS_BOX.x + 12 + col * 178, OPTIONS_BOX.y + 12 + row * 80, 170, 72);
     }
 
-    private void refreshOptions() {
-        int count = optionCount();
-        for (int i = 0; i < moveLabels.length; i++) {
-            if (i < count) {
-                moveLabels[i].setText((i == selected ? "> " : "  ") + optionText(i));
-                moveLabels[i].setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            } else {
-                moveLabels[i].setText(movesMode ? "  -" : " ");
-                moveLabels[i].setCursor(Cursor.getDefaultCursor());
+    private int optionAt(int x, int y) {
+        for (int i = 0; i < optionCount() && i < 4; i++) {
+            if (optionCell(i).contains(x, y)) {
+                return i;
             }
         }
-        if (movesMode && selected < count) {
-            Move move = player.getPokemon().getMove(selected);
-            // El modelo aun no guarda los PP actuales, por ahora se muestran los maximos
-            ppLabel.setText("PP " + move.getPp() + "/" + move.getPp());
-            Icon icon = SpriteLoader.typeIcon(move.getType(), 96);
-            typeLabel.setIcon(icon);
-            typeLabel.setText(icon == null ? "TIPO/" + move.getType() : "");
-        } else {
-            ppLabel.setText(" ");
-            typeLabel.setIcon(null);
-            typeLabel.setText(" ");
+        return -1;
+    }
+
+    // ------------------------------------------------------------------ animacion de la vida
+
+    private void animateHp() {
+        playerShownHp = step(playerShownHp, player.getHitPoints().getCurrent());
+        rivalShownHp = step(rivalShownHp, rival.getHitPoints().getCurrent());
+        repaint();
+        if (playerShownHp == player.getHitPoints().getCurrent()
+                && rivalShownHp == rival.getHitPoints().getCurrent()) {
+            hpTimer.stop();
         }
     }
 
-    /**
-     * Method generated by IntelliJ IDEA GUI Designer
-     * >>> IMPORTANT!! <<<
-     * DO NOT edit this method OR call it in your code!
-     *
-     * @noinspection ALL
-     */
+    private double step(double shown, int target) {
+        double diff = target - shown;
+        if (Math.abs(diff) < 0.5) {
+            return target;
+        }
+        return shown + Math.signum(diff) * Math.max(0.5, Math.abs(diff) * 0.15);
+    }
 
-    /**
-     * @noinspection ALL
-     */
-    private void buildLayout() {
-        field = new BattleField();
-        battlefieldPanel = field;
-        bottomPanel = new JPanel();
-        rootPanel = new JPanel(new BorderLayout());
-        rootPanel.add(battlefieldPanel, BorderLayout.CENTER);
-        rootPanel.add(bottomPanel, BorderLayout.SOUTH);
+    // ------------------------------------------------------------------ dibujo: campo de batalla
+
+    private void drawField(Graphics2D g) {
+        Shape oldClip = g.getClip();
+        g.clip(new RoundRectangle2D.Double(FIELD.x, FIELD.y, FIELD.width, FIELD.height, 16, 16));
+
+        g.setColor(SKY);
+        g.fillRect(FIELD.x, FIELD.y, FIELD.width, FIELD.height);
+        int groundY = FIELD.y + (int) (FIELD.height * 0.60);
+        g.setColor(GROUND);
+        g.fillRect(FIELD.x, groundY, FIELD.width, FIELD.y + FIELD.height - groundY);
+
+        // Sombras
+        g.setColor(SHADOW);
+        g.fill(new Ellipse2D.Double(700 - 140, 226 - 20, 280, 40));
+        g.fill(new Ellipse2D.Double(250 - 170, 372 - 20, 340, 40));
+
+        // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
+        drawCombatant(g, rival, false, 700, 226, 130, 3);
+        drawCombatant(g, player, true, 250, 372, 190, 4);
+
+        // Cuadros de informacion
+        drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false);
+        drawInfoBox(g, 548, 292, 364, 92, player, playerShownHp, true);
+
+        g.setClip(oldClip);
+        g.setColor(RetroStyle.OUTLINE);
+        g.setStroke(new BasicStroke(4));
+        g.drawRoundRect(FIELD.x, FIELD.y, FIELD.width, FIELD.height, 16, 16);
+        g.setStroke(new BasicStroke(1));
+    }
+
+    // Escala en numeros enteros para que el pixel art se vea nitido, sin pasar de la caja.
+    // Usar "this" como observador es lo que hace que el GIF se siga animando.
+    private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx, int feetY,
+                               int box, int maxScale) {
+        if (c == null || c.isFainted()) {
+            return;
+        }
+        Image img = back ? SpriteLoader.pokemonBack(c.getName())
+                : SpriteLoader.pokemonFront(c.getName());
+        if (img == null) {
+            return;
+        }
+        int iw = img.getWidth(this);
+        int ih = img.getHeight(this);
+        if (iw <= 0 || ih <= 0) {
+            return;
+        }
+        int scale = Math.max(1, Math.min(maxScale, box / Math.max(iw, ih)));
+        int w = iw * scale;
+        int h = ih * scale;
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g.drawImage(img, cx - w / 2, feetY - h, w, h, this);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+    }
+
+    private void drawInfoBox(Graphics2D g, int x, int y, int w, int h, Combatant c,
+                             double shownHp, boolean showNumbers) {
+        RetroStyle.drawPanel(g, x, y, w, h);
+        int pad = 18;
+
+        // Nombre y nivel
+        g.setFont(RetroStyle.font(32));
+        RetroStyle.shadowText(g, c.getName().toUpperCase(), x + pad, y + 34,
+                RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        String level = "Nv" + c.getPokemon().getLevel();
+        int levelW = g.getFontMetrics().stringWidth(level);
+        RetroStyle.shadowText(g, level, x + w - pad - levelW, y + 34,
+                RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        // Etiqueta HP y barra
+        g.setFont(RetroStyle.font(24));
+        RetroStyle.shadowText(g, "HP", x + pad, y + 60, RetroStyle.RED, RetroStyle.SHADOW_LIGHT);
+        int barX = x + pad + 38;
+        int barW = w - pad * 2 - 38;
+        int barY = y + 46;
+        int barH = 14;
+        g.setColor(RetroStyle.OUTLINE);
+        g.fillRoundRect(barX - 2, barY - 2, barW + 4, barH + 4, barH, barH);
+        g.setColor(RetroStyle.DARK);
+        g.fillRoundRect(barX, barY, barW, barH, barH - 4, barH - 4);
+        double ratio = shownHp / Math.max(1, c.getHitPoints().getMax());
+        ratio = Math.max(0, Math.min(1, ratio));
+        if (ratio > 0) {
+            g.setColor(barColor(ratio));
+            g.fillRoundRect(barX, barY, Math.max(barH, (int) (barW * ratio)), barH, barH - 4, barH - 4);
+        }
+
+        // Estado (izquierda) y HP en numeros (derecha, solo el jugador)
+        int textY = y + h - 10;
+        String status = statusText(c.getStatus());
+        if (!status.isEmpty()) {
+            RetroStyle.shadowText(g, status, x + pad, textY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        }
+        if (showNumbers) {
+            String hp = (int) Math.ceil(shownHp) + " / " + c.getHitPoints().getMax();
+            int hpW = g.getFontMetrics().stringWidth(hp);
+            RetroStyle.shadowText(g, hp, x + w - pad - hpW, textY, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        }
+    }
+
+    private Color barColor(double ratio) {
+        if (ratio > 0.5) {
+            return new Color(0x3DA35D);
+        }
+        if (ratio > 0.2) {
+            return new Color(0xE0A526);
+        }
+        return new Color(0xC0392B);
+    }
+
+    private String statusText(StatusCondition s) {
+        switch (s) {
+            case PARALYSIS:
+                return "PARALIZADO";
+            case SLEEP:
+                return "DORMIDO";
+            case POISON:
+                return "ENVENENADO";
+            case BURN:
+                return "QUEMADO";
+            case FREEZE:
+                return "CONGELADO";
+            default:
+                return "";
+        }
+    }
+
+    // ------------------------------------------------------------------ dibujo: cajas de abajo
+
+    // Caja roja de la izquierda: mensajes y pregunta ("¿QUE HARA ...?")
+    private void drawPromptBox(Graphics2D g) {
+        RetroStyle.drawRedFrame(g, PROMPT_BOX.x, PROMPT_BOX.y, PROMPT_BOX.width, PROMPT_BOX.height);
+        g.setFont(RetroStyle.font(22));
+        List<String> lines = wrap(g, promptLines, PROMPT_BOX.width - 44);
+        int lineHeight = 24;
+        int maxLines = 6;
+        int first = Math.max(0, lines.size() - maxLines);   // si hay de mas, se ven los ultimos
+        int y = PROMPT_BOX.y + 36;
+        for (int i = first; i < lines.size(); i++) {
+            RetroStyle.shadowText(g, lines.get(i), PROMPT_BOX.x + 22, y,
+                    RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            y += lineHeight;
+        }
+    }
+
+    private List<String> wrap(Graphics2D g, List<String> lines, int maxWidth) {
+        FontMetrics fm = g.getFontMetrics();
+        List<String> out = new ArrayList<>();
+        for (String line : lines) {
+            StringBuilder current = new StringBuilder();
+            for (String word : line.split(" ")) {
+                String candidate = current.length() == 0 ? word : current + " " + word;
+                if (current.length() == 0 || fm.stringWidth(candidate) <= maxWidth) {
+                    current = new StringBuilder(candidate);
+                } else {
+                    out.add(current.toString());
+                    current = new StringBuilder(word);
+                }
+            }
+            out.add(current.toString());
+        }
+        return out;
+    }
+
+    // Caja del centro: hasta 4 opciones en cuadricula 2x2
+    private void drawOptionsBox(Graphics2D g) {
+        RetroStyle.drawPanel(g, OPTIONS_BOX.x, OPTIONS_BOX.y, OPTIONS_BOX.width, OPTIONS_BOX.height);
+        int count = optionCount();
+        for (int i = 0; i < 4; i++) {
+            Rectangle cell = optionCell(i);
+            if (i >= count) {
+                if (movesMode) {
+                    drawFitted(g, "-", cell, RetroStyle.SHADOW_LIGHT);
+                }
+                continue;
+            }
+            boolean isSelected = inputEnabled && i == selected;
+            if (isSelected) {
+                RetroStyle.drawSelectedRow(g, cell.x, cell.y, cell.width, cell.height);
+            }
+            RetroStyle.drawListDot(g, cell.x + 20, cell.y + cell.height / 2, isSelected);
+            drawFitted(g, optionText(i), cell, inputEnabled ? RetroStyle.DARK : RetroStyle.SHADOW_LIGHT);
+        }
+    }
+
+    // Escribe el texto dentro de la celda, reduciendo la letra si no cabe
+    private void drawFitted(Graphics2D g, String text, Rectangle cell, Color color) {
+        int maxWidth = cell.width - 46;
+        int size = 28;
+        g.setFont(RetroStyle.font(size));
+        while (size > 16 && g.getFontMetrics().stringWidth(text) > maxWidth) {
+            size--;
+            g.setFont(RetroStyle.font(size));
+        }
+        FontMetrics fm = g.getFontMetrics();
+        int baseline = cell.y + (cell.height + fm.getAscent() - fm.getDescent()) / 2;
+        RetroStyle.shadowText(g, text, cell.x + 38, baseline, color, RetroStyle.WHITE);
+    }
+
+    // Caja de la derecha: datos del ataque elegido, o los tipos del pokemon activo
+    private void drawDetailBox(Graphics2D g) {
+        RetroStyle.drawPanel(g, DETAIL_BOX.x, DETAIL_BOX.y, DETAIL_BOX.width, DETAIL_BOX.height);
+        int x = DETAIL_BOX.x + 18;
+        int y = DETAIL_BOX.y;
+
+        if (movesMode && selected < optionCount()) {
+            Move move = player.getPokemon().getMove(selected);
+            g.setFont(RetroStyle.font(26));
+            // El modelo aun no guarda los PP actuales, por ahora se muestran los maximos
+            RetroStyle.shadowText(g, "PP " + move.getPp() + "/" + move.getPp(), x, y + 36,
+                    RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            g.setFont(RetroStyle.font(22));
+            RetroStyle.drawTypeBadge(g, move.getType(), x, y + 52, 96, 30);
+            RetroStyle.drawCategory(g, move.getCategory(), x + 106, y + 52, 60, 30);
+            g.setFont(RetroStyle.font(24));
+            RetroStyle.shadowText(g, "PODER " + (move.getPower() > 0 ? move.getPower() : "-"),
+                    x, y + 118, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, "PREC " + move.getAccuracy(), x, y + 148,
+                    RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        } else {
+            g.setFont(RetroStyle.font(24));
+            RetroStyle.shadowText(g, "TIPO", x, y + 36, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            g.setFont(RetroStyle.font(22));
+            RetroStyle.drawTypeBadge(g, player.getPokemon().getPrimaryType(), x, y + 52, 96, 30);
+            if (player.getPokemon().getSecondaryType() != Type.NONE) {
+                RetroStyle.drawTypeBadge(g, player.getPokemon().getSecondaryType(), x, y + 92, 96, 30);
+            }
+        }
     }
 }
