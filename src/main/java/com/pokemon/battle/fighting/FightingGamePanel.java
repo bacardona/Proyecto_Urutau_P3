@@ -60,7 +60,7 @@ public class FightingGamePanel extends JPanel {
     // 3. VARIABLES
     // ==========================================
 
-    private final FightingGameSession session = new FightingGameSession();
+    private FightingGameSession session = new FightingGameSession();
     private final FightingRenderer renderer =
             new FightingRenderer(SpriteLoader.shared());
     private final FightingInput input = new FightingInput();
@@ -72,10 +72,9 @@ public class FightingGamePanel extends JPanel {
     private int frameIndex = 0;
     private long lastSimulationNanos;
     private long simulationAccumulatorNanos;
-    private boolean paused = false;
-
     private PausePage pausePage = PausePage.MAIN;
     private int selectedOption = 0;
+    private int selectedResultOption = 0;
 
     // ==========================================
     // 4. CONSTRUCTOR
@@ -92,7 +91,7 @@ public class FightingGamePanel extends JPanel {
         animationTimer = new Timer(
                 1000 / GifAnimation.FPS,
                 e -> {
-                    if (!paused) {
+                if (session.getState() == FightingGameSession.State.RUNNING) {
                         frameIndex++;
                         repaint();
                     }
@@ -110,9 +109,10 @@ public class FightingGamePanel extends JPanel {
 
                 if (isShowing()) {
 
-                    paused = false;
+                    session = new FightingGameSession();
                     pausePage = PausePage.MAIN;
                     selectedOption = 0;
+                    selectedResultOption = 0;
                     frameIndex = 0;
 
                     animationTimer.start();
@@ -135,13 +135,18 @@ public class FightingGamePanel extends JPanel {
         // Controles del menu.
         bindKey("ESCAPE", this::handleEscape);
         bindKey("UP", () -> {
-            if (paused) {
+            if (session.getState() == FightingGameSession.State.PAUSED) {
                 moveSelection(-1);
-            } else {
+            } else if (session.getState() == FightingGameSession.State.RUNNING) {
                 input.setPlayerTwoJump(true);
+            } else {
+                moveResultSelection(-1);
             }
         });
-        bindKey("DOWN", () -> moveSelection(1));
+        bindKey("DOWN", () -> {
+            if (session.getState() == FightingGameSession.State.PAUSED) moveSelection(1);
+            else if (session.getState() == FightingGameSession.State.FINISHED) moveResultSelection(1);
+        });
         bindKey("ENTER", this::activateSelected);
 
         bindHeldKey("A", input::setPlayerOneLeft);
@@ -161,8 +166,12 @@ public class FightingGamePanel extends JPanel {
             @Override
             public void mouseClicked(MouseEvent e) {
 
-                if (!paused ||
-                        pausePage != PausePage.MAIN) {
+                if (session.getState() == FightingGameSession.State.FINISHED) {
+                    handleResultClick(e);
+                    return;
+                }
+                if (session.getState() != FightingGameSession.State.PAUSED
+                        || pausePage != PausePage.MAIN) {
                     return;
                 }
 
@@ -244,7 +253,7 @@ public class FightingGamePanel extends JPanel {
         getActionMap().put(pressedId, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if (isShowing() && !paused) setter.accept(true);
+                if (isShowing() && session.getState() == FightingGameSession.State.RUNNING) setter.accept(true);
             }
         });
         getActionMap().put(releasedId, new AbstractAction() {
@@ -268,6 +277,7 @@ public class FightingGamePanel extends JPanel {
     }
 
     private void updateSimulation() {
+        if (session.getState() != FightingGameSession.State.RUNNING) return;
         long now = System.nanoTime();
         long elapsed = Math.min(now - lastSimulationNanos, 250_000_000L);
         lastSimulationNanos = now;
@@ -276,6 +286,11 @@ public class FightingGamePanel extends JPanel {
         while (simulationAccumulatorNanos >= SIMULATION_STEP_NANOS) {
             session.update(input, SIMULATION_STEP_NANOS / 1_000_000_000.0);
             simulationAccumulatorNanos -= SIMULATION_STEP_NANOS;
+            if (session.getState() == FightingGameSession.State.FINISHED) {
+                stopGameTimersAndClearInput();
+                simulationAccumulatorNanos = 0;
+                break;
+            }
         }
 
         if (elapsed > 0) repaint();
@@ -287,10 +302,10 @@ public class FightingGamePanel extends JPanel {
 
     private void handleEscape() {
 
-        if (!paused) {
+        if (session.getState() == FightingGameSession.State.RUNNING) {
 
             // Abrir el menu de pausa.
-            paused = true;
+            session.pause();
             pausePage = PausePage.MAIN;
             selectedOption = 0;
 
@@ -298,12 +313,13 @@ public class FightingGamePanel extends JPanel {
             simulationTimer.stop();
             input.clear();
 
-        } else if (pausePage != PausePage.MAIN) {
+        } else if (session.getState() == FightingGameSession.State.PAUSED
+                && pausePage != PausePage.MAIN) {
 
             // Regresar desde Controles o Resumen.
             pausePage = PausePage.MAIN;
 
-        } else {
+        } else if (session.getState() == FightingGameSession.State.PAUSED) {
 
             // Cerrar el menu.
             resumeGame();
@@ -314,10 +330,10 @@ public class FightingGamePanel extends JPanel {
 
     private void resumeGame() {
 
-        paused = false;
+        session.resume();
         pausePage = PausePage.MAIN;
 
-        if (isShowing()) {
+        if (isShowing() && session.getState() == FightingGameSession.State.RUNNING) {
             input.clear();
             simulationAccumulatorNanos = 0;
             lastSimulationNanos = System.nanoTime();
@@ -334,7 +350,7 @@ public class FightingGamePanel extends JPanel {
 
     private void moveSelection(int delta) {
 
-        if (!paused ||
+        if (session.getState() != FightingGameSession.State.PAUSED ||
                 pausePage != PausePage.MAIN) {
             return;
         }
@@ -349,7 +365,12 @@ public class FightingGamePanel extends JPanel {
 
     private void activateSelected() {
 
-        if (!paused) {
+        if (session.getState() == FightingGameSession.State.FINISHED) {
+            activateResultOption();
+            return;
+        }
+
+        if (session.getState() != FightingGameSession.State.PAUSED) {
             return;
         }
 
@@ -369,9 +390,7 @@ public class FightingGamePanel extends JPanel {
             case 2 -> pausePage = PausePage.SUMMARY;
 
             case 3 -> {
-                animationTimer.stop();
-                simulationTimer.stop();
-                input.clear();
+                stopGameTimersAndClearInput();
                 onBack.run();
             }
 
@@ -380,6 +399,55 @@ public class FightingGamePanel extends JPanel {
         }
 
         repaint();
+    }
+
+    private void moveResultSelection(int delta) {
+        if (session.getState() != FightingGameSession.State.FINISHED) return;
+        selectedResultOption = Math.floorMod(selectedResultOption + delta, 2);
+        repaint();
+    }
+
+    private void activateResultOption() {
+        if (selectedResultOption == 0) {
+            session = new FightingGameSession();
+            input.clear();
+            frameIndex = 0;
+            selectedResultOption = 0;
+            simulationAccumulatorNanos = 0;
+            lastSimulationNanos = System.nanoTime();
+            if (isShowing()) {
+                animationTimer.start();
+                simulationTimer.start();
+            }
+        } else {
+            stopGameTimersAndClearInput();
+            onBack.run();
+        }
+        repaint();
+    }
+
+    private void handleResultClick(MouseEvent event) {
+        double scale = boardScale();
+        int x = (int) ((event.getX() - boardOffsetX(scale)) / scale);
+        int y = (int) ((event.getY() - boardOffsetY(scale)) / scale);
+        if (x < FightingRenderer.RESULT_OPTION_X
+                || x >= FightingRenderer.RESULT_OPTION_X + FightingRenderer.RESULT_OPTION_W) return;
+
+        for (int option = 0; option < 2; option++) {
+            int top = FightingRenderer.RESULT_OPTION_Y
+                    + option * (FightingRenderer.RESULT_OPTION_H + FightingRenderer.RESULT_OPTION_GAP);
+            if (y >= top && y < top + FightingRenderer.RESULT_OPTION_H) {
+                selectedResultOption = option;
+                activateResultOption();
+                return;
+            }
+        }
+    }
+
+    private void stopGameTimersAndClearInput() {
+        animationTimer.stop();
+        simulationTimer.stop();
+        input.clear();
     }
 
     // ==========================================
@@ -447,7 +515,8 @@ public class FightingGamePanel extends JPanel {
         // OSCURECIMIENTO Y MENU DE PAUSA
         // ======================================
 
-        if (paused) {
+        if (session.getState() == FightingGameSession.State.PAUSED
+                || session.getState() == FightingGameSession.State.FINISHED) {
 
             // IMPORTANTE:
             // Este Graphics2D no tiene escalado.
@@ -477,7 +546,11 @@ public class FightingGamePanel extends JPanel {
 
             menuGraphics.scale(scale, scale);
 
-            drawPause(menuGraphics);
+            if (session.getState() == FightingGameSession.State.PAUSED) {
+                drawPause(menuGraphics);
+            } else {
+                renderer.drawResults(menuGraphics, session, selectedResultOption);
+            }
 
             menuGraphics.dispose();
         }

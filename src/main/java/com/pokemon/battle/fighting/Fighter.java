@@ -6,6 +6,7 @@ import java.util.Objects;
 public class Fighter {
 
     private static final int MAX_HEALTH = 100;
+    private static final double MAX_EVOLUTION_ENERGY = 100.0;
 
     private final String pokemonId;
     private double x;
@@ -16,7 +17,7 @@ public class Fighter {
     private double velocityX;
     private double velocityY;
     private int health = MAX_HEALTH;
-    private double evolution;
+    private double evolutionEnergy;
     private boolean onGround = true;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
@@ -35,7 +36,9 @@ public class Fighter {
     public double getVelocityY() { return velocityY; }
     public int getHealth() { return health; }
     public int getMaxHealth() { return MAX_HEALTH; }
-    public double getEvolution() { return evolution; }
+    public double getEvolution() { return evolutionEnergy; }
+    public double getEvolutionEnergy() { return evolutionEnergy; }
+    public boolean isEvolutionReady() { return evolutionEnergy >= MAX_EVOLUTION_ENERGY; }
     public boolean isOnGround() { return onGround; }
 
     void moveHorizontally(double direction, double distance) {
@@ -51,5 +54,10 @@ public class Fighter {
 
     void receiveDamage(int damage) {
         health = Math.max(0, health - Math.max(0, damage));
+    }
+
+    void addEvolutionEnergy(double amount) {
+        evolutionEnergy = Math.max(0,
+                Math.min(MAX_EVOLUTION_ENERGY, evolutionEnergy + amount));
     }
 }

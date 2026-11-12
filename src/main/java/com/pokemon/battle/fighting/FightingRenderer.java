@@ -13,6 +13,12 @@ import java.awt.image.BufferedImage;
 /** Draws the arena and its fighters without changing session state. */
 public class FightingRenderer {
 
+    static final int RESULT_OPTION_X = 440;
+    static final int RESULT_OPTION_Y = 390;
+    static final int RESULT_OPTION_W = 400;
+    static final int RESULT_OPTION_H = 44;
+    static final int RESULT_OPTION_GAP = 12;
+
     private final SpriteLoader spriteLoader;
 
     public FightingRenderer(SpriteLoader spriteLoader) {
@@ -27,6 +33,40 @@ public class FightingRenderer {
             int height = "PIKACHU".equals(fighter.getPokemonId()) ? 145 : 190;
             drawPokemon(g, fighter, height, frameIndex, repaint, session.getGroundY());
         }
+    }
+
+    public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption) {
+        int panelWidth = 500;
+        int panelHeight = 390;
+        int panelX = (session.getWidth() - panelWidth) / 2;
+        int panelY = (session.getHeight() - panelHeight) / 2;
+        int centerX = session.getWidth() / 2;
+
+        g.setColor(RetroStyle.OUTLINE);
+        g.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 22, 22);
+        g.setColor(new Color(0xF4F1E4));
+        g.fillRoundRect(panelX + 7, panelY + 7, panelWidth - 14, panelHeight - 14, 16, 16);
+
+        drawCentered(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
+        String result = switch (session.getOutcome()) {
+            case PLAYER_ONE_WINS -> "PIKACHU GANA!";
+            case PLAYER_TWO_WINS -> "CHARIZARD GANA!";
+            case DRAW -> "EMPATE!";
+        };
+        drawCentered(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
+
+        String[] options = {"REVANCHA", "VOLVER AL MENU"};
+        for (int i = 0; i < options.length; i++) {
+            int y = RESULT_OPTION_Y + i * (RESULT_OPTION_H + RESULT_OPTION_GAP);
+            g.setColor(i == selectedOption ? new Color(0xBED7FF) : Color.WHITE);
+            g.fillRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
+            g.setColor(RetroStyle.OUTLINE);
+            g.drawRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
+            drawCentered(g, options[i], centerX, y + 29, 23, RetroStyle.DARK);
+        }
+
+        drawCentered(g, "FLECHAS + ENTER / CLIC", centerX,
+                panelY + panelHeight - 14, 17, RetroStyle.DARK);
     }
 
     private void drawArena(Graphics2D g, FightingGameSession session, int frameIndex) {
@@ -74,12 +114,25 @@ public class FightingRenderer {
                 session.getFighters().get(1).getHealth() / (double) session.getFighters().get(1).getMaxHealth());
         g.setFont(RetroStyle.font(20));
         g.setColor(Color.WHITE);
+        Fighter leftFighter = session.getFighters().get(0);
+        Fighter rightFighter = session.getFighters().get(1);
         g.drawString("EVOLUCION", leftX, 108);
+        if (leftFighter.isEvolutionReady()) {
+            g.setColor(new Color(0xFFD45A));
+            g.drawString("LISTA!", leftX + barWidth - 82, 108);
+        }
+        g.setColor(Color.WHITE);
         String evolutionText = "EVOLUCION";
         int evolutionWidth = g.getFontMetrics().stringWidth(evolutionText);
         g.drawString(evolutionText, rightX + barWidth - evolutionWidth, 108);
-        drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A), 0);
-        drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A), 0);
+        if (rightFighter.isEvolutionReady()) {
+            g.setColor(new Color(0xFFD45A));
+            g.drawString("LISTA!", rightX + 8, 108);
+        }
+        drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A),
+                leftFighter.getEvolutionEnergy() / 100.0);
+        drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A),
+                rightFighter.getEvolutionEnergy() / 100.0);
         drawCentered(g, "VS", session.getWidth() / 2, 83, 31, Color.WHITE);
     }
 

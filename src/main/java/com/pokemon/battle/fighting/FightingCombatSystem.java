@@ -9,6 +9,8 @@ import java.util.List;
 /** Runs free-fight attack phases, hitboxes, damage, and projectile collisions. */
 public class FightingCombatSystem {
 
+    private static final double EVOLUTION_ENERGY_PER_HIT = 15.0;
+
     private static final AttackDefinition QUICK_ATTACK = new AttackDefinition(
             "QUICK_ATTACK", AttackDefinition.Kind.DASH, 12,
             0.08, 0.18, 0.38,
@@ -89,7 +91,7 @@ public class FightingCombatSystem {
                 attacker.setX(Math.max(minX, Math.min(maxX,
                         attacker.getX() + direction * state.definition.dashSpeed() * deltaSeconds)));
                 if (!state.hasHit && attackHitbox(attacker, state.definition).intersects(target)) {
-                    target.receiveDamage(state.definition.damage());
+                    applyHit(attacker, target, state.definition);
                     state.hasHit = true;
                 }
             }
@@ -122,6 +124,11 @@ public class FightingCombatSystem {
                 definition.damage(), definition.projectileLifetime(), definition.effectColor(), ownerIndex));
     }
 
+    private void applyHit(Fighter attacker, Fighter target, AttackDefinition definition) {
+        target.receiveDamage(definition.damage());
+        attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+    }
+
     private void updateProjectiles(List<Fighter> fighters, int arenaWidth, double deltaSeconds) {
         Iterator<FightingProjectile> iterator = projectiles.iterator();
         while (iterator.hasNext()) {
@@ -129,7 +136,9 @@ public class FightingCombatSystem {
             projectile.update(deltaSeconds);
             Fighter target = fighters.get(1 - projectile.getOwnerIndex());
             if (projectile.hitbox().intersects(target)) {
+                Fighter attacker = fighters.get(projectile.getOwnerIndex());
                 target.receiveDamage(projectile.getDamage());
+                attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
                 iterator.remove();
             } else if (projectile.isExpired(arenaWidth)) {
                 iterator.remove();
