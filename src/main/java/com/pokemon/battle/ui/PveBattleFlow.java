@@ -20,6 +20,7 @@ public class PveBattleFlow {
 
     private static final String SCREEN = "pveBattle";
     private static final int PAUSE_MS = 3000;
+    private static final int AFTER_TURN_MS = 1200;
 
     private final GameWindow window;
     private final BattleController controller;
@@ -141,9 +142,8 @@ public class PveBattleFlow {
         addFainted(messages, side2);
 
         sync();
-        form.refresh();
-        form.showMessages(messages);
-        pause(this::afterRound);
+        // Se anima ataque por ataque; al final queda un momento para leer
+        form.playTurn(messages, controller.getLastRoundEvents(), () -> pause(AFTER_TURN_MS, this::afterRound));
     }
 
     private void afterRound() {
@@ -259,7 +259,11 @@ public class PveBattleFlow {
     }
 
     private void pause(Runnable next) {
-        Timer timer = new Timer(PAUSE_MS, e -> guarded(next));
+        pause(PAUSE_MS, next);
+    }
+
+    private void pause(int ms, Runnable next) {
+        Timer timer = new Timer(ms, e -> guarded(next));
         timer.setRepeats(false);
         timer.start();
     }
@@ -273,4 +277,4 @@ public class PveBattleFlow {
                     index -> onExit.run(), onExit);
         }
     }
-}
+}
