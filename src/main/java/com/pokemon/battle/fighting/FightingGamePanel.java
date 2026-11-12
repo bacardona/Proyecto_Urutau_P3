@@ -31,6 +31,7 @@ public class FightingGamePanel extends JPanel {
 
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
+    private static final long SIMULATION_STEP_NANOS = 1_000_000_000L / 60;
 
     // ==========================================
     // 2. MENU DE PAUSA
@@ -62,11 +63,15 @@ public class FightingGamePanel extends JPanel {
     private final FightingGameSession session = new FightingGameSession();
     private final FightingRenderer renderer =
             new FightingRenderer(SpriteLoader.shared());
+    private final FightingInput input = new FightingInput();
 
     private final Runnable onBack;
     private final Timer animationTimer;
+    private final Timer simulationTimer;
 
     private int frameIndex = 0;
+    private long lastSimulationNanos;
+    private long simulationAccumulatorNanos;
     private boolean paused = false;
 
     private PausePage pausePage = PausePage.MAIN;
@@ -94,6 +99,8 @@ public class FightingGamePanel extends JPanel {
                 }
         );
 
+        simulationTimer = new Timer(8, e -> updateSimulation());
+
         // Iniciar o detener las animaciones
         // cuando se muestra u oculta la pantalla.
         addHierarchyListener(e -> {
@@ -109,10 +116,16 @@ public class FightingGamePanel extends JPanel {
                     frameIndex = 0;
 
                     animationTimer.start();
+                    input.clear();
+                    simulationAccumulatorNanos = 0;
+                    lastSimulationNanos = System.nanoTime();
+                    simulationTimer.start();
 
                 } else {
 
                     animationTimer.stop();
+                    simulationTimer.stop();
+                    input.clear();
                 }
 
                 repaint();
@@ -121,9 +134,26 @@ public class FightingGamePanel extends JPanel {
 
         // Controles del menu.
         bindKey("ESCAPE", this::handleEscape);
-        bindKey("UP", () -> moveSelection(-1));
+        bindKey("UP", () -> {
+            if (paused) {
+                moveSelection(-1);
+            } else {
+                input.setPlayerTwoJump(true);
+            }
+        });
         bindKey("DOWN", () -> moveSelection(1));
         bindKey("ENTER", this::activateSelected);
+
+        bindHeldKey("A", input::setPlayerOneLeft);
+        bindHeldKey("D", input::setPlayerOneRight);
+        bindHeldKey("LEFT", input::setPlayerTwoLeft);
+        bindHeldKey("RIGHT", input::setPlayerTwoRight);
+        bindHeldKey("W", input::setPlayerOneJump);
+        bindKeyRelease("UP", input::setPlayerTwoJump);
+        bindHeldKey("J", input::setQuickAttack);
+        bindHeldKey("K", input::setThunderShock);
+        bindHeldKey("1", input::setEmber);
+        bindHeldKey("2", input::setTackle);
 
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
@@ -204,6 +234,53 @@ public class FightingGamePanel extends JPanel {
         });
     }
 
+    private void bindHeldKey(String key, java.util.function.Consumer<Boolean> setter) {
+        String pressedId = "fighting-move-pressed-" + key;
+        String releasedId = "fighting-move-released-" + key;
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke("pressed " + key), pressedId);
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke("released " + key), releasedId);
+        getActionMap().put(pressedId, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (isShowing() && !paused) setter.accept(true);
+            }
+        });
+        getActionMap().put(releasedId, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setter.accept(false);
+            }
+        });
+    }
+
+    private void bindKeyRelease(String key, java.util.function.Consumer<Boolean> setter) {
+        String releasedId = "fighting-release-" + key;
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke("released " + key), releasedId);
+        getActionMap().put(releasedId, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setter.accept(false);
+            }
+        });
+    }
+
+    private void updateSimulation() {
+        long now = System.nanoTime();
+        long elapsed = Math.min(now - lastSimulationNanos, 250_000_000L);
+        lastSimulationNanos = now;
+        simulationAccumulatorNanos += elapsed;
+
+        while (simulationAccumulatorNanos >= SIMULATION_STEP_NANOS) {
+            session.update(input, SIMULATION_STEP_NANOS / 1_000_000_000.0);
+            simulationAccumulatorNanos -= SIMULATION_STEP_NANOS;
+        }
+
+        if (elapsed > 0) repaint();
+    }
+
     // ==========================================
     // 6. PAUSAR Y REANUDAR
     // ==========================================
@@ -218,6 +295,8 @@ public class FightingGamePanel extends JPanel {
             selectedOption = 0;
 
             animationTimer.stop();
+            simulationTimer.stop();
+            input.clear();
 
         } else if (pausePage != PausePage.MAIN) {
 
@@ -239,6 +318,10 @@ public class FightingGamePanel extends JPanel {
         pausePage = PausePage.MAIN;
 
         if (isShowing()) {
+            input.clear();
+            simulationAccumulatorNanos = 0;
+            lastSimulationNanos = System.nanoTime();
+            simulationTimer.start();
             animationTimer.start();
         }
 
@@ -287,6 +370,8 @@ public class FightingGamePanel extends JPanel {
 
             case 3 -> {
                 animationTimer.stop();
+                simulationTimer.stop();
+                input.clear();
                 onBack.run();
             }
 
@@ -529,7 +614,7 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "JUGADOR 2: FLECHAS, 1 / 2",
+                    "JUGADOR 2: FLECHAS, ARRIBA, 1 / 2",
                     centerX,
                     panelY + 180,
                     20,
@@ -538,21 +623,18 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "CONTROLES AUN NO ACTIVOS",
+                    "P1: J RAPIDO / K IMPACTRUENO",
                     centerX,
                     panelY + 250,
                     18,
                     RetroStyle.DARK
             );
 
-            drawCentered(
-                    g,
-                    "ESC O ENTER PARA VOLVER",
-                    centerX,
-                    panelY + 350,
-                    18,
-                    RetroStyle.DARK
-            );
+            drawCentered(g, "P2: 1 ASCUAS / 2 PLACAJE", centerX,
+                    panelY + 290, 18, RetroStyle.DARK);
+
+            drawCentered(g, "ESC O ENTER PARA VOLVER", centerX,
+                    panelY + 350, 18, RetroStyle.DARK);
         }
 
         // MENU DE RESUMEN.

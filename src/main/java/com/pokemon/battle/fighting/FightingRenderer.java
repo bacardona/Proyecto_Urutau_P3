@@ -22,8 +22,9 @@ public class FightingRenderer {
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
         drawArena(g, session, frameIndex);
         drawBars(g, session);
+        drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) {
-            int height = "PIKACHU".equals(fighter.getPokemonId()) ? 170 : 220;
+            int height = "PIKACHU".equals(fighter.getPokemonId()) ? 145 : 190;
             drawPokemon(g, fighter, height, frameIndex, repaint, session.getGroundY());
         }
     }
@@ -37,18 +38,22 @@ public class FightingRenderer {
         g.setColor(new Color(0xE5F6FF));
         g.fillRoundRect(cloud1X, 235, 150, 35, 30, 30);
         g.fillRoundRect(cloud2X, 285, 160, 35, 30, 30);
-        drawPlatform(g, 340, 490, 190);
-        drawPlatform(g, 750, 490, 190);
-        drawPlatform(g, 0, session.getGroundY(), session.getWidth());
+        for (Platform platform : session.getPlatforms()) {
+            drawPlatform(g, platform);
+        }
     }
 
-    private void drawPlatform(Graphics2D g, int x, int y, int width) {
+    private void drawPlatform(Graphics2D g, Platform platform) {
+        int x = platform.getX();
+        int y = platform.getTop();
+        int width = platform.getWidth();
+        int height = platform.getHeight();
         g.setColor(new Color(0x416C50));
-        g.fillRect(x, y, width, 24);
+        g.fillRect(x, y, width, height);
         g.setColor(new Color(0x7DCC82));
-        g.fillRect(x, y, width, 7);
+        g.fillRect(x, y, width, Math.min(7, height));
         g.setColor(new Color(0x335C3F));
-        g.fillRect(x, y + 19, width, 5);
+        g.fillRect(x, y + height - 5, width, Math.min(5, height));
     }
 
     private void drawBars(Graphics2D g, FightingGameSession session) {
@@ -63,27 +68,57 @@ public class FightingRenderer {
         String rightName = "CHARIZARD";
         int nameWidth = g.getFontMetrics().stringWidth(rightName);
         g.drawString(rightName, rightX + barWidth - nameWidth, 51);
-        drawBar(g, leftX, 60, barWidth, 22, new Color(0x56B75C), true);
-        drawBar(g, rightX, 60, barWidth, 22, new Color(0x56B75C), true);
+        drawBar(g, leftX, 60, barWidth, 22, new Color(0x56B75C),
+                session.getFighters().get(0).getHealth() / (double) session.getFighters().get(0).getMaxHealth());
+        drawBar(g, rightX, 60, barWidth, 22, new Color(0x56B75C),
+                session.getFighters().get(1).getHealth() / (double) session.getFighters().get(1).getMaxHealth());
         g.setFont(RetroStyle.font(20));
         g.setColor(Color.WHITE);
         g.drawString("EVOLUCION", leftX, 108);
         String evolutionText = "EVOLUCION";
         int evolutionWidth = g.getFontMetrics().stringWidth(evolutionText);
         g.drawString(evolutionText, rightX + barWidth - evolutionWidth, 108);
-        drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A), false);
-        drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A), false);
+        drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A), 0);
+        drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A), 0);
         drawCentered(g, "VS", session.getWidth() / 2, 83, 31, Color.WHITE);
     }
 
-    private void drawBar(Graphics2D g, int x, int y, int width, int height, Color fill, boolean full) {
+    private void drawBar(Graphics2D g, int x, int y, int width, int height, Color fill, double ratio) {
         g.setColor(RetroStyle.OUTLINE);
         g.fillRect(x, y, width, height);
         g.setColor(new Color(0xB7B7B7));
         g.fillRect(x + 3, y + 3, width - 6, height - 6);
-        if (full) {
+        if (ratio > 0) {
             g.setColor(fill);
-            g.fillRect(x + 3, y + 3, width - 6, height - 6);
+            int fillWidth = (int) Math.round((width - 6) * Math.min(1, ratio));
+            g.fillRect(x + 3, y + 3, fillWidth, height - 6);
+        }
+    }
+
+    private void drawAttackEffects(Graphics2D g, FightingGameSession session) {
+        for (FightingProjectile projectile : session.getProjectiles()) {
+            int x = (int) Math.round(projectile.getX() - projectile.getSize() / 2);
+            int y = (int) Math.round(projectile.getY() - projectile.getSize() / 2);
+            int size = (int) Math.round(projectile.getSize());
+            g.setColor(projectile.getColor());
+            g.fillRect(x + size / 4, y, size / 2, size);
+            g.fillRect(x, y + size / 4, size, size / 2);
+            g.setColor(Color.WHITE);
+            g.fillRect(x + size / 3, y + size / 3, size / 3, size / 3);
+        }
+
+        Fighter pikachu = session.getFighters().get(0);
+        if (session.getCombatSystem().isDashing(pikachu, session.getFighters())) {
+            AttackDefinition definition = session.getCombatSystem()
+                    .getActiveDefinition(pikachu, session.getFighters());
+            int direction = pikachu.isFacingLeft() ? -1 : 1;
+            int trailX = (int) pikachu.getX() - direction * 52;
+            int trailY = (int) pikachu.getY() - 82;
+            g.setColor(new Color(definition.effectColor().getRed(),
+                    definition.effectColor().getGreen(), definition.effectColor().getBlue(), 170));
+            g.fillRect(trailX - 8, trailY, 16, 8);
+            g.fillRect(trailX, trailY + 12, 24, 7);
+            g.fillRect(trailX - 5, trailY + 24, 13, 6);
         }
     }
 

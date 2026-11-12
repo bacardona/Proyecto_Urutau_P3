@@ -5,6 +5,8 @@ import java.util.Objects;
 /** Mutable state for one participant in a free fight. */
 public class Fighter {
 
+    private static final int MAX_HEALTH = 100;
+
     private final String pokemonId;
     private double x;
     private double y;
@@ -13,8 +15,9 @@ public class Fighter {
     // Reserved for later gameplay stages; no mechanics are applied yet.
     private double velocityX;
     private double velocityY;
-    private int health;
+    private int health = MAX_HEALTH;
     private double evolution;
+    private boolean onGround = true;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemonId = Objects.requireNonNull(pokemonId);
@@ -31,5 +34,22 @@ public class Fighter {
     public double getVelocityX() { return velocityX; }
     public double getVelocityY() { return velocityY; }
     public int getHealth() { return health; }
+    public int getMaxHealth() { return MAX_HEALTH; }
     public double getEvolution() { return evolution; }
+    public boolean isOnGround() { return onGround; }
+
+    void moveHorizontally(double direction, double distance) {
+        if (direction == 0) return;
+        facingLeft = direction < 0;
+        x += direction * distance;
+    }
+
+    void setX(double x) { this.x = x; }
+    void setY(double y) { this.y = y; }
+    void setVelocityY(double velocityY) { this.velocityY = velocityY; }
+    void setOnGround(boolean onGround) { this.onGround = onGround; }
+
+    void receiveDamage(int damage) {
+        health = Math.max(0, health - Math.max(0, damage));
+    }
 }
