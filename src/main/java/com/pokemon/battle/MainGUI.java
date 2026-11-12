@@ -15,6 +15,7 @@ import com.pokemon.battle.ui.PvpBattleFlow;
 import com.pokemon.battle.ui.TeamSelectScreen;
 import com.pokemon.battle.ui.TrainerHubScreen;
 import com.pokemon.battle.ui.TrainerSelectPanel;
+import com.pokemon.battle.fighting.FightingGamePanel;
 
 import javax.swing.SwingUtilities;
 import java.util.List;
@@ -118,13 +119,26 @@ public class MainGUI {
                 },
                 () -> window.showScreen("combatMenu"));
 
-        // 5. Submenu de combate
+        // 5. Pantalla de combate libre
+        FightingGamePanel fightingPanel = new FightingGamePanel(
+                () -> {
+                    window.setGameSize(960, 640);
+                    window.showScreen("combatMenu");
+                }
+        );
+
+        // Submenu de combate
         MenuScreen combatMenu = new MenuScreen("COMBATE",
-                new String[]{"PVE", "PVP", "VOLVER"},
+                new String[]{"PVE", "PVP", "COMBATE LIBRE", "VOLVER"},
                 new Runnable[]{
                         () -> openHub(window, controller, pveHub, "pveHub", null),
                         () -> openHub(window, controller, pvpHub1, "pvpHub1", null),
-                        backToMenu},
+                        () -> {
+                            window.setGameSize(1280, 720);
+                            window.showScreen("fighting");
+                        },
+                        backToMenu
+                },
                 backToMenu);
 
         // 6. Pokedex e historial
@@ -142,6 +156,7 @@ public class MainGUI {
         window.addScreen("intro", intro);
         window.addScreen("menu", mainMenu);
         window.addScreen("combatMenu", combatMenu);
+        window.addScreen("fighting", fightingPanel);
         window.addScreen("pveHub", pveHub);
         window.addScreen("pveTeam", pveTeamScreen);
         window.addScreen("pvpHub1", pvpHub1);
