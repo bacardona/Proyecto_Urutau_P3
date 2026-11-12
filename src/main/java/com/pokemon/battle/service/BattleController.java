@@ -34,6 +34,8 @@ public class BattleController {
     private final MachineStrategy machineStrategy;
 
     private Battle battle;
+    // Ataques del ultimo turno, para que la pantalla los anime
+    private List<MoveEvent> lastEvents = new ArrayList<>();
 
     /**
      * @param pokemonCatalog  catalog of Pokemon (injected)
@@ -222,10 +224,26 @@ public class BattleController {
         } else if (!action2.isSwitch()) {
             fight = battleEngine.playSingleAttack(active2, active1, action2.getMove());
         }
+        lastEvents = new ArrayList<>();
         if (fight != null) {
+            // Los cambios de pokemon van antes, asi que se corre la posicion de cada ataque
+            int offset = messages.size();
+            for (MoveEvent event : fight.getEvents()) {
+                lastEvents.add(event.shifted(offset));
+            }
             messages.addAll(fight.getMessages());
         }
         return messages;
+    }
+
+    /**
+     * Moves used in the last call to {@link #playRound}, in order, so the
+     * screen can animate them.
+     *
+     * @return the moves of the last round (empty if nobody attacked)
+     */
+    public List<MoveEvent> getLastRoundEvents() {
+        return lastEvents;
     }
 
     /**
@@ -337,4 +355,4 @@ public class BattleController {
             throw new BusinessRuleException("La batalla todavia no ha sido iniciada");
         }
     }
-}
+}
