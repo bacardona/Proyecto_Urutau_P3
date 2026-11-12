@@ -21,7 +21,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.image.BufferedImage;
 import java.util.Objects;
 
 public class FightingGamePanel extends JPanel {
@@ -32,7 +31,6 @@ public class FightingGamePanel extends JPanel {
 
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
-    private static final int GROUND_Y = 677;
 
     // ==========================================
     // 2. MENU DE PAUSA
@@ -61,8 +59,9 @@ public class FightingGamePanel extends JPanel {
     // 3. VARIABLES
     // ==========================================
 
-    private final SpriteLoader spriteLoader =
-            SpriteLoader.shared();
+    private final FightingGameSession session = new FightingGameSession();
+    private final FightingRenderer renderer =
+            new FightingRenderer(SpriteLoader.shared());
 
     private final Runnable onBack;
     private final Timer animationTimer;
@@ -355,30 +354,7 @@ public class FightingGamePanel extends JPanel {
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
         );
 
-        // Dibujar fondo.
-        drawArena(sceneGraphics);
-
-        // Dibujar barras.
-        drawBars(sceneGraphics);
-
-        // Dibujar Pokemon.
-        drawPokemon(
-                sceneGraphics,
-                "PIKACHU",
-                230,
-                GROUND_Y,
-                170,
-                false
-        );
-
-        drawPokemon(
-                sceneGraphics,
-                "CHARIZARD",
-                1050,
-                GROUND_Y,
-                220,
-                true
-        );
+        renderer.draw(sceneGraphics, session, frameIndex, this::repaint);
 
         sceneGraphics.dispose();
 
@@ -422,288 +398,6 @@ public class FightingGamePanel extends JPanel {
         }
 
         g.dispose();
-    }
-
-    // ==========================================
-    // 10. ESCENARIO
-    // ==========================================
-
-    private void drawArena(Graphics2D g) {
-
-        // Cielo.
-        g.setColor(new Color(0x98C9EF));
-
-        g.fillRect(
-                0, 0,
-                WIDTH, HEIGHT
-        );
-
-        // Movimiento de las nubes.
-        int cloudOffset =
-                (frameIndex * 2) % (WIDTH + 250);
-
-        int cloud1X = cloudOffset - 200;
-
-        int cloud2X =
-                (cloudOffset + 600) % (WIDTH + 250) - 200;
-
-        g.setColor(new Color(0xE5F6FF));
-
-        // Primera nube.
-        g.fillRoundRect(
-                cloud1X, 235,
-                150, 35,
-                30, 30
-        );
-
-        // Segunda nube.
-        g.fillRoundRect(
-                cloud2X, 285,
-                160, 35,
-                30, 30
-        );
-
-        // Plataformas.
-        drawPlatform(g, 340, 490, 190);
-        drawPlatform(g, 750, 490, 190);
-
-        // Suelo.
-        drawPlatform(g, 0, GROUND_Y, WIDTH);
-    }
-
-    // ==========================================
-    // 11. PLATAFORMAS
-    // ==========================================
-
-    private void drawPlatform(
-            Graphics2D g,
-            int x,
-            int y,
-            int width
-    ) {
-
-        g.setColor(new Color(0x416C50));
-        g.fillRect(x, y, width, 24);
-
-        g.setColor(new Color(0x7DCC82));
-        g.fillRect(x, y, width, 7);
-
-        g.setColor(new Color(0x335C3F));
-        g.fillRect(x, y + 19, width, 5);
-    }
-
-    // ==========================================
-    // 12. BARRAS DE VIDA Y EVOLUCION
-    // ==========================================
-
-    private void drawBars(Graphics2D g) {
-
-        // Fondo de las barras.
-        g.setColor(new Color(20, 35, 60, 130));
-
-        g.fillRoundRect(
-                24, 20,
-                WIDTH - 48, 116,
-                18, 18
-        );
-
-        int leftX = 42;
-        int barWidth = 360;
-        int rightX = WIDTH - 42 - barWidth;
-
-        // Nombres.
-        g.setFont(RetroStyle.font(28));
-        g.setColor(Color.WHITE);
-
-        g.drawString(
-                "PIKACHU",
-                leftX, 51
-        );
-
-        String rightName = "CHARIZARD";
-
-        int nameWidth = g.getFontMetrics()
-                .stringWidth(rightName);
-
-        g.drawString(
-                rightName,
-                rightX + barWidth - nameWidth,
-                51
-        );
-
-        // Vida del primer Pokemon.
-        drawBar(
-                g, leftX, 60,
-                barWidth, 22,
-                new Color(0x56B75C),
-                true
-        );
-
-        // Vida del segundo Pokemon.
-        drawBar(
-                g, rightX, 60,
-                barWidth, 22,
-                new Color(0x56B75C),
-                true
-        );
-
-        // Texto de evolucion.
-        g.setFont(RetroStyle.font(20));
-        g.setColor(Color.WHITE);
-
-        g.drawString(
-                "EVOLUCION",
-                leftX, 108
-        );
-
-        String evolutionText = "EVOLUCION";
-
-        int evolutionWidth = g.getFontMetrics()
-                .stringWidth(evolutionText);
-
-        g.drawString(
-                evolutionText,
-                rightX + barWidth - evolutionWidth,
-                108
-        );
-
-        // Barra de evolucion izquierda.
-        drawBar(
-                g, leftX, 113,
-                barWidth, 12,
-                new Color(0xFFD45A),
-                false
-        );
-
-        // Barra de evolucion derecha.
-        drawBar(
-                g, rightX, 113,
-                barWidth, 12,
-                new Color(0xFFD45A),
-                false
-        );
-
-        // Indicador VS.
-        drawCentered(
-                g, "VS",
-                WIDTH / 2,
-                83,
-                31,
-                Color.WHITE
-        );
-    }
-
-    // ==========================================
-    // 13. DIBUJAR UNA BARRA
-    // ==========================================
-
-    private void drawBar(
-            Graphics2D g,
-            int x,
-            int y,
-            int width,
-            int height,
-            Color fill,
-            boolean full
-    ) {
-
-        // Borde.
-        g.setColor(RetroStyle.OUTLINE);
-
-        g.fillRect(
-                x, y,
-                width, height
-        );
-
-        // Interior.
-        g.setColor(new Color(0xB7B7B7));
-
-        g.fillRect(
-                x + 3, y + 3,
-                width - 6, height - 6
-        );
-
-        // Relleno.
-        if (full) {
-
-            g.setColor(fill);
-
-            g.fillRect(
-                    x + 3, y + 3,
-                    width - 6, height - 6
-            );
-        }
-    }
-
-    // ==========================================
-    // 14. DIBUJAR LOS POKEMON
-    // ==========================================
-
-    private void drawPokemon(
-            Graphics2D g,
-            String name,
-            int centerX,
-            int feetY,
-            int targetHeight,
-            boolean flip
-    ) {
-
-        GifAnimation animation =
-                spriteLoader.getOrLoad(
-                        name,
-                        false,
-                        this::repaint
-                );
-
-        if (animation == null) {
-
-            drawCentered(
-                    g,
-                    "CARGANDO " + name,
-                    centerX,
-                    feetY - 45,
-                    21,
-                    RetroStyle.DARK
-            );
-
-            return;
-        }
-
-        BufferedImage frame =
-                animation.frame(frameIndex);
-
-        int width = Math.round(
-                targetHeight *
-                        (frame.getWidth() /
-                                (float) frame.getHeight())
-        );
-
-        int x = centerX - width / 2;
-        int y = feetY - targetHeight;
-
-        g.setRenderingHint(
-                RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
-        );
-
-        if (flip) {
-
-            g.drawImage(
-                    frame,
-                    x + width, y,
-                    -width, targetHeight,
-                    null
-            );
-
-        } else {
-
-            g.drawImage(
-                    frame,
-                    x, y,
-                    width, targetHeight,
-                    null
-            );
-        }
     }
 
     // ==========================================
