@@ -3,11 +3,13 @@ package com.pokemon.battle.ui;
 import com.pokemon.battle.model.Combatant;
 import com.pokemon.battle.model.Move;
 import com.pokemon.battle.model.StatusCondition;
+import com.pokemon.battle.service.MoveEvent;
 
 import javax.swing.JPanel;
 import javax.swing.Timer;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
@@ -19,7 +21,9 @@ import java.awt.event.MouseMotionAdapter;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntConsumer;
 
 /**
@@ -37,6 +41,9 @@ public class BattleScreenForm extends RetroScreen {
     private static final int RIVAL_FEET_Y = 304;
     private static final int PLAYER_X = 250;
     private static final int PLAYER_FEET_Y = 434;
+    // Tamano del cuadro donde cabe cada sprite
+    private static final int RIVAL_BOX = 230;
+    private static final int PLAYER_BOX = 245;
 
     // Zonas de la pantalla, en coordenadas del tablero de 960x640
     private static final Rectangle FIELD = new Rectangle(24, 74, 912, 382);
@@ -52,6 +59,9 @@ public class BattleScreenForm extends RetroScreen {
     private double playerShownHp;
     private double rivalShownHp;
     private final Timer hpTimer;
+    // Mientras se anima un turno, la vida baja hasta estos valores y no hasta la real
+    private final Map<Combatant, Integer> hpTargets = new HashMap<>();
+    private final BattleAnimator animator = new BattleAnimator(this);
     private final SpriteLoader sprites = SpriteLoader.shared();
     private final Timer animationTimer;
     private int frame;
@@ -90,6 +100,7 @@ public class BattleScreenForm extends RetroScreen {
             }
         });
         requestSprites();
+        animator.syncHidden(player, rival);
 
         bindKey("UP", () -> moveSelection(-1, 0));
         bindKey("DOWN", () -> moveSelection(1, 0));
@@ -145,6 +156,7 @@ public class BattleScreenForm extends RetroScreen {
         this.playerShownHp = player.getHitPoints().getCurrent();
         this.rivalShownHp = rival.getHitPoints().getCurrent();
         requestSprites();
+        animator.syncHidden(player, rival);
         this.selected = 0;
         repaint();
     }
@@ -154,6 +166,19 @@ public class BattleScreenForm extends RetroScreen {
             hpTimer.start();
         }
         repaint();
+    }
+
+    /**
+     * Juega el turno con animaciones: los mensajes salen uno por uno, cada ataque
+     * se ve sobre su objetivo y la vida baja despues del golpe. Vuelo y Excavar
+     * esconden al pokemon hasta que ataca.
+     *
+     * @param messages mensajes del turno
+     * @param events   ataques del turno, en orden (BattleController.getLastRoundEvents)
+     * @param onDone   que hacer cuando termina todo
+     */
+    public void playTurn(List<String> messages, List<MoveEvent> events, Runnable onDone) {
+        animator.play(messages, events, onDone);
     }
 
     public void showPrompt() {
@@ -308,13 +333,72 @@ public class BattleScreenForm extends RetroScreen {
     // ------------------------------------------------------------------ animacion de la vida
 
     private void animateHp() {
-        playerShownHp = step(playerShownHp, player.getHitPoints().getCurrent());
-        rivalShownHp = step(rivalShownHp, rival.getHitPoints().getCurrent());
+        playerShownHp = step(playerShownHp, targetHp(player));
+        rivalShownHp = step(rivalShownHp, targetHp(rival));
         repaint();
-        if (playerShownHp == player.getHitPoints().getCurrent()
-                && rivalShownHp == rival.getHitPoints().getCurrent()) {
+        if (hpSettled()) {
             hpTimer.stop();
         }
+    }
+
+    private int targetHp(Combatant c) {
+        Integer target = hpTargets.get(c);
+        return target != null ? target : c.getHitPoints().getCurrent();
+    }
+
+    // ------------------------------------------------------------------ lo que usa BattleAnimator
+
+    Combatant playerCombatant() {
+        return player;
+    }
+
+    Combatant rivalCombatant() {
+        return rival;
+    }
+
+    int feetXOf(Combatant c) {
+        return c == player ? PLAYER_X : RIVAL_X;
+    }
+
+    int feetYOf(Combatant c) {
+        return c == player ? PLAYER_FEET_Y : RIVAL_FEET_Y;
+    }
+
+    int boxOf(Combatant c) {
+        return c == player ? PLAYER_BOX : RIVAL_BOX;
+    }
+
+    void clearLines() {
+        promptLines = new ArrayList<>();
+        repaint();
+    }
+
+    void addLine(String message) {
+        promptLines.add(message.toUpperCase());
+        repaint();
+    }
+
+    // La vida se queda donde se ve ahora hasta que el animador diga a donde bajar
+    void freezeHp() {
+        hpTargets.put(player, (int) Math.round(playerShownHp));
+        hpTargets.put(rival, (int) Math.round(rivalShownHp));
+    }
+
+    void setHpTarget(Combatant c, int hp) {
+        if (c == player || c == rival) {
+            hpTargets.put(c, Math.max(0, hp));
+            refresh();
+        }
+    }
+
+    // Vuelve a seguir la vida real
+    void releaseHp() {
+        hpTargets.clear();
+        refresh();
+    }
+
+    boolean hpSettled() {
+        return playerShownHp == targetHp(player) && rivalShownHp == targetHp(rival);
     }
 
     private double step(double shown, int target) {
@@ -338,8 +422,11 @@ public class BattleScreenForm extends RetroScreen {
                 background.getWidth() * BattleBackground.SCALE, background.getHeight() * BattleBackground.SCALE);
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
-        drawCombatant(g, rival, false, RIVAL_X, RIVAL_FEET_Y, 230);
-        drawCombatant(g, player, true, PLAYER_X, PLAYER_FEET_Y, 245);
+        drawCombatant(g, rival, false, RIVAL_X, RIVAL_FEET_Y, RIVAL_BOX);
+        drawCombatant(g, player, true, PLAYER_X, PLAYER_FEET_Y, PLAYER_BOX);
+
+        // Efectos de los ataques encima de los pokemon
+        animator.drawEffects(g);
 
         // Cuadros de informacion
         drawInfoBox(g, 48, 92, 340, 84, rival, rivalShownHp, false, true);
@@ -357,7 +444,8 @@ public class BattleScreenForm extends RetroScreen {
     // Igual que en la Pokedex: todos los pokemon se ajustan al mismo cuadro,
 // asi se ven del mismo tamano. Los pies quedan sobre la sombra.
     private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx, int feetY, int box) {
-        if (c == null || c.isFainted()) {
+        // Un debilitado se sigue viendo hasta que termina su animacion de caer
+        if (c == null || (c.isFainted() && !animator.isStanding(c)) || animator.isHidden(c)) {
             return;
         }
         String name = c.getName();
@@ -373,7 +461,25 @@ public class BattleScreenForm extends RetroScreen {
         double factor = Math.min(box / (double) sprite.width(), box / (double) sprite.height());
         int w = (int) Math.round(sprite.width() * factor);
         int h = (int) Math.round(sprite.height() * factor);
-        RetroStyle.drawPixelImage(g, sprite.frame(frame), cx - w / 2, feetY - h, w, h);
+        BattleAnimator.Pose pose = animator.pose(c);
+        if (pose == null) {
+            RetroStyle.drawPixelImage(g, sprite.frame(frame), cx - w / 2, feetY - h, w, h);
+            return;
+        }
+        if (!pose.isVisibleNow()) {
+            return;   // parpadeo al recibir el golpe
+        }
+        int x = cx - w / 2 + (int) pose.dx;
+        int ground = feetY + (int) pose.dy;
+        Shape oldClip = g.getClip();
+        Composite oldComposite = BattleAnimator.applyAlpha(g, pose);
+        if (pose.sink > 0) {
+            // Se hunde: lo que pasa debajo de sus pies no se dibuja
+            g.clipRect(FIELD.x, FIELD.y, FIELD.width, ground - FIELD.y);
+        }
+        RetroStyle.drawPixelImage(g, sprite.frame(frame), x, ground - h + (int) (pose.sink * h), w, h);
+        g.setComposite(oldComposite);
+        g.setClip(oldClip);
     }
 
     // tailRight: la punta de la cola sale hacia la derecha (rival) o hacia la izquierda (jugador),
