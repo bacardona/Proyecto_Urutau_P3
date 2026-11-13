@@ -5,7 +5,7 @@ import java.util.List;
 /** Applies vertical movement, gravity, jumping, and one-way platform collisions. */
 public class PhysicsSystem {
 
-    private static final double GRAVITY = 1400.0;
+    static final double GRAVITY = 1400.0;
     private static final double JUMP_VELOCITY = -650.0;
 
     public void update(Fighter fighter, List<Platform> platforms,
@@ -51,5 +51,11 @@ public class PhysicsSystem {
 
     public static double halfWidthFor(Fighter fighter) {
         return fighter.getBodyHalfWidth();
+    }
+
+    static double launchVelocityForDisplacement(double startY, double targetY,
+                                                double flightSeconds) {
+        return (targetY - startY - 0.5 * GRAVITY * flightSeconds * flightSeconds)
+                / flightSeconds;
     }
 }

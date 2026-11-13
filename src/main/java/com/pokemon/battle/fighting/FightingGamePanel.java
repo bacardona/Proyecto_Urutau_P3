@@ -168,10 +168,14 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("RIGHT", input::setPlayerTwoRight);
         bindHeldKey("W", input::setPlayerOneJump);
         bindKeyRelease("UP", input::setPlayerTwoJump);
-        bindHeldKey("C", input::setPlayerOneAttackOne);
-        bindHeldKey("V", input::setPlayerOneAttackTwo);
-        bindHeldKey("K", input::setPlayerTwoAttackOne);
-        bindHeldKey("L", input::setPlayerTwoAttackTwo);
+        bindHeldKey("F", input::setPlayerOneAttackOne);
+        bindHeldKey("G", input::setPlayerOneAttackTwo);
+        bindHeldKey("H", input::setPlayerOneAttackThree);
+        bindHeldKey("V", input::setPlayerOneAttackFour);
+        bindHeldKey("I", input::setPlayerTwoAttackOne);
+        bindHeldKey("J", input::setPlayerTwoAttackTwo);
+        bindHeldKey("K", input::setPlayerTwoAttackThree);
+        bindHeldKey("L", input::setPlayerTwoAttackFour);
 
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
@@ -709,33 +713,33 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "JUGADOR 1: A / D, W, C / V",
+                    "JUGADOR 1: A / D, W, F / G / H / V",
                     centerX,
-                    panelY + 130,
-                    20,
+                    panelY + 112,
+                    18,
                     RetroStyle.DARK
             );
 
             drawCentered(
                     g,
-                    "JUGADOR 2: FLECHAS, ARRIBA, K / L",
+                    "JUGADOR 2: FLECHAS, ARRIBA, I / J / K / L",
                     centerX,
-                    panelY + 180,
-                    20,
+                    panelY + 142,
+                    17,
                     RetroStyle.DARK
             );
 
             Fighter playerOne = session.getFighters().get(0);
             Fighter playerTwo = session.getFighters().get(1);
-            String playerOneAttacks = session.getCombatSystem().hasAttackProfile(playerOne.getPokemonId())
-                    ? "P1: J RAPIDO / K IMPACTRUENO" : "P1: ATAQUES NO DISPONIBLES";
-            String playerTwoAttacks = session.getCombatSystem().hasAttackProfile(playerTwo.getPokemonId())
-                    ? "P2: 1 ASCUAS / 2 PLACAJE" : "P2: ATAQUES NO DISPONIBLES";
-            drawCentered(g, playerOneAttacks, centerX, panelY + 250, 18, RetroStyle.DARK);
-            drawCentered(g, playerTwoAttacks, centerX, panelY + 290, 18, RetroStyle.DARK);
+            String[] playerOneAttacks = attackSummary(playerOne, true);
+            String[] playerTwoAttacks = attackSummary(playerTwo, false);
+            drawCentered(g, playerOneAttacks[0], centerX, panelY + 190, 15, RetroStyle.DARK);
+            drawCentered(g, playerOneAttacks[1], centerX, panelY + 214, 15, RetroStyle.DARK);
+            drawCentered(g, playerTwoAttacks[0], centerX, panelY + 246, 15, RetroStyle.DARK);
+            drawCentered(g, playerTwoAttacks[1], centerX, panelY + 270, 15, RetroStyle.DARK);
 
             drawCentered(g, "ESC O ENTER PARA VOLVER", centerX,
-                    panelY + 350, 18, RetroStyle.DARK);
+                    panelY + 348, 16, RetroStyle.DARK);
         }
 
         // MENU DE RESUMEN.
@@ -787,6 +791,29 @@ public class FightingGamePanel extends JPanel {
                     RetroStyle.DARK
             );
         }
+    }
+
+    private String[] attackSummary(Fighter fighter, boolean playerOne) {
+        String keyOne = playerOne ? "F" : "I";
+        String keyTwo = playerOne ? "G" : "J";
+        String keyThree = playerOne ? "H" : "K";
+        String keyFour = playerOne ? "V" : "L";
+        String moveOne;
+        String moveTwo;
+        String moveThree;
+        String moveFour;
+        switch (fighter.getPokemonId()) {
+            case "PIKACHU" -> { moveOne = "RAPIDO"; moveTwo = "IMPACTRUENO"; moveThree = "—"; moveFour = "—"; }
+            case "CHARIZARD" -> { moveOne = "ASCUAS"; moveTwo = "PLACAJE"; moveThree = "—"; moveFour = "—"; }
+            case "BULBASAUR" -> { moveOne = "PLACAJE"; moveTwo = "LATIGO CEPA"; moveThree = "SOMNIFERO"; moveFour = "DESARROLLO"; }
+            case "CHARMANDER" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "VUELO"; }
+            case "SQUIRTLE" -> { moveOne = "PLACAJE"; moveTwo = "PISTOLA AGUA"; moveThree = "LATIGO"; moveFour = "MORDISCO"; }
+            case "EEVEE" -> { moveOne = "PLACAJE"; moveTwo = "RAPIDO"; moveThree = "GRUNIDO"; moveFour = "LATIGO"; }
+            default -> { return new String[]{"ATAQUES NO DISPONIBLES", ""}; }
+        }
+        String prefix = playerOne ? "P1 " : "P2 ";
+        return new String[]{prefix + keyOne + " " + moveOne + " / " + keyTwo + " " + moveTwo,
+                prefix + keyThree + " " + moveThree + " / " + keyFour + " " + moveFour};
     }
 
     // ==========================================

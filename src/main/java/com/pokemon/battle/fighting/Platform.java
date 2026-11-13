@@ -23,4 +23,10 @@ public final class Platform {
     public boolean overlapsHorizontally(double centerX, double halfWidth) {
         return centerX + halfWidth > x && centerX - halfWidth < x + width;
     }
+
+    /** One-way top-surface collision for a horizontally travelling projectile. */
+    public boolean blocksProjectile(Hitbox projectile) {
+        return projectile.y() < top && projectile.y() + projectile.height() > top
+                && projectile.x() < x + width && projectile.x() + projectile.width() > x;
+    }
 }

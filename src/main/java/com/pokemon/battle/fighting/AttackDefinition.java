@@ -6,6 +6,7 @@ import java.util.Objects;
 /** Real-time tuning for a move; independent from turn-based Move rules. */
 public record AttackDefinition(
         String moveId,
+        int oracleMoveId,
         Kind kind,
         int damage,
         double startupSeconds,
@@ -19,7 +20,17 @@ public record AttackDefinition(
         double projectileSize,
         Color effectColor) {
 
-    public enum Kind { DASH, PROJECTILE }
+    public enum Kind { HITBOX, DASH, LUNGE, PROJECTILE, STATUS, SELF_BUFF, GRUNT, FLY }
+
+    public AttackDefinition(String moveId, Kind kind, int damage,
+                            double startupSeconds, double activeSeconds, double recoverySeconds,
+                            double hitboxWidth, double hitboxHeight, double dashSpeed,
+                            double projectileSpeed, double projectileLifetime, double projectileSize,
+                            Color effectColor) {
+        this(moveId, -1, kind, damage, startupSeconds, activeSeconds, recoverySeconds,
+                hitboxWidth, hitboxHeight, dashSpeed, projectileSpeed,
+                projectileLifetime, projectileSize, effectColor);
+    }
 
     public AttackDefinition {
         Objects.requireNonNull(moveId);

@@ -5,6 +5,7 @@ import java.awt.Color;
 /** Reusable moving effect with a damaging collision area. */
 public final class FightingProjectile {
 
+    private final String moveId;
     private double x;
     private final double y;
     private final double velocityX;
@@ -14,8 +15,9 @@ public final class FightingProjectile {
     private final Color color;
     private final int ownerIndex;
 
-    FightingProjectile(double x, double y, double velocityX, double size,
+    FightingProjectile(String moveId, double x, double y, double velocityX, double size,
                        int damage, double lifetime, Color color, int ownerIndex) {
+        this.moveId = moveId;
         this.x = x;
         this.y = y;
         this.velocityX = velocityX;
@@ -40,7 +42,9 @@ public final class FightingProjectile {
     }
 
     public double getX() { return x; }
+    public String getMoveId() { return moveId; }
     public double getY() { return y; }
+    public double getVelocityX() { return velocityX; }
     public double getSize() { return size; }
     public int getDamage() { return damage; }
     public Color getColor() { return color; }

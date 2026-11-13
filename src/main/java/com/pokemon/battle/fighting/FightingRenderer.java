@@ -33,6 +33,7 @@ public class FightingRenderer {
         for (Fighter fighter : session.getFighters()) {
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint, session.getGroundY());
         }
+        drawFighterStatusIndicators(g, session);
         drawTeamIndicators(g, session, true, frameIndex, repaint);
         drawTeamIndicators(g, session, false, frameIndex, repaint);
     }
@@ -156,26 +157,166 @@ public class FightingRenderer {
             int x = (int) Math.round(projectile.getX() - projectile.getSize() / 2);
             int y = (int) Math.round(projectile.getY() - projectile.getSize() / 2);
             int size = (int) Math.round(projectile.getSize());
+            drawProjectileEffect(g, projectile, x, y, size);
+        }
+        for (FightingCombatSystem.ImpactEffect effect : session.getCombatSystem().getImpactEffects()) {
+            double progress = 1 - effect.getRemainingSeconds() / 0.22;
+            int radius = 7 + (int) Math.round(progress * 15);
+            int alpha = (int) Math.round(220 * (1 - progress));
+            g.setColor(new Color(211, 159, 245, Math.max(0, Math.min(255, alpha))));
+            g.drawOval((int) effect.getX() - radius, (int) effect.getY() - radius,
+                    radius * 2, radius * 2);
+        }
+
+        for (Fighter attacker : session.getFighters()) {
+            AttackDefinition definition = session.getCombatSystem()
+                    .getActiveDefinition(attacker, session.getFighters());
+            if (definition == null) continue;
+            if ("VINE_WHIP".equals(definition.moveId())) {
+                drawVineWhip(g, attacker, definition);
+            } else if ("BITE".equals(definition.moveId())) {
+                drawBite(g, attacker);
+            } else if ("TAIL_WHIP".equals(definition.moveId())) {
+                drawTailWhip(g, attacker, definition);
+            } else if ("GROWL".equals(definition.moveId())) {
+                drawSonicWaves(g, attacker,
+                        session.getCombatSystem().getActiveProgress(attacker, session.getFighters()));
+            }
+            if (session.getCombatSystem().isDashing(attacker, session.getFighters())) {
+                int direction = attacker.isFacingLeft() ? -1 : 1;
+                int trailX = (int) attacker.getX() - direction * 52;
+                int trailY = (int) attacker.getY() - 82;
+                g.setColor(new Color(definition.effectColor().getRed(),
+                        definition.effectColor().getGreen(), definition.effectColor().getBlue(), 170));
+                g.fillRect(trailX - 8, trailY, 16, 8);
+                g.fillRect(trailX, trailY + 12, 24, 7);
+                g.fillRect(trailX - 5, trailY + 24, 13, 6);
+            }
+        }
+    }
+
+    private void drawProjectileEffect(Graphics2D g, FightingProjectile projectile,
+                                      int x, int y, int size) {
+        String moveId = projectile.getMoveId();
+        if ("EMBER".equals(moveId)) {
+            g.setColor(new Color(0xE84A20));
+            g.fillOval(x + size / 5, y + size / 5, size * 3 / 5, size * 4 / 5);
+            g.fillOval(x + size / 3, y, size / 3, size * 2 / 3);
+            g.setColor(new Color(0xFFD75E));
+            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 2);
+        } else if ("WATER_GUN".equals(moveId)) {
+            int direction = projectile.getVelocityX() < 0 ? -1 : 1;
+            g.setColor(new Color(0x2087D8));
+            g.fillOval(x + size / 5, y + size / 4, size * 3 / 5, size / 2);
+            g.setColor(new Color(0x9CEBFF));
+            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 3);
+            g.setColor(new Color(0x5BCBFF));
+            g.fillOval(x - direction * size / 3, y + size / 3, size / 3, size / 3);
+        } else if ("SLEEP_POWDER".equals(moveId)) {
+            g.setColor(new Color(0x854BB0));
+            g.fillOval(x + size / 8, y + size / 8, size * 3 / 4, size * 3 / 4);
+            g.setColor(new Color(0xE8C8FF));
+            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 3);
+            g.setColor(new Color(0xFFFFFF));
+            g.fillRect(x + size / 4, y + size / 5, Math.max(2, size / 6), Math.max(2, size / 6));
+        } else {
             g.setColor(projectile.getColor());
             g.fillRect(x + size / 4, y, size / 2, size);
             g.fillRect(x, y + size / 4, size, size / 2);
             g.setColor(Color.WHITE);
             g.fillRect(x + size / 3, y + size / 3, size / 3, size / 3);
         }
+    }
 
-        for (Fighter attacker : session.getFighters()) {
-          if (session.getCombatSystem().isDashing(attacker, session.getFighters())) {
-            AttackDefinition definition = session.getCombatSystem()
-                    .getActiveDefinition(attacker, session.getFighters());
-            int direction = attacker.isFacingLeft() ? -1 : 1;
-            int trailX = (int) attacker.getX() - direction * 52;
-            int trailY = (int) attacker.getY() - 82;
-            g.setColor(new Color(definition.effectColor().getRed(),
-                    definition.effectColor().getGreen(), definition.effectColor().getBlue(), 170));
-            g.fillRect(trailX - 8, trailY, 16, 8);
-            g.fillRect(trailX, trailY + 12, 24, 7);
-            g.fillRect(trailX - 5, trailY + 24, 13, 6);
-          }
+    private void drawVineWhip(Graphics2D g, Fighter attacker, AttackDefinition definition) {
+        int direction = attacker.isFacingLeft() ? -1 : 1;
+        int startX = (int) Math.round(attacker.getX() + direction * attacker.getBodyHalfWidth());
+        int y = (int) Math.round(attacker.getY() - definition.hitboxHeight() / 2);
+        int reach = (int) definition.hitboxWidth();
+        var oldStroke = g.getStroke();
+        g.setColor(new Color(0x347B3B));
+        g.setStroke(new java.awt.BasicStroke(7, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+        g.drawLine(startX, y, startX + direction * (reach / 3), y - 8);
+        g.drawLine(startX + direction * (reach / 3), y - 8,
+                startX + direction * (2 * reach / 3), y + 5);
+        g.drawLine(startX + direction * (2 * reach / 3), y + 5,
+                startX + direction * reach, y - 6);
+        g.setColor(new Color(0x79D45E));
+        g.setStroke(new java.awt.BasicStroke(3, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+        g.drawLine(startX, y - 2, startX + direction * (reach / 3), y - 10);
+        g.drawLine(startX + direction * (reach / 3), y - 10,
+                startX + direction * (2 * reach / 3), y + 3);
+        g.drawLine(startX + direction * (2 * reach / 3), y + 3,
+                startX + direction * reach, y - 8);
+        g.setStroke(oldStroke);
+    }
+
+    private void drawBite(Graphics2D g, Fighter attacker) {
+        int direction = attacker.isFacingLeft() ? -1 : 1;
+        int centerX = (int) Math.round(attacker.getX()
+                + direction * (attacker.getBodyHalfWidth() + 28));
+        int centerY = (int) Math.round(attacker.getY() - 78);
+        g.setColor(new Color(0xE7E2D8));
+        g.drawArc(centerX - 18, centerY - 12, 24, 24,
+                direction > 0 ? 35 : 145, 110);
+        g.drawArc(centerX - 6, centerY - 12, 24, 24,
+                direction > 0 ? 215 : 35, 110);
+    }
+
+    private void drawTailWhip(Graphics2D g, Fighter attacker, AttackDefinition definition) {
+        int direction = attacker.isFacingLeft() ? -1 : 1;
+        int anchorX = (int) Math.round(attacker.getX() + direction * attacker.getBodyHalfWidth());
+        int centerY = (int) Math.round(attacker.getY() - definition.hitboxHeight() / 2);
+        int reach = (int) definition.hitboxWidth();
+        var oldStroke = g.getStroke();
+        g.setColor(new Color(0xF5E8C8));
+        g.setStroke(new java.awt.BasicStroke(8, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.drawArc(direction > 0 ? anchorX : anchorX - reach,
+                centerY - 50, reach, 100, direction > 0 ? 300 : 120, 120);
+        g.setColor(new Color(0xD6D6C2));
+        g.setStroke(new java.awt.BasicStroke(4, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.drawArc(direction > 0 ? anchorX : anchorX - reach,
+                centerY - 40, reach - 10, 80, direction > 0 ? 300 : 120, 120);
+        g.setStroke(oldStroke);
+    }
+
+    private void drawSonicWaves(Graphics2D g, Fighter attacker, double progress) {
+        int direction = attacker.isFacingLeft() ? -1 : 1;
+        int mouthX = (int) Math.round(attacker.getX()
+                + direction * (attacker.getBodyHalfWidth() - 4));
+        int mouthY = (int) Math.round(attacker.getY() - attacker.getRenderHeight() * 0.68);
+        for (int wave = 0; wave < 3; wave++) {
+            double waveProgress = progress - wave * 0.25;
+            if (waveProgress < 0 || waveProgress > 1) continue;
+            int distance = (int) Math.round(waveProgress * 1000);
+            int radius = 12 + (int) Math.round(waveProgress * 14);
+            int alpha = Math.max(45, Math.min(230, 220 - (int) (waveProgress * 150)));
+            g.setColor(new Color(0xF2E89A | (alpha << 24), true));
+            int centerX = mouthX + direction * distance;
+            int startAngle = direction > 0 ? 285 : 105;
+            g.drawArc(centerX - radius, mouthY - radius, radius * 2, radius * 2,
+                    startAngle, 150);
+        }
+    }
+
+    private void drawFighterStatusIndicators(Graphics2D g, FightingGameSession session) {
+        for (Fighter fighter : session.getFighters()) {
+            StringBuilder status = new StringBuilder();
+            if (fighter.isAsleep()) status.append("DORMIDO  ");
+            if (fighter.hasAttackBoost()) status.append("ATQ+  ");
+            if (fighter.hasAttackReduction()) status.append("ATQ-  ");
+            if (fighter.hasDefenseReduction()) status.append("DEF-  ");
+            AttackDefinition attack = session.getCombatSystem()
+                    .getActiveDefinition(fighter, session.getFighters());
+            if (attack != null && "GROWL".equals(attack.moveId())) status.append("GRITANDO  ");
+            if (status.isEmpty()) continue;
+            Color color = fighter.isAsleep() ? new Color(0xD9B9F2)
+                    : fighter.hasAttackBoost() ? new Color(0xA7EE77)
+                    : new Color(0xFFE28A);
+            drawCentered(g, status.toString().trim(), (int) fighter.getX(),
+                    (int) fighter.getY() - fighter.getRenderHeight() - 8, 14, color);
         }
     }
 

@@ -23,6 +23,10 @@ public class Fighter {
     private double evolutionEnergy;
     private boolean onGround = true;
     private boolean defeated;
+    private double sleepSeconds;
+    private double attackBoostSeconds;
+    private double attackReductionSeconds;
+    private double defenseReductionSeconds;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
@@ -78,6 +82,55 @@ public class Fighter {
     public boolean isEvolutionReady() { return evolutionEnergy >= MAX_EVOLUTION_ENERGY; }
     public boolean isOnGround() { return onGround; }
     public boolean isDefeated() { return defeated; }
+    public boolean isAsleep() { return sleepSeconds > 0; }
+    public boolean hasAttackBoost() { return attackBoostSeconds > 0; }
+    public boolean hasAttackReduction() { return attackReductionSeconds > 0; }
+    public boolean hasDefenseReduction() { return defenseReductionSeconds > 0; }
+    public double getOutgoingDamageMultiplier() {
+        double multiplier = hasAttackBoost() ? 1.35 : 1.0;
+        return multiplier * (hasAttackReduction() ? 0.72 : 1.0);
+    }
+    public double getIncomingDamageMultiplier() {
+        return hasDefenseReduction() ? 1.30 : 1.0;
+    }
+
+    void updateStatusEffects(double deltaSeconds) {
+        sleepSeconds = Math.max(0, sleepSeconds - deltaSeconds);
+        attackBoostSeconds = Math.max(0, attackBoostSeconds - deltaSeconds);
+        attackReductionSeconds = Math.max(0, attackReductionSeconds - deltaSeconds);
+        defenseReductionSeconds = Math.max(0, defenseReductionSeconds - deltaSeconds);
+    }
+
+    boolean applySleep(double durationSeconds) {
+        if (isAsleep() || defeated) return false;
+        sleepSeconds = durationSeconds;
+        return true;
+    }
+
+    boolean applyAttackBoost(double durationSeconds) {
+        if (defeated || hasAttackBoost()) return false;
+        attackBoostSeconds = durationSeconds;
+        return true;
+    }
+
+    boolean applyAttackReduction(double durationSeconds) {
+        if (defeated || hasAttackReduction()) return false;
+        attackReductionSeconds = durationSeconds;
+        return true;
+    }
+
+    boolean applyDefenseReduction(double durationSeconds) {
+        if (defeated || hasDefenseReduction()) return false;
+        defenseReductionSeconds = durationSeconds;
+        return true;
+    }
+
+    void clearStatusEffects() {
+        sleepSeconds = 0;
+        attackBoostSeconds = 0;
+        attackReductionSeconds = 0;
+        defenseReductionSeconds = 0;
+    }
 
     void moveHorizontally(double direction, double distance) {
         if (direction == 0) return;
@@ -91,13 +144,19 @@ public class Fighter {
     void setOnGround(boolean onGround) { this.onGround = onGround; }
 
     void receiveDamage(int damage) {
-        health = Math.max(0, health - Math.max(0, damage));
-        if (health == 0) defeated = true;
+        int actualDamage = Math.max(0, damage);
+        if (actualDamage > 0) sleepSeconds = 0;
+        health = Math.max(0, health - actualDamage);
+        if (health == 0) {
+            defeated = true;
+            clearStatusEffects();
+        }
     }
 
     void markDefeated() {
         health = 0;
         defeated = true;
+        clearStatusEffects();
     }
 
     void addEvolutionEnergy(double amount) {

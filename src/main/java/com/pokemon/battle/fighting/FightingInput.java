@@ -13,12 +13,20 @@ public class FightingInput {
     private boolean playerTwoJumpRequested;
     private boolean playerOneAttackOneHeld;
     private boolean playerOneAttackTwoHeld;
+    private boolean playerOneAttackThreeHeld;
+    private boolean playerOneAttackFourHeld;
     private boolean playerOneAttackOneRequested;
     private boolean playerOneAttackTwoRequested;
+    private boolean playerOneAttackThreeRequested;
+    private boolean playerOneAttackFourRequested;
     private boolean playerTwoAttackOneHeld;
     private boolean playerTwoAttackTwoHeld;
+    private boolean playerTwoAttackThreeHeld;
+    private boolean playerTwoAttackFourHeld;
     private boolean playerTwoAttackOneRequested;
     private boolean playerTwoAttackTwoRequested;
+    private boolean playerTwoAttackThreeRequested;
+    private boolean playerTwoAttackFourRequested;
 
     public void setPlayerOneLeft(boolean pressed) { playerOneLeft = pressed; }
     public void setPlayerOneRight(boolean pressed) { playerOneRight = pressed; }
@@ -45,6 +53,16 @@ public class FightingInput {
         playerOneAttackTwoHeld = pressed;
     }
 
+    public void setPlayerOneAttackThree(boolean pressed) {
+        if (pressed && !playerOneAttackThreeHeld) playerOneAttackThreeRequested = true;
+        playerOneAttackThreeHeld = pressed;
+    }
+
+    public void setPlayerOneAttackFour(boolean pressed) {
+        if (pressed && !playerOneAttackFourHeld) playerOneAttackFourRequested = true;
+        playerOneAttackFourHeld = pressed;
+    }
+
     public void setPlayerTwoAttackOne(boolean pressed) {
         if (pressed && !playerTwoAttackOneHeld) playerTwoAttackOneRequested = true;
         playerTwoAttackOneHeld = pressed;
@@ -53,6 +71,16 @@ public class FightingInput {
     public void setPlayerTwoAttackTwo(boolean pressed) {
         if (pressed && !playerTwoAttackTwoHeld) playerTwoAttackTwoRequested = true;
         playerTwoAttackTwoHeld = pressed;
+    }
+
+    public void setPlayerTwoAttackThree(boolean pressed) {
+        if (pressed && !playerTwoAttackThreeHeld) playerTwoAttackThreeRequested = true;
+        playerTwoAttackThreeHeld = pressed;
+    }
+
+    public void setPlayerTwoAttackFour(boolean pressed) {
+        if (pressed && !playerTwoAttackFourHeld) playerTwoAttackFourRequested = true;
+        playerTwoAttackFourHeld = pressed;
     }
 
     public double getPlayerOneDirection() {
@@ -87,6 +115,18 @@ public class FightingInput {
         return requested;
     }
 
+    public boolean consumePlayerOneAttackThree() {
+        boolean requested = playerOneAttackThreeRequested;
+        playerOneAttackThreeRequested = false;
+        return requested;
+    }
+
+    public boolean consumePlayerOneAttackFour() {
+        boolean requested = playerOneAttackFourRequested;
+        playerOneAttackFourRequested = false;
+        return requested;
+    }
+
     public boolean consumePlayerTwoAttackOne() {
         boolean requested = playerTwoAttackOneRequested;
         playerTwoAttackOneRequested = false;
@@ -96,6 +136,18 @@ public class FightingInput {
     public boolean consumePlayerTwoAttackTwo() {
         boolean requested = playerTwoAttackTwoRequested;
         playerTwoAttackTwoRequested = false;
+        return requested;
+    }
+
+    public boolean consumePlayerTwoAttackThree() {
+        boolean requested = playerTwoAttackThreeRequested;
+        playerTwoAttackThreeRequested = false;
+        return requested;
+    }
+
+    public boolean consumePlayerTwoAttackFour() {
+        boolean requested = playerTwoAttackFourRequested;
+        playerTwoAttackFourRequested = false;
         return requested;
     }
 
@@ -110,11 +162,19 @@ public class FightingInput {
         playerTwoJumpRequested = false;
         playerOneAttackOneHeld = false;
         playerOneAttackTwoHeld = false;
+        playerOneAttackThreeHeld = false;
+        playerOneAttackFourHeld = false;
         playerOneAttackOneRequested = false;
         playerOneAttackTwoRequested = false;
+        playerOneAttackThreeRequested = false;
+        playerOneAttackFourRequested = false;
         playerTwoAttackOneHeld = false;
         playerTwoAttackTwoHeld = false;
+        playerTwoAttackThreeHeld = false;
+        playerTwoAttackFourHeld = false;
         playerTwoAttackOneRequested = false;
         playerTwoAttackTwoRequested = false;
+        playerTwoAttackThreeRequested = false;
+        playerTwoAttackFourRequested = false;
     }
 }
