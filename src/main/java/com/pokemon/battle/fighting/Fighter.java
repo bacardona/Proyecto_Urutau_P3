@@ -1,5 +1,7 @@
 package com.pokemon.battle.fighting;
 
+import com.pokemon.battle.model.Pokemon;
+
 import java.util.Objects;
 
 /** Mutable state for one participant in a free fight. */
@@ -8,6 +10,7 @@ public class Fighter {
     private static final int MAX_HEALTH = 100;
     private static final double MAX_EVOLUTION_ENERGY = 100.0;
 
+    private final Pokemon pokemon;
     private final String pokemonId;
     private double x;
     private double y;
@@ -21,13 +24,46 @@ public class Fighter {
     private boolean onGround = true;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
+        this.pokemon = null;
         this.pokemonId = Objects.requireNonNull(pokemonId);
         this.x = x;
         this.y = y;
         this.facingLeft = facingLeft;
     }
 
+    public Fighter(Pokemon pokemon, double x, double y, boolean facingLeft) {
+        this.pokemon = Objects.requireNonNull(pokemon);
+        this.pokemonId = pokemon.getName().toUpperCase();
+        this.x = x;
+        this.y = y;
+        this.facingLeft = facingLeft;
+    }
+
     public String getPokemonId() { return pokemonId; }
+    public String getName() { return pokemon != null ? pokemon.getName() : pokemonId; }
+    public Pokemon getPokemon() { return pokemon; }
+    public int getRenderHeight() {
+        return switch (pokemonId) {
+            case "PIKACHU" -> 145;
+            case "CHARIZARD" -> 190;
+            case "BULBASAUR" -> 130;
+            case "CHARMANDER" -> 140;
+            case "SQUIRTLE" -> 132;
+            case "EEVEE" -> 125;
+            default -> 145;
+        };
+    }
+    public double getBodyHalfWidth() {
+        return switch (pokemonId) {
+            case "PIKACHU" -> 47;
+            case "CHARIZARD" -> 73;
+            case "BULBASAUR" -> 48;
+            case "CHARMANDER" -> 48;
+            case "SQUIRTLE" -> 52;
+            case "EEVEE" -> 44;
+            default -> 50;
+        };
+    }
     public double getX() { return x; }
     public double getY() { return y; }
     public boolean isFacingLeft() { return facingLeft; }

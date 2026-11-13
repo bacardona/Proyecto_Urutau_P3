@@ -30,9 +30,10 @@ public class FightingRenderer {
         drawBars(g, session);
         drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) {
-            int height = "PIKACHU".equals(fighter.getPokemonId()) ? 145 : 190;
-            drawPokemon(g, fighter, height, frameIndex, repaint, session.getGroundY());
+            drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint, session.getGroundY());
         }
+        drawTeamIndicators(g, session, true, frameIndex, repaint);
+        drawTeamIndicators(g, session, false, frameIndex, repaint);
     }
 
     public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption) {
@@ -49,8 +50,8 @@ public class FightingRenderer {
 
         drawCentered(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
         String result = switch (session.getOutcome()) {
-            case PLAYER_ONE_WINS -> "PIKACHU GANA!";
-            case PLAYER_TWO_WINS -> "CHARIZARD GANA!";
+            case PLAYER_ONE_WINS -> session.getTrainerName(0) + " GANA!";
+            case PLAYER_TWO_WINS -> session.getTrainerName(1) + " GANA!";
             case DRAW -> "EMPATE!";
         };
         drawCentered(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
@@ -104,18 +105,19 @@ public class FightingRenderer {
         int rightX = session.getWidth() - 42 - barWidth;
         g.setFont(RetroStyle.font(28));
         g.setColor(Color.WHITE);
-        g.drawString("PIKACHU", leftX, 51);
-        String rightName = "CHARIZARD";
+        Fighter leftFighter = session.getFighters().get(0);
+        Fighter rightFighter = session.getFighters().get(1);
+        String leftName = leftFighter.getName().toUpperCase();
+        String rightName = rightFighter.getName().toUpperCase();
+        g.drawString(leftName, leftX, 51);
         int nameWidth = g.getFontMetrics().stringWidth(rightName);
         g.drawString(rightName, rightX + barWidth - nameWidth, 51);
         drawBar(g, leftX, 60, barWidth, 22, new Color(0x56B75C),
-                session.getFighters().get(0).getHealth() / (double) session.getFighters().get(0).getMaxHealth());
+                leftFighter.getHealth() / (double) leftFighter.getMaxHealth());
         drawBar(g, rightX, 60, barWidth, 22, new Color(0x56B75C),
-                session.getFighters().get(1).getHealth() / (double) session.getFighters().get(1).getMaxHealth());
+                rightFighter.getHealth() / (double) rightFighter.getMaxHealth());
         g.setFont(RetroStyle.font(20));
         g.setColor(Color.WHITE);
-        Fighter leftFighter = session.getFighters().get(0);
-        Fighter rightFighter = session.getFighters().get(1);
         g.drawString("EVOLUCION", leftX, 108);
         if (leftFighter.isEvolutionReady()) {
             g.setColor(new Color(0xFFD45A));
@@ -160,18 +162,48 @@ public class FightingRenderer {
             g.fillRect(x + size / 3, y + size / 3, size / 3, size / 3);
         }
 
-        Fighter pikachu = session.getFighters().get(0);
-        if (session.getCombatSystem().isDashing(pikachu, session.getFighters())) {
+        for (Fighter attacker : session.getFighters()) {
+          if (session.getCombatSystem().isDashing(attacker, session.getFighters())) {
             AttackDefinition definition = session.getCombatSystem()
-                    .getActiveDefinition(pikachu, session.getFighters());
-            int direction = pikachu.isFacingLeft() ? -1 : 1;
-            int trailX = (int) pikachu.getX() - direction * 52;
-            int trailY = (int) pikachu.getY() - 82;
+                    .getActiveDefinition(attacker, session.getFighters());
+            int direction = attacker.isFacingLeft() ? -1 : 1;
+            int trailX = (int) attacker.getX() - direction * 52;
+            int trailY = (int) attacker.getY() - 82;
             g.setColor(new Color(definition.effectColor().getRed(),
                     definition.effectColor().getGreen(), definition.effectColor().getBlue(), 170));
             g.fillRect(trailX - 8, trailY, 16, 8);
             g.fillRect(trailX, trailY + 12, 24, 7);
             g.fillRect(trailX - 5, trailY + 24, 13, 6);
+          }
+        }
+    }
+
+    private void drawTeamIndicators(Graphics2D g, FightingGameSession session,
+                                    boolean playerOne, int frameIndex, Runnable repaint) {
+        FightingTeam team = playerOne ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
+        int startX = playerOne ? 42 : session.getWidth() - 3 * 88 - 42;
+        int y = 145;
+        for (int i = 0; i < team.getMembers().size(); i++) {
+            Fighter fighter = team.getMembers().get(i);
+            int x = startX + i * 88;
+            g.setColor(i == team.getActiveIndex() ? new Color(0xFFD45A) : RetroStyle.OUTLINE);
+            g.fillRect(x, y, 42, 42);
+            g.setColor(RetroStyle.WHITE);
+            g.fillRect(x + 3, y + 3, 36, 36);
+            GifAnimation icon = spriteLoader.getOrLoad(fighter.getPokemonId(), false, repaint);
+            if (icon != null) {
+                BufferedImage image = icon.frame(frameIndex);
+                int h = 32;
+                int w = Math.max(1, Math.round(h * image.getWidth() / (float) image.getHeight()));
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g.drawImage(image, x + (42 - w) / 2, y + 5, w, h, null);
+            }
+            g.setColor(RetroStyle.DARK);
+            g.setFont(RetroStyle.font(16));
+            String order = String.valueOf(i + 1);
+            g.drawString(order, x + 16, y + 56);
+            g.setFont(RetroStyle.font(12));
+            g.drawString(i == team.getActiveIndex() ? "ACTIVO" : "RESERVA", x - 8, y + 72);
         }
     }
 

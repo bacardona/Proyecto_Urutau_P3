@@ -16,9 +16,11 @@ import com.pokemon.battle.ui.TeamSelectScreen;
 import com.pokemon.battle.ui.TrainerHubScreen;
 import com.pokemon.battle.ui.TrainerSelectPanel;
 import com.pokemon.battle.fighting.FightingGamePanel;
+import com.pokemon.battle.fighting.FreeFightSetup;
 
 import javax.swing.SwingUtilities;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,6 +29,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * registra en la ventana. (Main.java sigue siendo la version de consola.)
  */
 public class MainGUI {
+
+    // IDs de las especies base confirmadas para la primera selección de Combate Libre.
+    // La colección se puede ampliar cuando se aprueben más especies.
+    private static final Set<Integer> FREE_FIGHT_POKEMON_IDS = Set.of(1, 4, 7, 133);
 
     private static final String PROJECT_TITLE = "POKKEN BATTLE";
 
@@ -55,6 +61,7 @@ public class MainGUI {
         AtomicReference<Player> pvpPlayer1 = new AtomicReference<>();
         AtomicReference<Player> pvpPlayer2 = new AtomicReference<>();
         AtomicReference<List<Pokemon>> pvpTeam1 = new AtomicReference<>();
+        FreeFightSetup freeFightSetup = new FreeFightSetup();
 
         // 1. Intro
         IntroScreen intro = new IntroScreen(PROJECT_TITLE, MEMBERS, backToMenu);
@@ -119,8 +126,44 @@ public class MainGUI {
                 },
                 () -> window.showScreen("combatMenu"));
 
+        TeamSelectScreen freeTeamScreen2 = new TeamSelectScreen(
+                team -> {
+                    freeFightSetup.setPlayerTwo(freeFightSetup.getPlayerTwo(), team);
+                    if (freeFightSetup.isComplete()) {
+                        window.setGameSize(1280, 720);
+                        window.showScreen("fighting");
+                    }
+                },
+                () -> window.showScreen("freeHub2"));
+
+        TrainerHubScreen freeHub2 = new TrainerHubScreen("COMBATE LIBRE",
+                "ENTRENADOR 2: SELECCIONA O CREA UN ENTRENADOR", controller,
+                (player, catalog) -> {
+                    freeFightSetup.setPlayerTwo(player, List.of());
+                    freeTeamScreen2.prepare(player.getName(), filterFreeFightCatalog(catalog));
+                    window.showScreen("freeTeam2");
+                },
+                () -> window.showScreen("freeHub1"));
+
+        TeamSelectScreen freeTeamScreen1 = new TeamSelectScreen(
+                team -> {
+                    freeFightSetup.setPlayerOne(freeFightSetup.getPlayerOne(), team);
+                    openHub(window, controller, freeHub2, "freeHub2", freeFightSetup.getPlayerOne());
+                },
+                () -> window.showScreen("freeHub1"));
+
+        TrainerHubScreen freeHub1 = new TrainerHubScreen("COMBATE LIBRE",
+                "ENTRENADOR 1: SELECCIONA O CREA UN ENTRENADOR", controller,
+                (player, catalog) -> {
+                    freeFightSetup.clear();
+                    freeFightSetup.setPlayerOne(player, List.of());
+                    freeTeamScreen1.prepare(player.getName(), filterFreeFightCatalog(catalog));
+                    window.showScreen("freeTeam1");
+                },
+                () -> window.showScreen("combatMenu"));
+
         // 5. Pantalla de combate libre
-        FightingGamePanel fightingPanel = new FightingGamePanel(
+        FightingGamePanel fightingPanel = new FightingGamePanel(freeFightSetup,
                 () -> {
                     window.setGameSize(960, 640);
                     window.showScreen("combatMenu");
@@ -134,8 +177,8 @@ public class MainGUI {
                         () -> openHub(window, controller, pveHub, "pveHub", null),
                         () -> openHub(window, controller, pvpHub1, "pvpHub1", null),
                         () -> {
-                            window.setGameSize(1280, 720);
-                            window.showScreen("fighting");
+                            freeFightSetup.clear();
+                            openHub(window, controller, freeHub1, "freeHub1", null);
                         },
                         backToMenu
                 },
@@ -157,6 +200,10 @@ public class MainGUI {
         window.addScreen("menu", mainMenu);
         window.addScreen("combatMenu", combatMenu);
         window.addScreen("fighting", fightingPanel);
+        window.addScreen("freeHub1", freeHub1);
+        window.addScreen("freeTeam1", freeTeamScreen1);
+        window.addScreen("freeHub2", freeHub2);
+        window.addScreen("freeTeam2", freeTeamScreen2);
         window.addScreen("pveHub", pveHub);
         window.addScreen("pveTeam", pveTeamScreen);
         window.addScreen("pvpHub1", pvpHub1);
@@ -182,6 +229,15 @@ public class MainGUI {
                     window.showScreen(screenName);
                 },
                 error -> fail(window, error, "combatMenu"));
+    }
+
+    private static List<Pokemon> filterFreeFightCatalog(List<Pokemon> catalog) {
+        if (FREE_FIGHT_POKEMON_IDS.isEmpty()) {
+            return new java.util.ArrayList<>(catalog);
+        }
+        return catalog.stream()
+                .filter(pokemon -> FREE_FIGHT_POKEMON_IDS.contains(pokemon.getId()))
+                .toList();
     }
 
     // Sortea una maquina e inicia la batalla (se ejecuta en segundo plano)

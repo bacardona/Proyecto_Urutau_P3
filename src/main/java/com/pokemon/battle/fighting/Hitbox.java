@@ -5,7 +5,7 @@ public record Hitbox(double x, double y, double width, double height) {
 
     public boolean intersects(Fighter fighter) {
         double targetHalfWidth = PhysicsSystem.halfWidthFor(fighter);
-        double targetHeight = "PIKACHU".equals(fighter.getPokemonId()) ? 145 : 190;
+        double targetHeight = fighter.getRenderHeight();
         double targetLeft = fighter.getX() - targetHalfWidth;
         double targetTop = fighter.getY() - targetHeight;
         return x < targetLeft + targetHalfWidth * 2

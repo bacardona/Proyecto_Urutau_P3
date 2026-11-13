@@ -7,8 +7,6 @@ public class PhysicsSystem {
 
     private static final double GRAVITY = 1400.0;
     private static final double JUMP_VELOCITY = -650.0;
-    private static final double PIKACHU_HALF_WIDTH = 47.0;
-    private static final double CHARIZARD_HALF_WIDTH = 73.0;
 
     public void update(Fighter fighter, List<Platform> platforms,
                        double halfWidth, boolean jumpRequested, double deltaSeconds) {
@@ -52,7 +50,6 @@ public class PhysicsSystem {
     }
 
     public static double halfWidthFor(Fighter fighter) {
-        return "PIKACHU".equals(fighter.getPokemonId())
-                ? PIKACHU_HALF_WIDTH : CHARIZARD_HALF_WIDTH;
+        return fighter.getBodyHalfWidth();
     }
 }

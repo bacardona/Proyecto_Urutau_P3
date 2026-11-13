@@ -42,14 +42,26 @@ public class FightingCombatSystem {
     private final List<FightingProjectile> projectiles = new ArrayList<>();
     private final List<FightingProjectile> projectileView = Collections.unmodifiableList(projectiles);
 
+    public boolean hasAttackProfile(String pokemonId) {
+        return "PIKACHU".equals(pokemonId) || "CHARIZARD".equals(pokemonId);
+    }
+
     public void update(List<Fighter> fighters, int arenaWidth,
                        boolean playerOneQuickAttack, boolean playerOneThunderShock,
                        boolean playerTwoEmber, boolean playerTwoTackle,
                        double deltaSeconds) {
-        startRequestedAttack(states[0], playerOneQuickAttack ? QUICK_ATTACK
-                : playerOneThunderShock ? THUNDER_SHOCK : null);
-        startRequestedAttack(states[1], playerTwoEmber ? EMBER
-                : playerTwoTackle ? TACKLE : null);
+        Fighter playerOne = fighters.get(0);
+        Fighter playerTwo = fighters.get(1);
+        AttackDefinition playerOneAttack = playerOneQuickAttack ? QUICK_ATTACK
+                : playerOneThunderShock ? THUNDER_SHOCK : null;
+        AttackDefinition playerTwoAttack = playerTwoEmber ? EMBER
+                : playerTwoTackle ? TACKLE : null;
+        if ("PIKACHU".equals(playerOne.getPokemonId())) {
+            startRequestedAttack(states[0], playerOneAttack);
+        }
+        if ("CHARIZARD".equals(playerTwo.getPokemonId())) {
+            startRequestedAttack(states[1], playerTwoAttack);
+        }
 
         for (int i = 0; i < states.length; i++) {
             updateAttackState(i, fighters, arenaWidth, deltaSeconds);

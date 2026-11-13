@@ -1,5 +1,7 @@
 package com.pokemon.battle.fighting;
 
+import com.pokemon.battle.model.Pokemon;
+
 import java.util.List;
 
 /** Holds the participants and fixed arena data for one free-fight session. */
@@ -14,6 +16,8 @@ public class FightingGameSession {
     private final int height;
     private final int groundY;
     private final List<Fighter> fighters;
+    private final FightingTeam playerOneTeam;
+    private final FightingTeam playerTwoTeam;
     private final List<Platform> platforms;
     private final PhysicsSystem physicsSystem = new PhysicsSystem();
     private final FightingCombatSystem combatSystem = new FightingCombatSystem();
@@ -21,6 +25,20 @@ public class FightingGameSession {
     private Outcome outcome;
 
     public FightingGameSession() {
+        this("JUGADOR 1", List.of(), "JUGADOR 2", List.of(), true);
+    }
+
+    public FightingGameSession(FreeFightSetup setup) {
+        this(setup.getPlayerOne().getName(), setup.getTeamOne(),
+                setup.getPlayerTwo().getName(), setup.getTeamTwo(), false);
+        if (!setup.isComplete()) {
+            throw new IllegalArgumentException("La selección de Combate Libre está incompleta");
+        }
+    }
+
+    private FightingGameSession(String playerOneName, List<Pokemon> teamOne,
+                                String playerTwoName, List<Pokemon> teamTwo,
+                                boolean usePrototypeTeams) {
         this.width = 1280;
         this.height = 720;
         this.groundY = 677;
@@ -33,21 +51,33 @@ public class FightingGameSession {
                 new Platform(1060, 570, 170, 24),
                 new Platform(0, groundY, width, 24)
         );
-        this.fighters = List.of(
-                new Fighter("PIKACHU", 230, groundY, false),
-                new Fighter("CHARIZARD", 1050, groundY, true)
-        );
+        List<Pokemon> firstTeam = usePrototypeTeams ? List.of() : teamOne;
+        List<Pokemon> secondTeam = usePrototypeTeams ? List.of() : teamTwo;
+        this.playerOneTeam = usePrototypeTeams
+                ? FightingTeam.prototype(playerOneName,
+                    new String[]{"PIKACHU", "BULBASAUR", "EEVEE"}, 230, groundY, false)
+                : new FightingTeam(playerOneName, firstTeam, 230, groundY, false);
+        this.playerTwoTeam = usePrototypeTeams
+                ? FightingTeam.prototype(playerTwoName,
+                    new String[]{"CHARIZARD", "SQUIRTLE", "CHARMANDER"}, 1050, groundY, true)
+                : new FightingTeam(playerTwoName, secondTeam, 1050, groundY, true);
+        this.fighters = List.of(playerOneTeam.getActive(), playerTwoTeam.getActive());
     }
 
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public int getGroundY() { return groundY; }
     public List<Fighter> getFighters() { return fighters; }
+    public FightingTeam getPlayerOneTeam() { return playerOneTeam; }
+    public FightingTeam getPlayerTwoTeam() { return playerTwoTeam; }
     public List<Platform> getPlatforms() { return platforms; }
     public List<FightingProjectile> getProjectiles() { return combatSystem.getProjectiles(); }
     public FightingCombatSystem getCombatSystem() { return combatSystem; }
     public State getState() { return state; }
     public Outcome getOutcome() { return outcome; }
+    public String getTrainerName(int playerIndex) {
+        return playerIndex == 0 ? playerOneTeam.getTrainerName() : playerTwoTeam.getTrainerName();
+    }
 
     public void pause() {
         if (state == State.RUNNING) state = State.PAUSED;

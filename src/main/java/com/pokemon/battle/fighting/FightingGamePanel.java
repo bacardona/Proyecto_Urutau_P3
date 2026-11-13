@@ -60,7 +60,8 @@ public class FightingGamePanel extends JPanel {
     // 3. VARIABLES
     // ==========================================
 
-    private FightingGameSession session = new FightingGameSession();
+    private final FreeFightSetup setup;
+    private FightingGameSession session;
     private final FightingRenderer renderer =
             new FightingRenderer(SpriteLoader.shared());
     private final FightingInput input = new FightingInput();
@@ -81,7 +82,13 @@ public class FightingGamePanel extends JPanel {
     // ==========================================
 
     public FightingGamePanel(Runnable onBack) {
+        this(null, onBack);
+    }
 
+    public FightingGamePanel(FreeFightSetup setup, Runnable onBack) {
+
+        this.setup = setup;
+        this.session = createSession();
         this.onBack = Objects.requireNonNull(onBack);
 
         setBackground(new Color(0x98C9EF));
@@ -109,7 +116,7 @@ public class FightingGamePanel extends JPanel {
 
                 if (isShowing()) {
 
-                    session = new FightingGameSession();
+                    session = createSession();
                     pausePage = PausePage.MAIN;
                     selectedOption = 0;
                     selectedResultOption = 0;
@@ -409,7 +416,7 @@ public class FightingGamePanel extends JPanel {
 
     private void activateResultOption() {
         if (selectedResultOption == 0) {
-            session = new FightingGameSession();
+            session = createSession();
             input.clear();
             frameIndex = 0;
             selectedResultOption = 0;
@@ -448,6 +455,12 @@ public class FightingGamePanel extends JPanel {
         animationTimer.stop();
         simulationTimer.stop();
         input.clear();
+    }
+
+    private FightingGameSession createSession() {
+        return setup != null && setup.isComplete()
+                ? new FightingGameSession(setup)
+                : new FightingGameSession();
     }
 
     // ==========================================
@@ -694,17 +707,14 @@ public class FightingGamePanel extends JPanel {
                     RetroStyle.DARK
             );
 
-            drawCentered(
-                    g,
-                    "P1: J RAPIDO / K IMPACTRUENO",
-                    centerX,
-                    panelY + 250,
-                    18,
-                    RetroStyle.DARK
-            );
-
-            drawCentered(g, "P2: 1 ASCUAS / 2 PLACAJE", centerX,
-                    panelY + 290, 18, RetroStyle.DARK);
+            Fighter playerOne = session.getFighters().get(0);
+            Fighter playerTwo = session.getFighters().get(1);
+            String playerOneAttacks = session.getCombatSystem().hasAttackProfile(playerOne.getPokemonId())
+                    ? "P1: J RAPIDO / K IMPACTRUENO" : "P1: ATAQUES NO DISPONIBLES";
+            String playerTwoAttacks = session.getCombatSystem().hasAttackProfile(playerTwo.getPokemonId())
+                    ? "P2: 1 ASCUAS / 2 PLACAJE" : "P2: ATAQUES NO DISPONIBLES";
+            drawCentered(g, playerOneAttacks, centerX, panelY + 250, 18, RetroStyle.DARK);
+            drawCentered(g, playerTwoAttacks, centerX, panelY + 290, 18, RetroStyle.DARK);
 
             drawCentered(g, "ESC O ENTER PARA VOLVER", centerX,
                     panelY + 350, 18, RetroStyle.DARK);
@@ -724,7 +734,8 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "PIKACHU VS CHARIZARD",
+                    session.getFighters().get(0).getName().toUpperCase()
+                            + " VS " + session.getFighters().get(1).getName().toUpperCase(),
                     centerX,
                     panelY + 140,
                     24,
