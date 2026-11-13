@@ -25,6 +25,8 @@ import java.util.Objects;
 
 public class FightingGamePanel extends JPanel {
 
+    private static final boolean DEBUG_KO_ENABLED = Boolean.getBoolean("pokemon.fighting.debug");
+
     // ==========================================
     // 1. DIMENSIONES DEL ESCENARIO
     // ==========================================
@@ -155,6 +157,10 @@ public class FightingGamePanel extends JPanel {
             else if (session.getState() == FightingGameSession.State.FINISHED) moveResultSelection(1);
         });
         bindKey("ENTER", this::activateSelected);
+        if (DEBUG_KO_ENABLED) {
+            bindKey("F6", () -> debugDefeat(0));
+            bindKey("F7", () -> debugDefeat(1));
+        }
 
         bindHeldKey("A", input::setPlayerOneLeft);
         bindHeldKey("D", input::setPlayerOneRight);
@@ -162,10 +168,10 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("RIGHT", input::setPlayerTwoRight);
         bindHeldKey("W", input::setPlayerOneJump);
         bindKeyRelease("UP", input::setPlayerTwoJump);
-        bindHeldKey("J", input::setQuickAttack);
-        bindHeldKey("K", input::setThunderShock);
-        bindHeldKey("1", input::setEmber);
-        bindHeldKey("2", input::setTackle);
+        bindHeldKey("C", input::setPlayerOneAttackOne);
+        bindHeldKey("V", input::setPlayerOneAttackTwo);
+        bindHeldKey("K", input::setPlayerTwoAttackOne);
+        bindHeldKey("L", input::setPlayerTwoAttackTwo);
 
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
@@ -463,6 +469,13 @@ public class FightingGamePanel extends JPanel {
                 : new FightingGameSession();
     }
 
+    private void debugDefeat(int playerIndex) {
+        if (!DEBUG_KO_ENABLED || session.getState() != FightingGameSession.State.RUNNING) return;
+        session.debugDefeatActiveFighter(playerIndex);
+        if (session.getState() == FightingGameSession.State.FINISHED) stopGameTimersAndClearInput();
+        repaint();
+    }
+
     // ==========================================
     // 8. ESCALADO DEL ESCENARIO
     // ==========================================
@@ -521,6 +534,11 @@ public class FightingGamePanel extends JPanel {
         );
 
         renderer.draw(sceneGraphics, session, frameIndex, this::repaint);
+        if (DEBUG_KO_ENABLED) {
+            sceneGraphics.setFont(RetroStyle.font(16));
+            sceneGraphics.setColor(new Color(0x7B2020));
+            sceneGraphics.drawString("HERRAMIENTA DE DEPURACION: F6 KO P1 | F7 KO P2", 350, 700);
+        }
 
         sceneGraphics.dispose();
 
@@ -691,7 +709,7 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "JUGADOR 1: A / D, W, J / K",
+                    "JUGADOR 1: A / D, W, C / V",
                     centerX,
                     panelY + 130,
                     20,
@@ -700,7 +718,7 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(
                     g,
-                    "JUGADOR 2: FLECHAS, ARRIBA, 1 / 2",
+                    "JUGADOR 2: FLECHAS, ARRIBA, K / L",
                     centerX,
                     panelY + 180,
                     20,

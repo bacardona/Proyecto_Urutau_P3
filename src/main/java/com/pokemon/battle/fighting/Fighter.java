@@ -22,6 +22,7 @@ public class Fighter {
     private int health = MAX_HEALTH;
     private double evolutionEnergy;
     private boolean onGround = true;
+    private boolean defeated;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
@@ -76,6 +77,7 @@ public class Fighter {
     public double getEvolutionEnergy() { return evolutionEnergy; }
     public boolean isEvolutionReady() { return evolutionEnergy >= MAX_EVOLUTION_ENERGY; }
     public boolean isOnGround() { return onGround; }
+    public boolean isDefeated() { return defeated; }
 
     void moveHorizontally(double direction, double distance) {
         if (direction == 0) return;
@@ -90,6 +92,12 @@ public class Fighter {
 
     void receiveDamage(int damage) {
         health = Math.max(0, health - Math.max(0, damage));
+        if (health == 0) defeated = true;
+    }
+
+    void markDefeated() {
+        health = 0;
+        defeated = true;
     }
 
     void addEvolutionEnergy(double amount) {

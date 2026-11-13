@@ -5,6 +5,7 @@ import com.pokemon.battle.ui.RetroStyle;
 import com.pokemon.battle.ui.SpriteLoader;
 
 import java.awt.Color;
+import java.awt.AlphaComposite;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -181,29 +182,35 @@ public class FightingRenderer {
     private void drawTeamIndicators(Graphics2D g, FightingGameSession session,
                                     boolean playerOne, int frameIndex, Runnable repaint) {
         FightingTeam team = playerOne ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
-        int startX = playerOne ? 42 : session.getWidth() - 3 * 88 - 42;
-        int y = 145;
+        int slotWidth = 112;
+        int startX = playerOne ? 42 : session.getWidth() - 3 * slotWidth - 42;
+        int spriteTop = 145;
+        int spriteHeight = 50;
         for (int i = 0; i < team.getMembers().size(); i++) {
             Fighter fighter = team.getMembers().get(i);
-            int x = startX + i * 88;
-            g.setColor(i == team.getActiveIndex() ? new Color(0xFFD45A) : RetroStyle.OUTLINE);
-            g.fillRect(x, y, 42, 42);
-            g.setColor(RetroStyle.WHITE);
-            g.fillRect(x + 3, y + 3, 36, 36);
+            int x = startX + i * slotWidth;
             GifAnimation icon = spriteLoader.getOrLoad(fighter.getPokemonId(), false, repaint);
             if (icon != null) {
                 BufferedImage image = icon.frame(frameIndex);
-                int h = 32;
-                int w = Math.max(1, Math.round(h * image.getWidth() / (float) image.getHeight()));
+                int h = spriteHeight;
+                int w = Math.min(68, Math.max(1, Math.round(h * image.getWidth() / (float) image.getHeight())));
+                int spriteX = x + (slotWidth - w) / 2;
                 g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                g.drawImage(image, x + (42 - w) / 2, y + 5, w, h, null);
+                if (fighter.isDefeated()) {
+                    var oldComposite = g.getComposite();
+                    g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.38f));
+                    g.drawImage(image, spriteX, spriteTop, w, h, null);
+                    g.setComposite(oldComposite);
+                } else {
+                    g.drawImage(image, spriteX, spriteTop, w, h, null);
+                }
             }
-            g.setColor(RetroStyle.DARK);
-            g.setFont(RetroStyle.font(16));
-            String order = String.valueOf(i + 1);
-            g.drawString(order, x + 16, y + 56);
-            g.setFont(RetroStyle.font(12));
-            g.drawString(i == team.getActiveIndex() ? "ACTIVO" : "RESERVA", x - 8, y + 72);
+            String status = fighter.isDefeated() ? "KO" : i == team.getActiveIndex() ? "ACTIVO" : "RESERVA";
+            Color statusColor = fighter.isDefeated() ? new Color(0xFF9999)
+                    : i == team.getActiveIndex() ? new Color(0xFFE36E) : Color.WHITE;
+            String label = (i == team.getActiveIndex() && !fighter.isDefeated() ? "> " : "")
+                    + (i + 1) + "  " + status;
+            drawCentered(g, label, x + slotWidth / 2, 214, 14, statusColor);
         }
     }
 
@@ -221,11 +228,20 @@ public class FightingRenderer {
         int x = centerX - width / 2;
         int y = (int) fighter.getY() - targetHeight;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        if (fighter.isFacingLeft()) {
+        if (shouldFlipFrontSprite(fighter)) {
             g.drawImage(frame, x + width, y, -width, targetHeight, null);
         } else {
             g.drawImage(frame, x, y, width, targetHeight, null);
         }
+    }
+
+    private boolean shouldFlipFrontSprite(Fighter fighter) {
+        // The available front GIFs face left in their source files.
+        boolean sourceFacesLeft = switch (fighter.getPokemonId()) {
+            case "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE", "PIKACHU", "CHARIZARD" -> true;
+            default -> true;
+        };
+        return fighter.isFacingLeft() != sourceFacesLeft;
     }
 
     private void drawCentered(Graphics2D g, String text, int centerX, int baseline, int size, Color color) {

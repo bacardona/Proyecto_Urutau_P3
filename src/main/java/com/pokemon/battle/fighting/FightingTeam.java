@@ -41,4 +41,18 @@ public final class FightingTeam {
     public List<Fighter> getMembers() { return members; }
     public Fighter getActive() { return members.get(activeIndex); }
     public int getActiveIndex() { return activeIndex; }
+    public boolean hasAvailableFighter() {
+        return members.stream().anyMatch(member -> !member.isDefeated());
+    }
+
+    public boolean advanceAfterDefeat() {
+        if (!getActive().isDefeated()) return false;
+        for (int i = activeIndex + 1; i < members.size(); i++) {
+            if (!members.get(i).isDefeated()) {
+                activeIndex = i;
+                return true;
+            }
+        }
+        return false;
+    }
 }

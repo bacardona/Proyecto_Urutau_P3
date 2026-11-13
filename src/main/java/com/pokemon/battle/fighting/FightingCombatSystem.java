@@ -46,6 +46,17 @@ public class FightingCombatSystem {
         return "PIKACHU".equals(pokemonId) || "CHARIZARD".equals(pokemonId);
     }
 
+    public void clearPlayerState(int playerIndex) {
+        if (playerIndex < 0 || playerIndex >= states.length) return;
+        AttackState state = states[playerIndex];
+        state.phase = Phase.READY;
+        state.definition = null;
+        state.remaining = 0;
+        state.hasHit = false;
+        state.activeEffectStarted = false;
+        projectiles.clear();
+    }
+
     public void update(List<Fighter> fighters, int arenaWidth,
                        boolean playerOneQuickAttack, boolean playerOneThunderShock,
                        boolean playerTwoEmber, boolean playerTwoTackle,

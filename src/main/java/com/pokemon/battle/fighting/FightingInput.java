@@ -11,14 +11,14 @@ public class FightingInput {
     private boolean playerTwoJumpHeld;
     private boolean playerOneJumpRequested;
     private boolean playerTwoJumpRequested;
-    private boolean quickAttackHeld;
-    private boolean thunderShockHeld;
-    private boolean quickAttackRequested;
-    private boolean thunderShockRequested;
-    private boolean emberHeld;
-    private boolean tackleHeld;
-    private boolean emberRequested;
-    private boolean tackleRequested;
+    private boolean playerOneAttackOneHeld;
+    private boolean playerOneAttackTwoHeld;
+    private boolean playerOneAttackOneRequested;
+    private boolean playerOneAttackTwoRequested;
+    private boolean playerTwoAttackOneHeld;
+    private boolean playerTwoAttackTwoHeld;
+    private boolean playerTwoAttackOneRequested;
+    private boolean playerTwoAttackTwoRequested;
 
     public void setPlayerOneLeft(boolean pressed) { playerOneLeft = pressed; }
     public void setPlayerOneRight(boolean pressed) { playerOneRight = pressed; }
@@ -35,24 +35,24 @@ public class FightingInput {
         playerTwoJumpHeld = pressed;
     }
 
-    public void setQuickAttack(boolean pressed) {
-        if (pressed && !quickAttackHeld) quickAttackRequested = true;
-        quickAttackHeld = pressed;
+    public void setPlayerOneAttackOne(boolean pressed) {
+        if (pressed && !playerOneAttackOneHeld) playerOneAttackOneRequested = true;
+        playerOneAttackOneHeld = pressed;
     }
 
-    public void setThunderShock(boolean pressed) {
-        if (pressed && !thunderShockHeld) thunderShockRequested = true;
-        thunderShockHeld = pressed;
+    public void setPlayerOneAttackTwo(boolean pressed) {
+        if (pressed && !playerOneAttackTwoHeld) playerOneAttackTwoRequested = true;
+        playerOneAttackTwoHeld = pressed;
     }
 
-    public void setEmber(boolean pressed) {
-        if (pressed && !emberHeld) emberRequested = true;
-        emberHeld = pressed;
+    public void setPlayerTwoAttackOne(boolean pressed) {
+        if (pressed && !playerTwoAttackOneHeld) playerTwoAttackOneRequested = true;
+        playerTwoAttackOneHeld = pressed;
     }
 
-    public void setTackle(boolean pressed) {
-        if (pressed && !tackleHeld) tackleRequested = true;
-        tackleHeld = pressed;
+    public void setPlayerTwoAttackTwo(boolean pressed) {
+        if (pressed && !playerTwoAttackTwoHeld) playerTwoAttackTwoRequested = true;
+        playerTwoAttackTwoHeld = pressed;
     }
 
     public double getPlayerOneDirection() {
@@ -75,27 +75,27 @@ public class FightingInput {
         return requested;
     }
 
-    public boolean consumeQuickAttack() {
-        boolean requested = quickAttackRequested;
-        quickAttackRequested = false;
+    public boolean consumePlayerOneAttackOne() {
+        boolean requested = playerOneAttackOneRequested;
+        playerOneAttackOneRequested = false;
         return requested;
     }
 
-    public boolean consumeThunderShock() {
-        boolean requested = thunderShockRequested;
-        thunderShockRequested = false;
+    public boolean consumePlayerOneAttackTwo() {
+        boolean requested = playerOneAttackTwoRequested;
+        playerOneAttackTwoRequested = false;
         return requested;
     }
 
-    public boolean consumeEmber() {
-        boolean requested = emberRequested;
-        emberRequested = false;
+    public boolean consumePlayerTwoAttackOne() {
+        boolean requested = playerTwoAttackOneRequested;
+        playerTwoAttackOneRequested = false;
         return requested;
     }
 
-    public boolean consumeTackle() {
-        boolean requested = tackleRequested;
-        tackleRequested = false;
+    public boolean consumePlayerTwoAttackTwo() {
+        boolean requested = playerTwoAttackTwoRequested;
+        playerTwoAttackTwoRequested = false;
         return requested;
     }
 
@@ -108,13 +108,13 @@ public class FightingInput {
         playerTwoJumpHeld = false;
         playerOneJumpRequested = false;
         playerTwoJumpRequested = false;
-        quickAttackHeld = false;
-        thunderShockHeld = false;
-        quickAttackRequested = false;
-        thunderShockRequested = false;
-        emberHeld = false;
-        tackleHeld = false;
-        emberRequested = false;
-        tackleRequested = false;
+        playerOneAttackOneHeld = false;
+        playerOneAttackTwoHeld = false;
+        playerOneAttackOneRequested = false;
+        playerOneAttackTwoRequested = false;
+        playerTwoAttackOneHeld = false;
+        playerTwoAttackTwoHeld = false;
+        playerTwoAttackOneRequested = false;
+        playerTwoAttackTwoRequested = false;
     }
 }

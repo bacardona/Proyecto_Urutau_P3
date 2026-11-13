@@ -2,6 +2,7 @@ package com.pokemon.battle.fighting;
 
 import com.pokemon.battle.model.Pokemon;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Holds the participants and fixed arena data for one free-fight session. */
@@ -61,13 +62,13 @@ public class FightingGameSession {
                 ? FightingTeam.prototype(playerTwoName,
                     new String[]{"CHARIZARD", "SQUIRTLE", "CHARMANDER"}, 1050, groundY, true)
                 : new FightingTeam(playerTwoName, secondTeam, 1050, groundY, true);
-        this.fighters = List.of(playerOneTeam.getActive(), playerTwoTeam.getActive());
+        this.fighters = new ArrayList<>(List.of(playerOneTeam.getActive(), playerTwoTeam.getActive()));
     }
 
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public int getGroundY() { return groundY; }
-    public List<Fighter> getFighters() { return fighters; }
+    public List<Fighter> getFighters() { return List.copyOf(fighters); }
     public FightingTeam getPlayerOneTeam() { return playerOneTeam; }
     public FightingTeam getPlayerTwoTeam() { return playerTwoTeam; }
     public List<Platform> getPlatforms() { return platforms; }
@@ -93,14 +94,64 @@ public class FightingGameSession {
                 input.consumePlayerOneJump(), deltaSeconds);
         updateFighter(fighters.get(1), input.getPlayerTwoDirection(),
                 input.consumePlayerTwoJump(), deltaSeconds);
-        combatSystem.update(fighters, width, input.consumeQuickAttack(),
-                input.consumeThunderShock(), input.consumeEmber(), input.consumeTackle(), deltaSeconds);
+        combatSystem.update(fighters, width, input.consumePlayerOneAttackOne(),
+                input.consumePlayerOneAttackTwo(), input.consumePlayerTwoAttackOne(),
+                input.consumePlayerTwoAttackTwo(), deltaSeconds);
+        replaceDefeatedFighters();
         checkForWinner();
     }
 
+    public boolean debugDefeatActiveFighter(int playerIndex) {
+        if (state != State.RUNNING || (playerIndex != 0 && playerIndex != 1)) return false;
+        Fighter active = fighters.get(playerIndex);
+        if (active.isDefeated()) return false;
+        active.markDefeated();
+        replaceDefeatedFighters();
+        checkForWinner();
+        return true;
+    }
+
+    private void replaceDefeatedFighters() {
+        for (int playerIndex = 0; playerIndex < fighters.size(); playerIndex++) {
+            Fighter defeated = fighters.get(playerIndex);
+            if (!defeated.isDefeated()) continue;
+            combatSystem.clearPlayerState(playerIndex);
+            FightingTeam team = playerIndex == 0 ? playerOneTeam : playerTwoTeam;
+            if (team.advanceAfterDefeat()) {
+                Fighter replacement = team.getActive();
+                Fighter opponent = fighters.get(1 - playerIndex);
+                positionReplacement(replacement, opponent, playerIndex);
+                fighters.set(playerIndex, replacement);
+            }
+        }
+    }
+
+    private void positionReplacement(Fighter replacement, Fighter opponent, int playerIndex) {
+        double halfWidth = PhysicsSystem.halfWidthFor(replacement);
+        double preferred = playerIndex == 0 ? 230 : width - 230;
+        double[] candidates = playerIndex == 0
+                ? new double[]{preferred, 350, 180, 450, 100}
+                : new double[]{preferred, width - 350, width - 180, width - 450, width - 100};
+        double opponentHalfWidth = PhysicsSystem.halfWidthFor(opponent);
+        for (double candidate : candidates) {
+            double x = Math.max(halfWidth, Math.min(width - halfWidth, candidate));
+            if (Math.abs(x - opponent.getX()) >= halfWidth + opponentHalfWidth + 20) {
+                replacement.setX(x);
+                replacement.setY(groundY);
+                replacement.setVelocityY(0);
+                replacement.setOnGround(true);
+                return;
+            }
+        }
+        replacement.setX(playerIndex == 0 ? halfWidth : width - halfWidth);
+        replacement.setY(groundY);
+        replacement.setVelocityY(0);
+        replacement.setOnGround(true);
+    }
+
     private void checkForWinner() {
-        boolean playerOneDefeated = fighters.get(0).getHealth() == 0;
-        boolean playerTwoDefeated = fighters.get(1).getHealth() == 0;
+        boolean playerOneDefeated = !playerOneTeam.hasAvailableFighter();
+        boolean playerTwoDefeated = !playerTwoTeam.hasAvailableFighter();
         if (!playerOneDefeated && !playerTwoDefeated) return;
 
         if (playerOneDefeated && playerTwoDefeated) outcome = Outcome.DRAW;
