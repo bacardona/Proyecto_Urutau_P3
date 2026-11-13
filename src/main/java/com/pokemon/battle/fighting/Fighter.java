@@ -9,9 +9,11 @@ public class Fighter {
 
     private static final int MAX_HEALTH = 100;
     private static final double MAX_EVOLUTION_ENERGY = 100.0;
+    private static final double EVOLUTION_ANIMATION_DURATION = 1.0;
 
     private final Pokemon pokemon;
-    private final String pokemonId;
+    private final String basePokemonId;
+    private final EvolutionProfile evolutionProfile;
     private double x;
     private double y;
     private boolean facingLeft;
@@ -27,10 +29,13 @@ public class Fighter {
     private double attackBoostSeconds;
     private double attackReductionSeconds;
     private double defenseReductionSeconds;
+    private boolean evolved;
+    private double evolutionAnimationSeconds;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
-        this.pokemonId = Objects.requireNonNull(pokemonId);
+        this.basePokemonId = Objects.requireNonNull(pokemonId).toUpperCase();
+        this.evolutionProfile = EvolutionProfile.forBasePokemon(basePokemonId);
         this.x = x;
         this.y = y;
         this.facingLeft = facingLeft;
@@ -38,17 +43,28 @@ public class Fighter {
 
     public Fighter(Pokemon pokemon, double x, double y, boolean facingLeft) {
         this.pokemon = Objects.requireNonNull(pokemon);
-        this.pokemonId = pokemon.getName().toUpperCase();
+        this.basePokemonId = pokemon.getName().toUpperCase();
+        this.evolutionProfile = EvolutionProfile.forBasePokemon(basePokemonId);
         this.x = x;
         this.y = y;
         this.facingLeft = facingLeft;
     }
 
-    public String getPokemonId() { return pokemonId; }
-    public String getName() { return pokemon != null ? pokemon.getName() : pokemonId; }
+    /** Current visual species, used by sprite lookup and team indicators. */
+    public String getPokemonId() {
+        return evolved && evolutionProfile != null
+                ? evolutionProfile.evolvedPokemonId() : basePokemonId;
+    }
+    /** Original species, kept stable so evolved fighters retain their move profile. */
+    public String getBasePokemonId() { return basePokemonId; }
+    public String getName() {
+        if (evolved && evolutionProfile != null) return evolutionProfile.evolvedName();
+        return pokemon != null ? pokemon.getName() : basePokemonId;
+    }
     public Pokemon getPokemon() { return pokemon; }
     public int getRenderHeight() {
-        return switch (pokemonId) {
+        if (evolved && evolutionProfile != null) return evolutionProfile.evolvedRenderHeight();
+        return switch (basePokemonId) {
             case "PIKACHU" -> 145;
             case "CHARIZARD" -> 190;
             case "BULBASAUR" -> 130;
@@ -59,7 +75,7 @@ public class Fighter {
         };
     }
     public double getBodyHalfWidth() {
-        return switch (pokemonId) {
+        return switch (basePokemonId) {
             case "PIKACHU" -> 47;
             case "CHARIZARD" -> 73;
             case "BULBASAUR" -> 48;
@@ -72,6 +88,7 @@ public class Fighter {
     public double getX() { return x; }
     public double getY() { return y; }
     public boolean isFacingLeft() { return facingLeft; }
+    void setFacingLeft(boolean facingLeft) { this.facingLeft = facingLeft; }
 
     public double getVelocityX() { return velocityX; }
     public double getVelocityY() { return velocityY; }
@@ -80,6 +97,16 @@ public class Fighter {
     public double getEvolution() { return evolutionEnergy; }
     public double getEvolutionEnergy() { return evolutionEnergy; }
     public boolean isEvolutionReady() { return evolutionEnergy >= MAX_EVOLUTION_ENERGY; }
+    public boolean isEvolved() { return evolved; }
+    public boolean isEvolutionAnimating() { return evolutionAnimationSeconds > 0; }
+    public double getEvolutionAnimationProgress() {
+        return 1.0 - evolutionAnimationSeconds / EVOLUTION_ANIMATION_DURATION;
+    }
+    public EvolutionProfile getEvolutionProfile() { return evolutionProfile; }
+    public boolean isUltimateReady() { return evolved && isEvolutionReady(); }
+    public double getMovementSpeedMultiplier() {
+        return evolved ? 1.0 + EvolutionProfile.EVOLVED_MOVEMENT_SPEED_BONUS : 1.0;
+    }
     public boolean isOnGround() { return onGround; }
     public boolean isDefeated() { return defeated; }
     public boolean isAsleep() { return sleepSeconds > 0; }
@@ -88,7 +115,8 @@ public class Fighter {
     public boolean hasDefenseReduction() { return defenseReductionSeconds > 0; }
     public double getOutgoingDamageMultiplier() {
         double multiplier = hasAttackBoost() ? 1.35 : 1.0;
-        return multiplier * (hasAttackReduction() ? 0.72 : 1.0);
+        multiplier *= hasAttackReduction() ? 0.72 : 1.0;
+        return multiplier * (evolved ? 1.0 + EvolutionProfile.EVOLVED_DAMAGE_BONUS : 1.0);
     }
     public double getIncomingDamageMultiplier() {
         return hasDefenseReduction() ? 1.30 : 1.0;
@@ -99,6 +127,20 @@ public class Fighter {
         attackBoostSeconds = Math.max(0, attackBoostSeconds - deltaSeconds);
         attackReductionSeconds = Math.max(0, attackReductionSeconds - deltaSeconds);
         defenseReductionSeconds = Math.max(0, defenseReductionSeconds - deltaSeconds);
+        evolutionAnimationSeconds = Math.max(0, evolutionAnimationSeconds - deltaSeconds);
+    }
+
+    boolean canEvolve() {
+        return !evolved && evolutionProfile != null && isEvolutionReady()
+                && !defeated && !isAsleep();
+    }
+
+    boolean evolve() {
+        if (!canEvolve()) return false;
+        evolved = true;
+        evolutionEnergy = 0;
+        evolutionAnimationSeconds = EVOLUTION_ANIMATION_DURATION;
+        return true;
     }
 
     boolean applySleep(double durationSeconds) {
@@ -130,6 +172,7 @@ public class Fighter {
         attackBoostSeconds = 0;
         attackReductionSeconds = 0;
         defenseReductionSeconds = 0;
+        evolutionAnimationSeconds = 0;
     }
 
     void moveHorizontally(double direction, double distance) {

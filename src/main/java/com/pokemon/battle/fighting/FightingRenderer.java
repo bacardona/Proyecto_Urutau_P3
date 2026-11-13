@@ -118,26 +118,29 @@ public class FightingRenderer {
                 leftFighter.getHealth() / (double) leftFighter.getMaxHealth());
         drawBar(g, rightX, 60, barWidth, 22, new Color(0x56B75C),
                 rightFighter.getHealth() / (double) rightFighter.getMaxHealth());
-        g.setFont(RetroStyle.font(20));
+        g.setFont(RetroStyle.font(15));
         g.setColor(Color.WHITE);
-        g.drawString("EVOLUCION", leftX, 108);
-        if (leftFighter.isEvolutionReady()) {
-            g.setColor(new Color(0xFFD45A));
-            g.drawString("LISTA!", leftX + barWidth - 82, 108);
-        }
-        g.setColor(Color.WHITE);
-        String evolutionText = "EVOLUCION";
-        int evolutionWidth = g.getFontMetrics().stringWidth(evolutionText);
-        g.drawString(evolutionText, rightX + barWidth - evolutionWidth, 108);
-        if (rightFighter.isEvolutionReady()) {
-            g.setColor(new Color(0xFFD45A));
-            g.drawString("LISTA!", rightX + 8, 108);
-        }
+        String leftEnergyLabel = energyLabel(leftFighter, "R");
+        String rightEnergyLabel = energyLabel(rightFighter, "P");
+        g.setColor(leftFighter.isEvolutionReady() ? new Color(0xFFD45A) : Color.WHITE);
+        g.drawString(leftEnergyLabel, leftX, 108);
+        g.setColor(rightFighter.isEvolutionReady() ? new Color(0xFFD45A) : Color.WHITE);
+        int rightLabelWidth = g.getFontMetrics().stringWidth(rightEnergyLabel);
+        g.drawString(rightEnergyLabel, rightX + barWidth - rightLabelWidth, 108);
         drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A),
                 leftFighter.getEvolutionEnergy() / 100.0);
         drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A),
                 rightFighter.getEvolutionEnergy() / 100.0);
         drawCentered(g, "VS", session.getWidth() / 2, 83, 31, Color.WHITE);
+    }
+
+    private String energyLabel(Fighter fighter, String evolutionKey) {
+        if (fighter.isEvolved()) {
+            return fighter.isUltimateReady() ? "ULTI DISPONIBLE" : "ENERGIA ULTI";
+        }
+        return fighter.isEvolutionReady()
+                ? "EVOLUCION DISPONIBLE (" + evolutionKey + ")"
+                : "EVOLUCION (" + evolutionKey + ")";
     }
 
     private void drawBar(Graphics2D g, int x, int y, int width, int height, Color fill, double ratio) {
@@ -358,6 +361,10 @@ public class FightingRenderer {
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
                              int frameIndex, Runnable repaint, int groundY) {
         String name = fighter.getPokemonId();
+        if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null
+                && ((int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0)) {
+            name = fighter.getBasePokemonId();
+        }
         GifAnimation animation = spriteLoader.getOrLoad(name, false, repaint);
         int centerX = (int) fighter.getX();
         if (animation == null) {
@@ -374,6 +381,30 @@ public class FightingRenderer {
         } else {
             g.drawImage(frame, x, y, width, targetHeight, null);
         }
+        if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, centerX,
+                y + targetHeight / 2, targetHeight, fighter.getEvolutionAnimationProgress());
+    }
+
+    private void drawEvolutionFlash(Graphics2D g, int centerX, int centerY,
+                                    int spriteHeight, double progress) {
+        int radius = Math.max(34, spriteHeight / 2 + (int) (18 * Math.sin(progress * Math.PI)));
+        var oldComposite = g.getComposite();
+        var oldStroke = g.getStroke();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                (float) (0.35 + 0.45 * Math.sin(progress * Math.PI))));
+        g.setColor(new Color(0xFFF2A0));
+        g.setStroke(new java.awt.BasicStroke(4));
+        g.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
+        g.setStroke(new java.awt.BasicStroke(2));
+        for (int i = 0; i < 4; i++) {
+            double angle = progress * Math.PI * 4 + i * Math.PI / 2;
+            int sx = centerX + (int) (Math.cos(angle) * (radius + 8));
+            int sy = centerY + (int) (Math.sin(angle) * (radius + 8));
+            g.drawLine(sx - 5, sy, sx + 5, sy);
+            g.drawLine(sx, sy - 5, sx, sy + 5);
+        }
+        g.setStroke(oldStroke);
+        g.setComposite(oldComposite);
     }
 
     private boolean shouldFlipFrontSprite(Fighter fighter) {

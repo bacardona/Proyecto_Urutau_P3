@@ -21,6 +21,7 @@ public class FightingCombatSystem {
     private static final double FLY_RETREAT_SECONDS = 0.18;
     private static final double FLY_RETREAT_SPEED = 125;
     private static final double TAIL_LUNGE_SECONDS = 0.16;
+    private static final double EEVEE_QUICK_ATTACK_MAX_DISTANCE = 120;
 
     private static final AttackDefinition QUICK_ATTACK = new AttackDefinition(
             "QUICK_ATTACK", 22, AttackDefinition.Kind.DASH, 11,
@@ -41,7 +42,7 @@ public class FightingCombatSystem {
             "VINE_WHIP", 19, AttackDefinition.Kind.HITBOX, 10,
             0.14, 0.12, 0.66, 148, 54, 0, 0, 0, 0, new Color(0x5BBF53));
     private static final AttackDefinition SLEEP_POWDER = new AttackDefinition(
-            "SLEEP_POWDER", 31, AttackDefinition.Kind.PROJECTILE, 0,
+            "SLEEP_POWDER", 31, AttackDefinition.Kind.PROJECTILE, 3,
             0.16, 0.06, 3.10, 0, 0, 0, 390, 1.5, 18, new Color(0xB987D8));
     private static final AttackDefinition GROWTH = new AttackDefinition(
             "GROWTH", 20, AttackDefinition.Kind.SELF_BUFF, 0,
@@ -81,6 +82,8 @@ public class FightingCombatSystem {
         private boolean flyLaunched;
         private boolean flyRetreatStarted;
         private double flyRetreatRemaining;
+        private double dashDirection;
+        private double dashDistanceTravelled;
     }
 
     public static final class ImpactEffect {
@@ -146,9 +149,9 @@ public class FightingCombatSystem {
                 playerOneAttackThree, playerOneAttackFour);
         int playerTwoRequest = requestedAttackIndex(playerTwoAttackOne, playerTwoAttackTwo,
                 playerTwoAttackThree, playerTwoAttackFour);
-        startRequestedAttack(states[0], attackFor(fighters.get(0).getPokemonId(), playerOneRequest),
+        startRequestedAttack(states[0], attackFor(fighters.get(0).getBasePokemonId(), playerOneRequest),
                 fighters.get(0), fighters.get(1));
-        startRequestedAttack(states[1], attackFor(fighters.get(1).getPokemonId(), playerTwoRequest),
+        startRequestedAttack(states[1], attackFor(fighters.get(1).getBasePokemonId(), playerTwoRequest),
                 fighters.get(1), fighters.get(0));
 
         for (int i = 0; i < states.length; i++) {
@@ -227,15 +230,17 @@ public class FightingCombatSystem {
         state.activeElapsed = 0;
         state.hasHit = false;
         state.activeEffectStarted = false;
+        state.dashDirection = attacker.isFacingLeft() ? -1 : 1;
+        state.dashDistanceTravelled = 0;
     }
 
     private boolean prepareFlight(AttackState state, AttackDefinition definition,
                                   Fighter attacker, Fighter target) {
         double deltaX = target.getX() - attacker.getX();
         double distance = Math.abs(deltaX);
-        double direction = attacker.isFacingLeft() ? -1 : 1;
-        if (distance < FLY_MIN_RANGE || distance > FLY_MAX_RANGE
-                || deltaX * direction <= 0) return false;
+        double direction = deltaX < 0 ? -1 : 1;
+        if (distance < FLY_MIN_RANGE || distance > FLY_MAX_RANGE) return false;
+        attacker.setFacingLeft(direction < 0);
         state.flyDirection = direction;
         double bodyGap = PhysicsSystem.halfWidthFor(attacker)
                 + PhysicsSystem.halfWidthFor(target) + 18;
@@ -280,7 +285,12 @@ public class FightingCombatSystem {
             if (state.definition.kind() == AttackDefinition.Kind.DASH
                     || (state.definition.kind() == AttackDefinition.Kind.LUNGE
                         && state.activeElapsed <= TAIL_LUNGE_SECONDS)) {
-                moveTowardTarget(attacker, target, state.definition, arenaWidth, deltaSeconds);
+                if ("EEVEE".equals(attacker.getBasePokemonId())
+                        && "QUICK_ATTACK".equals(state.definition.moveId())) {
+                    moveQuickAttack(attacker, state, arenaWidth, deltaSeconds);
+                } else {
+                    moveTowardTarget(attacker, target, state.definition, arenaWidth, deltaSeconds);
+                }
             }
 
             boolean strikeReady = state.definition.kind() != AttackDefinition.Kind.FLY
@@ -360,6 +370,16 @@ public class FightingCombatSystem {
         return false;
     }
 
+    /** Evolution is only allowed after all of that fighter's actions have resolved. */
+    public boolean canEvolve(int playerIndex, List<Fighter> fighters) {
+        if (playerIndex < 0 || playerIndex >= states.length || fighters.size() < 2) return false;
+        Fighter fighter = fighters.get(playerIndex);
+        return states[playerIndex].phase == Phase.READY
+                && !controlledByOtherGrowl(playerIndex)
+                && !isPlayerInputLocked(playerIndex, fighters)
+                && !fighter.isDefeated() && !fighter.isAsleep();
+    }
+
     /** Horizontal displacement imposed by a locked Fly arc or its landing recoil. */
     public double getForcedHorizontalDelta(Fighter fighter, List<Fighter> fighters,
                                            double deltaSeconds, int arenaWidth) {
@@ -398,6 +418,20 @@ public class FightingCombatSystem {
         else movement = 0;
         attacker.setX(Math.max(halfWidth, Math.min(arenaWidth - halfWidth,
                 attacker.getX() + direction * movement)));
+    }
+
+    private void moveQuickAttack(Fighter attacker, AttackState state, int arenaWidth,
+                                 double deltaSeconds) {
+        double remaining = EEVEE_QUICK_ATTACK_MAX_DISTANCE - state.dashDistanceTravelled;
+        if (remaining <= 0) return;
+        attacker.setFacingLeft(state.dashDirection < 0);
+        double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        double startX = attacker.getX();
+        double distance = Math.min(remaining, state.definition.dashSpeed() * deltaSeconds);
+        double nextX = Math.max(halfWidth, Math.min(arenaWidth - halfWidth,
+                startX + state.dashDirection * distance));
+        attacker.setX(nextX);
+        state.dashDistanceTravelled += Math.abs(nextX - startX);
     }
 
     private Hitbox attackHitbox(Fighter attacker, AttackDefinition definition) {
@@ -451,7 +485,15 @@ public class FightingCombatSystem {
             } else if (projectile.hitbox().intersects(target)) {
                 Fighter attacker = fighters.get(projectile.getOwnerIndex());
                 if ("SLEEP_POWDER".equals(projectile.getMoveId())) {
-                    target.applySleep(SLEEP_DURATION);
+                    boolean wasAsleep = target.isAsleep();
+                    if (!attacker.isDefeated() && projectile.getDamage() > 0) {
+                        int damage = Math.max(1, (int) Math.round(projectile.getDamage()
+                                * attacker.getOutgoingDamageMultiplier()
+                                * target.getIncomingDamageMultiplier()));
+                        target.receiveDamage(damage);
+                        attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+                    }
+                    if (!wasAsleep && !target.isDefeated()) target.applySleep(SLEEP_DURATION);
                     impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
                 } else if (!attacker.isDefeated() && projectile.getDamage() > 0) {
                     int damage = Math.max(1, (int) Math.round(projectile.getDamage()

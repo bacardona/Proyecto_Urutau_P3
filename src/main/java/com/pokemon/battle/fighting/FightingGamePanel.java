@@ -172,10 +172,12 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("G", input::setPlayerOneAttackTwo);
         bindHeldKey("H", input::setPlayerOneAttackThree);
         bindHeldKey("V", input::setPlayerOneAttackFour);
+        bindHeldKey("R", input::setPlayerOneEvolution);
         bindHeldKey("I", input::setPlayerTwoAttackOne);
         bindHeldKey("J", input::setPlayerTwoAttackTwo);
         bindHeldKey("K", input::setPlayerTwoAttackThree);
         bindHeldKey("L", input::setPlayerTwoAttackFour);
+        bindHeldKey("P", input::setPlayerTwoEvolution);
 
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
@@ -729,6 +731,9 @@ public class FightingGamePanel extends JPanel {
                     RetroStyle.DARK
             );
 
+            drawCentered(g, "JUGADOR 1: R EVOLUCIONAR  |  JUGADOR 2: P EVOLUCIONAR",
+                    centerX, panelY + 166, 16, RetroStyle.DARK);
+
             Fighter playerOne = session.getFighters().get(0);
             Fighter playerTwo = session.getFighters().get(1);
             String[] playerOneAttacks = attackSummary(playerOne, true);
@@ -802,7 +807,7 @@ public class FightingGamePanel extends JPanel {
         String moveTwo;
         String moveThree;
         String moveFour;
-        switch (fighter.getPokemonId()) {
+        switch (fighter.getBasePokemonId()) {
             case "PIKACHU" -> { moveOne = "RAPIDO"; moveTwo = "IMPACTRUENO"; moveThree = "—"; moveFour = "—"; }
             case "CHARIZARD" -> { moveOne = "ASCUAS"; moveTwo = "PLACAJE"; moveThree = "—"; moveFour = "—"; }
             case "BULBASAUR" -> { moveOne = "PLACAJE"; moveTwo = "LATIGO CEPA"; moveThree = "SOMNIFERO"; moveFour = "DESARROLLO"; }

@@ -27,6 +27,10 @@ public class FightingInput {
     private boolean playerTwoAttackTwoRequested;
     private boolean playerTwoAttackThreeRequested;
     private boolean playerTwoAttackFourRequested;
+    private boolean playerOneEvolutionHeld;
+    private boolean playerTwoEvolutionHeld;
+    private boolean playerOneEvolutionRequested;
+    private boolean playerTwoEvolutionRequested;
 
     public void setPlayerOneLeft(boolean pressed) { playerOneLeft = pressed; }
     public void setPlayerOneRight(boolean pressed) { playerOneRight = pressed; }
@@ -81,6 +85,16 @@ public class FightingInput {
     public void setPlayerTwoAttackFour(boolean pressed) {
         if (pressed && !playerTwoAttackFourHeld) playerTwoAttackFourRequested = true;
         playerTwoAttackFourHeld = pressed;
+    }
+
+    public void setPlayerOneEvolution(boolean pressed) {
+        if (pressed && !playerOneEvolutionHeld) playerOneEvolutionRequested = true;
+        playerOneEvolutionHeld = pressed;
+    }
+
+    public void setPlayerTwoEvolution(boolean pressed) {
+        if (pressed && !playerTwoEvolutionHeld) playerTwoEvolutionRequested = true;
+        playerTwoEvolutionHeld = pressed;
     }
 
     public double getPlayerOneDirection() {
@@ -151,6 +165,18 @@ public class FightingInput {
         return requested;
     }
 
+    public boolean consumePlayerOneEvolution() {
+        boolean requested = playerOneEvolutionRequested;
+        playerOneEvolutionRequested = false;
+        return requested;
+    }
+
+    public boolean consumePlayerTwoEvolution() {
+        boolean requested = playerTwoEvolutionRequested;
+        playerTwoEvolutionRequested = false;
+        return requested;
+    }
+
     public void clear() {
         playerOneLeft = false;
         playerOneRight = false;
@@ -176,5 +202,9 @@ public class FightingInput {
         playerTwoAttackTwoRequested = false;
         playerTwoAttackThreeRequested = false;
         playerTwoAttackFourRequested = false;
+        playerOneEvolutionHeld = false;
+        playerTwoEvolutionHeld = false;
+        playerOneEvolutionRequested = false;
+        playerTwoEvolutionRequested = false;
     }
 }
