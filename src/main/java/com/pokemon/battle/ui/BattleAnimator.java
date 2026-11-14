@@ -372,10 +372,10 @@ final class BattleAnimator {
 
     // heightFactor: 0.5 = centro del pokemon, 0.35 = mas cerca de los pies
     private void startEffect(Combatant on, GifAnimation effect, boolean mirror, double heightFactor) {
-        int box = form.boxOf(on);
-        int size = (int) (box * 1.05);
+        // El efecto se ajusta al tamano real del pokemon, con un minimo para que se note
+        int size = Math.max(120, (int) (form.spriteSizeOf(on) * 1.3));
         int cx = form.feetXOf(on);
-        int cy = (int) (form.feetYOf(on) - box * heightFactor);
+        int cy = (int) (form.feetYOf(on) - form.spriteHeightOf(on) * heightFactor);
         boolean flip = mirror && on == form.playerCombatant();
         overlays.add(new Overlay(effect, cx, cy, size, flip));
     }
