@@ -31,8 +31,10 @@ public class FightingRenderer {
         drawBars(g, session);
         drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) {
-            drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint, session.getGroundY());
+            drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
+                    session.getGroundY(), session.getCombatSystem(), session.getFighters());
         }
+        drawPhysicalImpacts(g, session.getCombatSystem());
         drawUltimateEffects(g, session, frameIndex);
         drawFighterStatusIndicators(g, session);
         drawTeamIndicators(g, session, true, frameIndex, repaint);
@@ -163,40 +165,85 @@ public class FightingRenderer {
             int size = (int) Math.round(projectile.getSize());
             drawProjectileEffect(g, projectile, x, y, size);
         }
-        for (FightingCombatSystem.ImpactEffect effect : session.getCombatSystem().getImpactEffects()) {
-            double progress = 1 - effect.getRemainingSeconds() / 0.22;
-            int radius = 7 + (int) Math.round(progress * 15);
-            int alpha = (int) Math.round(220 * (1 - progress));
-            g.setColor(new Color(211, 159, 245, Math.max(0, Math.min(255, alpha))));
-            g.drawOval((int) effect.getX() - radius, (int) effect.getY() - radius,
-                    radius * 2, radius * 2);
-        }
-
         for (Fighter attacker : session.getFighters()) {
-            AttackDefinition definition = session.getCombatSystem()
-                    .getActiveDefinition(attacker, session.getFighters());
-            if (definition == null) continue;
+            FightingCombatSystem.AttackVisual visual = session.getCombatSystem()
+                    .getAttackVisual(attacker, session.getFighters());
+            if (visual == null) continue;
+            AttackDefinition definition = visual.definition();
             if ("VINE_WHIP".equals(definition.moveId())) {
-                drawVineWhip(g, attacker, definition);
+                drawVineWhip(g, attacker, definition, visual);
             } else if ("BITE".equals(definition.moveId())) {
-                drawBite(g, attacker);
+                drawBite(g, attacker, visual);
             } else if ("TAIL_WHIP".equals(definition.moveId())) {
-                drawTailWhip(g, attacker, definition);
-            } else if ("GROWL".equals(definition.moveId())) {
+                drawTailWhip(g, attacker, definition, visual);
+            } else if ("TACKLE".equals(definition.moveId())) {
+                drawTackleMotion(g, attacker, visual);
+            } else if ("FLY".equals(definition.moveId())) {
+                drawFlyMotion(g, attacker, visual);
+            } else if ("GROWL".equals(definition.moveId())
+                    && "ACTIVE".equals(visual.phase())) {
                 drawSonicWaves(g, attacker,
-                        session.getCombatSystem().getActiveProgress(attacker, session.getFighters()));
-            }
-            if (session.getCombatSystem().isDashing(attacker, session.getFighters())) {
-                int direction = attacker.isFacingLeft() ? -1 : 1;
-                int trailX = (int) attacker.getX() - direction * 52;
-                int trailY = (int) attacker.getY() - 82;
-                g.setColor(new Color(definition.effectColor().getRed(),
-                        definition.effectColor().getGreen(), definition.effectColor().getBlue(), 170));
-                g.fillRect(trailX - 8, trailY, 16, 8);
-                g.fillRect(trailX, trailY + 12, 24, 7);
-                g.fillRect(trailX - 5, trailY + 24, 13, 6);
+                        visual.activeProgress());
             }
         }
+    }
+
+    private void drawPhysicalImpacts(Graphics2D g, FightingCombatSystem combat) {
+        for (FightingCombatSystem.ImpactEffect effect : combat.getImpactEffects()) {
+            if ("PROJECTILE".equals(effect.getMoveId())) {
+                double progress = effect.getProgress();
+                int radius = 7 + (int) Math.round(progress * 15);
+                int alpha = (int) Math.round(220 * (1 - progress));
+                g.setColor(new Color(211, 159, 245, Math.max(0, Math.min(255, alpha))));
+                g.drawOval((int) effect.getX() - radius, (int) effect.getY() - radius,
+                        radius * 2, radius * 2);
+                continue;
+            }
+            drawPixelImpact(g, effect);
+        }
+    }
+
+    private void drawPixelImpact(Graphics2D g, FightingCombatSystem.ImpactEffect effect) {
+        double progress = effect.getProgress();
+        double fade = 1 - progress;
+        int cx = (int) Math.round(effect.getX());
+        int cy = (int) Math.round(effect.getY());
+        int radius = 5 + (int) (effect.getSize() * (0.18 + progress * 0.34));
+        Color base = effect.getColor();
+        var oldComposite = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                (float) Math.max(0.08, fade)));
+        if (effect.isBlocked()) {
+            g.setColor(new Color(0xB7F0FF));
+            g.fillRect(cx - 4, cy - radius, 8, 5);
+            g.fillRect(cx - 4, cy + radius - 5, 8, 5);
+            g.fillRect(cx - radius, cy - 4, 5, 8);
+            g.fillRect(cx + radius - 5, cy - 4, 5, 8);
+            g.setColor(new Color(0xFFFFFF));
+            g.fillRect(cx - 3, cy - 3, 6, 6);
+            drawCentered(g, "BLOCK", cx, cy - radius - 5, 12, new Color(0xCFF7FF));
+        } else {
+            g.setColor(base);
+            for (int ray = 0; ray < 8; ray++) {
+                double angle = ray * Math.PI / 4;
+                int x = cx + (int) (Math.cos(angle) * radius);
+                int y = cy + (int) (Math.sin(angle) * radius);
+                int length = ray % 2 == 0 ? 8 : 5;
+                if (Math.abs(Math.cos(angle)) > 0.7) {
+                    g.fillRect(x - length / 2, y - 2, length, 5);
+                } else if (Math.abs(Math.sin(angle)) > 0.7) {
+                    g.fillRect(x - 2, y - length / 2, 5, length);
+                } else {
+                    g.fillRect(x - 2, y - 2, 5, 5);
+                }
+            }
+            g.setColor(Color.WHITE);
+            g.fillRect(cx - 4, cy - 4, 8, 8);
+            g.setColor(base.brighter());
+            g.fillRect(cx - 2, cy - 10, 4, 20);
+            g.fillRect(cx - 10, cy - 2, 20, 4);
+        }
+        g.setComposite(oldComposite);
     }
 
     private void drawUltimateEffects(Graphics2D g, FightingGameSession session, int frameIndex) {
@@ -365,58 +412,149 @@ public class FightingRenderer {
         }
     }
 
-    private void drawVineWhip(Graphics2D g, Fighter attacker, AttackDefinition definition) {
+    private void drawVineWhip(Graphics2D g, Fighter attacker, AttackDefinition definition,
+                              FightingCombatSystem.AttackVisual visual) {
+        if (!"ACTIVE".equals(visual.phase())) return;
         int direction = attacker.isFacingLeft() ? -1 : 1;
         int startX = (int) Math.round(attacker.getX() + direction * attacker.getBodyHalfWidth());
-        int y = (int) Math.round(attacker.getY() - definition.hitboxHeight() / 2);
+        int y = (int) Math.round(attacker.getY() - definition.hitboxHeight() * 0.60);
         int reach = (int) definition.hitboxWidth();
+        double progress = visual.activeProgress();
+        double extension = progress < 0.56 ? progress / 0.56 : (1 - progress) / 0.44;
+        extension = Math.max(0.05, Math.min(1, extension));
+        int tipX = startX + (int) (direction * reach * extension);
+        int midX = (startX + tipX) / 2;
+        double lift = Math.sin(progress * Math.PI) * 22;
+        java.awt.geom.Path2D.Double vine = new java.awt.geom.Path2D.Double();
+        vine.moveTo(startX, y);
+        vine.quadTo((startX + midX) / 2.0, y - 24 - lift, midX, y - 7 - lift);
+        vine.quadTo((midX + tipX) / 2.0, y + 10 - lift, tipX, y - 18);
+        java.awt.geom.Path2D.Double second = new java.awt.geom.Path2D.Double();
+        second.moveTo(startX, y + 7);
+        second.quadTo((startX + midX) / 2.0, y + 26 + lift, midX, y + 14 + lift);
+        second.quadTo((midX + tipX) / 2.0, y + 1 + lift, tipX - direction * 7, y - 6);
         var oldStroke = g.getStroke();
+        var oldColor = g.getColor();
         g.setColor(new Color(0x347B3B));
-        g.setStroke(new java.awt.BasicStroke(7, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-        g.drawLine(startX, y, startX + direction * (reach / 3), y - 8);
-        g.drawLine(startX + direction * (reach / 3), y - 8,
-                startX + direction * (2 * reach / 3), y + 5);
-        g.drawLine(startX + direction * (2 * reach / 3), y + 5,
-                startX + direction * reach, y - 6);
+        g.setStroke(new java.awt.BasicStroke(8, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.draw(vine);
+        g.setStroke(new java.awt.BasicStroke(5, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.draw(second);
         g.setColor(new Color(0x79D45E));
-        g.setStroke(new java.awt.BasicStroke(3, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
-        g.drawLine(startX, y - 2, startX + direction * (reach / 3), y - 10);
-        g.drawLine(startX + direction * (reach / 3), y - 10,
-                startX + direction * (2 * reach / 3), y + 3);
-        g.drawLine(startX + direction * (2 * reach / 3), y + 3,
-                startX + direction * reach, y - 8);
+        g.setStroke(new java.awt.BasicStroke(3, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.draw(vine);
+        g.fillRect(tipX - 3, y - 20, 8, 5);
+        g.fillRect(tipX + direction * 3, y - 17, 6, 4);
         g.setStroke(oldStroke);
+        g.setColor(oldColor);
     }
 
-    private void drawBite(Graphics2D g, Fighter attacker) {
+    private void drawBite(Graphics2D g, Fighter attacker,
+                          FightingCombatSystem.AttackVisual visual) {
+        if (!"ACTIVE".equals(visual.phase())) return;
         int direction = attacker.isFacingLeft() ? -1 : 1;
+        double progress = visual.phase().equals("ACTIVE") ? visual.activeProgress() : visual.progress();
         int centerX = (int) Math.round(attacker.getX()
-                + direction * (attacker.getBodyHalfWidth() + 28));
-        int centerY = (int) Math.round(attacker.getY() - 78);
-        g.setColor(new Color(0xE7E2D8));
-        g.drawArc(centerX - 18, centerY - 12, 24, 24,
-                direction > 0 ? 35 : 145, 110);
-        g.drawArc(centerX - 6, centerY - 12, 24, 24,
-                direction > 0 ? 215 : 35, 110);
+                + direction * (attacker.getBodyHalfWidth() + 20));
+        int centerY = (int) Math.round(attacker.getY() - attacker.getRenderHeight() * 0.67);
+        int open = (int) Math.round(10 * (1 - Math.sin(Math.PI * progress)));
+        int jawW = 26;
+        java.awt.Polygon upper = new java.awt.Polygon(
+                new int[]{centerX, centerX + direction * jawW, centerX + direction * (jawW - 4)},
+                new int[]{centerY - open / 2, centerY - open - 2, centerY - 2}, 3);
+        java.awt.Polygon lower = new java.awt.Polygon(
+                new int[]{centerX, centerX + direction * jawW, centerX + direction * (jawW - 4)},
+                new int[]{centerY + open / 2, centerY + open + 3, centerY + 2}, 3);
+        g.setColor(new Color(0x5B392D));
+        g.fillPolygon(upper);
+        g.fillPolygon(lower);
+        g.setColor(new Color(0xF4E9CF));
+        g.fillPolygon(new int[]{centerX + direction * 8, centerX + direction * 14,
+                        centerX + direction * 17},
+                new int[]{centerY - 2, centerY - open - 1, centerY - 3}, 3);
+        g.fillPolygon(new int[]{centerX + direction * 8, centerX + direction * 14,
+                        centerX + direction * 17},
+                new int[]{centerY + 2, centerY + open + 2, centerY + 3}, 3);
     }
 
-    private void drawTailWhip(Graphics2D g, Fighter attacker, AttackDefinition definition) {
+    private void drawTailWhip(Graphics2D g, Fighter attacker, AttackDefinition definition,
+                              FightingCombatSystem.AttackVisual visual) {
+        if (!"ACTIVE".equals(visual.phase())) return;
         int direction = attacker.isFacingLeft() ? -1 : 1;
         int anchorX = (int) Math.round(attacker.getX() + direction * attacker.getBodyHalfWidth());
         int centerY = (int) Math.round(attacker.getY() - definition.hitboxHeight() / 2);
-        int reach = (int) definition.hitboxWidth();
+        int reach = (int) (definition.hitboxWidth() * (0.65 + 0.35
+                * Math.sin(Math.PI * visual.activeProgress())));
+        double progress = visual.activeProgress();
         var oldStroke = g.getStroke();
-        g.setColor(new Color(0xF5E8C8));
-        g.setStroke(new java.awt.BasicStroke(8, java.awt.BasicStroke.CAP_ROUND,
+        var oldColor = g.getColor();
+        g.setColor(new Color(0x7A674C));
+        g.setStroke(new java.awt.BasicStroke(10, java.awt.BasicStroke.CAP_ROUND,
                 java.awt.BasicStroke.JOIN_ROUND));
         g.drawArc(direction > 0 ? anchorX : anchorX - reach,
-                centerY - 50, reach, 100, direction > 0 ? 300 : 120, 120);
-        g.setColor(new Color(0xD6D6C2));
-        g.setStroke(new java.awt.BasicStroke(4, java.awt.BasicStroke.CAP_ROUND,
+                centerY - 48, reach, 96, direction > 0 ? 280 : 80,
+                (int) (70 + 100 * Math.sin(progress * Math.PI)));
+        g.setColor(new Color(0xE7D7A8));
+        g.setStroke(new java.awt.BasicStroke(5, java.awt.BasicStroke.CAP_ROUND,
                 java.awt.BasicStroke.JOIN_ROUND));
         g.drawArc(direction > 0 ? anchorX : anchorX - reach,
-                centerY - 40, reach - 10, 80, direction > 0 ? 300 : 120, 120);
+                centerY - 38, reach - 8, 76, direction > 0 ? 280 : 80,
+                (int) (70 + 100 * Math.sin(progress * Math.PI)));
+        int tipX = anchorX + direction * reach;
+        int tipY = centerY + (int) (Math.sin(progress * Math.PI * 2) * 21);
+        g.setColor(new Color(0xFFF3D4));
+        g.fillRect(tipX - 4, tipY - 3, 8, 7);
         g.setStroke(oldStroke);
+        g.setColor(oldColor);
+    }
+
+    private void drawTackleMotion(Graphics2D g, Fighter fighter,
+                                  FightingCombatSystem.AttackVisual visual) {
+        if (!"ACTIVE".equals(visual.phase())) return;
+        int direction = (int) visual.direction();
+        int x = (int) fighter.getX() - direction * (int) (fighter.getBodyHalfWidth() * 0.7);
+        int y = (int) (fighter.getY() - fighter.getRenderHeight() * 0.55);
+        float fade = (float) Math.max(0.25, Math.sin(visual.activeProgress() * Math.PI));
+        var oldComposite = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fade));
+        g.setColor(new Color(0xE9F0E8));
+        g.fillRect(x - direction * 20, y - 12, 15, 3);
+        g.fillRect(x - direction * 31, y, 24, 4);
+        g.fillRect(x - direction * 22, y + 12, 13, 3);
+        g.setComposite(oldComposite);
+    }
+
+    private void drawFlyMotion(Graphics2D g, Fighter fighter,
+                               FightingCombatSystem.AttackVisual visual) {
+        if (!"ACTIVE".equals(visual.phase())) return;
+        int direction = (int) visual.direction();
+        int x = (int) fighter.getX();
+        int y = (int) fighter.getY();
+        double p = visual.activeProgress();
+        var oldComposite = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.62f));
+        if (p < 0.20) {
+            g.setColor(new Color(0xE6F7FF));
+            g.fillOval(x - 27, y - 13, 19, 8);
+            g.fillOval(x + 8, y - 16, 22, 9);
+            g.fillRect(x - 13, y - 22, 27, 4);
+        } else {
+            g.setColor(new Color(0xD8F1FF));
+            for (int i = 0; i < 3; i++) {
+                int tailX = x - direction * (34 + i * 16);
+                int tailY = y - fighter.getRenderHeight() / 2 + i * 11;
+                g.fillRect(tailX, tailY, 17 + i * 4, 4);
+            }
+            if (p > 0.48) {
+                g.setColor(Color.WHITE);
+                g.fillRect(x - 5, y - fighter.getRenderHeight() - 15, 4, 24);
+                g.fillRect(x + direction * 12, y - fighter.getRenderHeight() - 4, 3, 18);
+            }
+        }
+        g.setComposite(oldComposite);
     }
 
     private void drawSonicWaves(Graphics2D g, Fighter attacker, double progress) {
@@ -520,7 +658,8 @@ public class FightingRenderer {
     }
 
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
-                             int frameIndex, Runnable repaint, int groundY) {
+                             int frameIndex, Runnable repaint, int groundY,
+                             FightingCombatSystem combat, java.util.List<Fighter> fighters) {
         String name = fighter.getPokemonId();
         if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null) {
             boolean oldFormFrame = (int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0;
@@ -539,16 +678,107 @@ public class FightingRenderer {
         }
         BufferedImage frame = animation.frame(frameIndex);
         int width = Math.round(targetHeight * (frame.getWidth() / (float) frame.getHeight()));
-        int x = centerX - width / 2;
+        FightingCombatSystem.AttackVisual visual = combat.getAttackVisual(fighter, fighters);
+        double shakeX = combat.getVisualShakeX(fighter);
+        double renderX = centerX + shakeX + visualOffsetX(visual);
+        int x = (int) Math.round(renderX) - width / 2;
         int y = (int) fighter.getY() - targetHeight;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        if (shouldFlipFrontSprite(fighter)) {
-            g.drawImage(frame, x + width, y, -width, targetHeight, null);
-        } else {
-            g.drawImage(frame, x, y, width, targetHeight, null);
+        if (visual != null && "QUICK_ATTACK".equals(visual.definition().moveId())
+                && "ACTIVE".equals(visual.phase())) {
+            drawQuickAfterimages(g, frame, fighter, width, targetHeight,
+                    renderX, visual.direction());
         }
-        if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, centerX,
+        double poseAngle = visualAngle(visual);
+        double scaleX = visualScaleX(visual);
+        double scaleY = visualScaleY(visual);
+        Graphics2D spriteGraphics = (Graphics2D) g.create();
+        spriteGraphics.translate(renderX, fighter.getY());
+        spriteGraphics.rotate(poseAngle);
+        spriteGraphics.scale(scaleX, scaleY);
+        spriteGraphics.translate(-renderX, -fighter.getY());
+        if (shouldFlipFrontSprite(fighter)) {
+            spriteGraphics.drawImage(frame, x + width, y, -width, targetHeight, null);
+        } else {
+            spriteGraphics.drawImage(frame, x, y, width, targetHeight, null);
+        }
+        spriteGraphics.dispose();
+        if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, (int) Math.round(renderX),
                 y + targetHeight / 2, targetHeight, fighter.getEvolutionAnimationProgress());
+    }
+
+    private void drawQuickAfterimages(Graphics2D g, BufferedImage frame, Fighter fighter,
+                                     int width, int height, double renderX, double direction) {
+        var oldComposite = g.getComposite();
+        float[] alpha = {0.18f, 0.28f, 0.40f};
+        for (int i = 0; i < alpha.length; i++) {
+            int offset = 13 + i * 15;
+            int cx = (int) Math.round(renderX - direction * offset);
+            int y = (int) Math.round(fighter.getY() - height);
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha[i]));
+            if (shouldFlipFrontSprite(fighter)) {
+                g.drawImage(frame, cx + width / 2, y, -width, height, null);
+            } else {
+                g.drawImage(frame, cx - width / 2, y, width, height, null);
+            }
+        }
+        g.setComposite(oldComposite);
+    }
+
+    private double visualOffsetX(FightingCombatSystem.AttackVisual visual) {
+        if (visual == null) return 0;
+        double phaseProgress = visual.progress();
+        double direction = visual.direction();
+        boolean active = "ACTIVE".equals(visual.phase());
+        if ("TACKLE".equals(visual.definition().moveId())) {
+            return active ? direction * 8 * Math.sin(Math.PI * visual.activeProgress())
+                    : "STARTUP".equals(visual.phase()) ? -direction * 3 * (1 - phaseProgress)
+                    : direction * 2 * (1 - phaseProgress);
+        }
+        if ("BITE".equals(visual.definition().moveId())) {
+            return active ? direction * 4 * Math.sin(Math.PI * visual.activeProgress()) : 0;
+        }
+        return 0;
+    }
+
+    private double visualAngle(FightingCombatSystem.AttackVisual visual) {
+        if (visual == null) return 0;
+        double magnitude = switch (visual.definition().moveId()) {
+            case "TACKLE" -> 0.12;
+            case "BITE" -> 0.09;
+            case "QUICK_ATTACK" -> 0.16;
+            case "TAIL_WHIP" -> 0.10;
+            case "VINE_WHIP" -> 0.055;
+            case "FLY" -> 0.19;
+            default -> 0;
+        };
+        if ("ACTIVE".equals(visual.phase())) {
+            double progress = visual.activeProgress();
+            double shape = "FLY".equals(visual.definition().moveId())
+                    ? Math.sin((progress - 0.25) * Math.PI) : Math.sin(progress * Math.PI);
+            return visual.direction() * magnitude * shape;
+        }
+        if ("STARTUP".equals(visual.phase())) {
+            return -visual.direction() * magnitude * 0.55 * (1 - visual.progress());
+        }
+        return visual.direction() * magnitude * 0.50 * (1 - visual.progress());
+    }
+
+    private double visualScaleX(FightingCombatSystem.AttackVisual visual) {
+        if (visual == null || !"ACTIVE".equals(visual.phase())) return 1;
+        return switch (visual.definition().moveId()) {
+            case "TACKLE", "QUICK_ATTACK" -> 1.0 + 0.08 * Math.sin(Math.PI * visual.activeProgress());
+            case "FLY" -> 1.0 + 0.04 * Math.sin(Math.PI * visual.activeProgress());
+            default -> 1;
+        };
+    }
+
+    private double visualScaleY(FightingCombatSystem.AttackVisual visual) {
+        if (visual == null || !"ACTIVE".equals(visual.phase())) return 1;
+        return switch (visual.definition().moveId()) {
+            case "TACKLE", "QUICK_ATTACK" -> 1.0 - 0.06 * Math.sin(Math.PI * visual.activeProgress());
+            default -> 1;
+        };
     }
 
     private void drawEvolutionFlash(Graphics2D g, int centerX, int centerY,

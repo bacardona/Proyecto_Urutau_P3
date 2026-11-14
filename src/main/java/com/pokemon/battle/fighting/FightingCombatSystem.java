@@ -97,6 +97,9 @@ public class FightingCombatSystem {
     }
 
     public record ComboInfo(int hits, double remainingSeconds) { }
+    public record AttackVisual(AttackDefinition definition, String phase,
+                               double progress, double activeProgress,
+                               boolean hitConfirmed, double direction) { }
 
     private static final class ComboState {
         private int hits;
@@ -107,17 +110,40 @@ public class FightingCombatSystem {
     public static final class ImpactEffect {
         private final double x;
         private final double y;
+        private final double durationSeconds;
+        private final String moveId;
+        private final Color color;
+        private final double size;
+        private final boolean blocked;
+        private final Fighter target;
         private double remainingSeconds;
 
         private ImpactEffect(double x, double y, double duration) {
+            this(x, y, duration, "PROJECTILE", new Color(0xD39FF5), 20, false, null);
+        }
+
+        private ImpactEffect(double x, double y, double duration, String moveId,
+                             Color color, double size, boolean blocked, Fighter target) {
             this.x = x;
             this.y = y;
+            this.durationSeconds = duration;
             this.remainingSeconds = duration;
+            this.moveId = moveId;
+            this.color = color;
+            this.size = size;
+            this.blocked = blocked;
+            this.target = target;
         }
 
         public double getX() { return x; }
         public double getY() { return y; }
         public double getRemainingSeconds() { return remainingSeconds; }
+        public double getProgress() { return Math.max(0, Math.min(1, 1 - remainingSeconds / durationSeconds)); }
+        public String getMoveId() { return moveId; }
+        public Color getColor() { return color; }
+        public double getSize() { return size; }
+        public boolean isBlocked() { return blocked; }
+        private Fighter getTarget() { return target; }
 
         private void update(double deltaSeconds) { remainingSeconds -= deltaSeconds; }
     }
@@ -638,6 +664,9 @@ public class FightingCombatSystem {
             state.cancelWindowRemaining = COMBO_CANCEL_WINDOW_SECONDS;
         }
         registerCombo(attackerIndex, target);
+        addPhysicalImpact((attacker.getX() + target.getX()) / 2.0,
+                target.getY() - target.getRenderHeight() * 0.55,
+                definition, false, target);
         if ("TAIL_WHIP".equals(definition.moveId())) {
             target.applyDefenseReduction(DEFENSE_REDUCTION_DURATION);
         }
@@ -654,6 +683,9 @@ public class FightingCombatSystem {
         }
         if (target.isBlocking() && isAttackerInFront(target, attacker)) {
             AttackState state = states[attackerIndex];
+            addPhysicalImpact((attacker.getX() + target.getX()) / 2.0,
+                    target.getY() - target.getRenderHeight() * 0.55,
+                    definition, true, null);
             state.hasHit = true;
             state.phase = Phase.RECOVERY;
             state.remaining = definition.recoverySeconds();
@@ -759,6 +791,19 @@ public class FightingCombatSystem {
         }
     }
 
+    private void addPhysicalImpact(double x, double y, AttackDefinition definition,
+                                   boolean blocked, Fighter target) {
+        double size = switch (definition.moveId()) {
+            case "FLY" -> 48;
+            case "TAIL_WHIP", "VINE_WHIP" -> 34;
+            case "BITE" -> 29;
+            default -> 27;
+        };
+        impactEffects.add(new ImpactEffect(x, y, blocked ? 0.18 : 0.22,
+                definition.moveId(), blocked ? new Color(0xA7E8FF) : definition.effectColor(),
+                size, blocked, target));
+    }
+
     private void resetAttackState(AttackState state) {
         state.phase = Phase.READY;
         state.definition = null;
@@ -779,6 +824,42 @@ public class FightingCombatSystem {
 
     public List<FightingProjectile> getProjectiles() { return projectileView; }
     public List<ImpactEffect> getImpactEffects() { return impactEffectView; }
+
+    public AttackVisual getAttackVisual(Fighter fighter, List<Fighter> fighters) {
+        int index = fighters.indexOf(fighter);
+        if (index < 0) return null;
+        AttackState state = states[index];
+        if (state.phase == Phase.READY || state.definition == null) return null;
+        double progress;
+        if (state.phase == Phase.STARTUP) {
+            progress = state.definition.startupSeconds() <= 0 ? 1
+                    : 1 - state.remaining / state.definition.startupSeconds();
+        } else if (state.phase == Phase.ACTIVE) {
+            progress = state.activeElapsed / state.definition.activeSeconds();
+        } else {
+            double recovery = state.definition.recoverySeconds()
+                    * (state.hitConfirmed ? HIT_RECOVERY_MULTIPLIER : 1.0);
+            progress = recovery <= 0 ? 1 : 1 - state.remaining / recovery;
+        }
+        double activeProgress = state.activeElapsed / state.definition.activeSeconds();
+        return new AttackVisual(state.definition, state.phase.name(),
+                Math.max(0, Math.min(1, progress)),
+                Math.max(0, Math.min(1, activeProgress)), state.hitConfirmed,
+                fighter.isFacingLeft() ? -1 : 1);
+    }
+
+    /** Render-only shake; it never changes Fighter coordinates or physics. */
+    public double getVisualShakeX(Fighter fighter) {
+        double strongest = 0;
+        for (ImpactEffect effect : impactEffects) {
+            if (effect.getTarget() != fighter || effect.isBlocked()) continue;
+            double fade = 1 - effect.getProgress();
+            double shake = Math.sin(effect.getProgress() * Math.PI * 9)
+                    * 6 * fade * Math.min(1.5, effect.getSize() / 30.0);
+            if (Math.abs(shake) > Math.abs(strongest)) strongest = shake;
+        }
+        return strongest;
+    }
 
     public boolean isDashing(Fighter fighter, List<Fighter> fighters) {
         int index = fighters.indexOf(fighter);
