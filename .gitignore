@@ -25,3 +25,5 @@ replay_pid*
 
 # Maven build output
 /pokken-battle-p3/target/
+.idea/
+target/
