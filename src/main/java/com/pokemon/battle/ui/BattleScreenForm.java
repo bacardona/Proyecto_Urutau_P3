@@ -11,6 +11,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.IntConsumer;
 
 /**
@@ -41,9 +43,24 @@ public class BattleScreenForm extends RetroScreen {
     private static final int RIVAL_FEET_Y = 304;
     private static final int PLAYER_X = 250;
     private static final int PLAYER_FEET_Y = 434;
-    // Tamano del cuadro donde cabe cada sprite
-    private static final int RIVAL_BOX = 230;
-    private static final int PLAYER_BOX = 245;
+    // Cuanto se bajan los sprites desde el centro de la plataforma para que se vean
+    // parados encima de ella y no en el borde de atras (parecian flotar)
+    private static final int RIVAL_FEET_DROP = 16;
+    private static final int PLAYER_FEET_DROP = 14;
+    // Pokemon cuyo GIF los muestra flotando: se bajan un 5% extra de su alto
+    private static final Set<String> FLOATING = Set.of("BUTTERFREE", "MEW", "VOLCARONA", "GENGAR", "FLYGON");
+    private static final double FLOATING_DROP = 0.05;
+    // Escala fija: cada pixel del GIF se dibuja como un cuadro de N x N.
+    // Asi todos los pokemon usan la misma escala y se respeta su tamano real
+    // (un Squirtle se ve mas pequeno que un Snorlax). El rival usa menos escala
+    // porque esta mas lejos.
+    // El de frente (rival) va 45% mas grande que la escala base 2 y
+    // el de espalda (jugador) 33% mas grande que la escala base 3.
+    private static final double RIVAL_SCALE = 2 * 1.45;
+    private static final double PLAYER_SCALE = 3 * 1.33;
+    // Tamano maximo por si algun GIF es muy grande y no cabe en el campo
+    private static final int RIVAL_MAX = 230;
+    private static final int PLAYER_MAX = 350;
 
     // Zonas de la pantalla, en coordenadas del tablero de 960x640
     private static final Rectangle FIELD = new Rectangle(24, 74, 912, 382);
@@ -360,12 +377,50 @@ public class BattleScreenForm extends RetroScreen {
         return c == player ? PLAYER_X : RIVAL_X;
     }
 
+    // Donde quedan dibujados los pies del sprite (ya bajados sobre la plataforma)
     int feetYOf(Combatant c) {
-        return c == player ? PLAYER_FEET_Y : RIVAL_FEET_Y;
+        boolean back = c == player;
+        return groundOf(c, back, drawnSize(c, back).height);
     }
 
-    int boxOf(Combatant c) {
-        return c == player ? PLAYER_BOX : RIVAL_BOX;
+    // Altura de los pies: centro de la plataforma + la bajada de cada lado
+    // (+5% del alto si el pokemon flota), sin salirse del campo
+    private int groundOf(Combatant c, boolean back, int h) {
+        int ground = back ? PLAYER_FEET_Y + PLAYER_FEET_DROP : RIVAL_FEET_Y + RIVAL_FEET_DROP;
+        if (c != null && FLOATING.contains(c.getName().trim().toUpperCase())) {
+            ground += (int) Math.round(h * FLOATING_DROP);
+        }
+        return Math.min(ground, FIELD.y + FIELD.height - 2);
+    }
+
+    // Alto con el que se dibuja el pokemon (sirve para centrar los efectos de ataque)
+    int spriteHeightOf(Combatant c) {
+        return drawnSize(c, c == player).height;
+    }
+
+    // Lado mas largo con el que se dibuja el pokemon (sirve para el tamano de los efectos)
+    int spriteSizeOf(Combatant c) {
+        Dimension d = drawnSize(c, c == player);
+        return Math.max(d.width, d.height);
+    }
+
+    // Tamano en pantalla del sprite: tamano real del GIF por la escala fija,
+    // sin pasar del maximo. Si el GIF aun no carga, devuelve un tamano aproximado.
+    private Dimension drawnSize(Combatant c, boolean back) {
+        double scale = back ? PLAYER_SCALE : RIVAL_SCALE;
+        int max = back ? PLAYER_MAX : RIVAL_MAX;
+        GifAnimation sprite = (c != null && sprites.isLoaded(c.getName(), back))
+                ? sprites.getOrLoad(c.getName(), back, this::repaint) : null;
+        if (sprite == null) {
+            int guess = (int) (60 * scale);
+            return new Dimension(guess, guess);
+        }
+        double factor = scale;
+        if (sprite.width() * factor > max || sprite.height() * factor > max) {
+            factor = Math.min(max / (double) sprite.width(), max / (double) sprite.height());
+        }
+        return new Dimension((int) Math.round(sprite.width() * factor),
+                (int) Math.round(sprite.height() * factor));
     }
 
     void clearLines() {
@@ -422,8 +477,8 @@ public class BattleScreenForm extends RetroScreen {
                 background.getWidth() * BattleBackground.SCALE, background.getHeight() * BattleBackground.SCALE);
 
         // Sprites animados con los pies sobre la sombra (rival de frente, jugador de espalda)
-        drawCombatant(g, rival, false, RIVAL_X, RIVAL_FEET_Y, RIVAL_BOX);
-        drawCombatant(g, player, true, PLAYER_X, PLAYER_FEET_Y, PLAYER_BOX);
+        drawCombatant(g, rival, false, RIVAL_X);
+        drawCombatant(g, player, true, PLAYER_X);
 
         // Efectos de los ataques encima de los pokemon
         animator.drawEffects(g);
@@ -439,11 +494,9 @@ public class BattleScreenForm extends RetroScreen {
         g.setStroke(new BasicStroke(1));
     }
 
-    // Escala en numeros enteros para que el pixel art se vea nitido, sin pasar de la caja.
-    // Usar "this" como observador es lo que hace que el GIF se siga animando.
-    // Igual que en la Pokedex: todos los pokemon se ajustan al mismo cuadro,
-// asi se ven del mismo tamano. Los pies quedan sobre la sombra.
-    private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx, int feetY, int box) {
+    // Todos los pokemon usan la misma escala fija (ver drawnSize), asi un pokemon
+    // pequeno se ve pequeno y uno grande se ve grande. Los pies quedan sobre la sombra.
+    private void drawCombatant(Graphics2D g, Combatant c, boolean back, int cx) {
         // Un debilitado se sigue viendo hasta que termina su animacion de caer
         if (c == null || (c.isFainted() && !animator.isStanding(c)) || animator.isHidden(c)) {
             return;
@@ -458,9 +511,10 @@ public class BattleScreenForm extends RetroScreen {
         if (sprite == null) {
             return;
         }
-        double factor = Math.min(box / (double) sprite.width(), box / (double) sprite.height());
-        int w = (int) Math.round(sprite.width() * factor);
-        int h = (int) Math.round(sprite.height() * factor);
+        Dimension size = drawnSize(c, back);
+        int w = size.width;
+        int h = size.height;
+        int feetY = groundOf(c, back, h);
         BattleAnimator.Pose pose = animator.pose(c);
         if (pose == null) {
             RetroStyle.drawPixelImage(g, sprite.frame(frame), cx - w / 2, feetY - h, w, h);
