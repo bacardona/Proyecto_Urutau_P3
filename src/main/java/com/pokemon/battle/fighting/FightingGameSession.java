@@ -12,7 +12,6 @@ public class FightingGameSession {
     public enum Outcome { PLAYER_ONE_WINS, PLAYER_TWO_WINS, DRAW }
 
     private static final double PLAYER_SPEED = 320.0;
-
     private final int width;
     private final int height;
     private final int groundY;
@@ -22,6 +21,7 @@ public class FightingGameSession {
     private final List<Platform> platforms;
     private final PhysicsSystem physicsSystem = new PhysicsSystem();
     private final FightingCombatSystem combatSystem = new FightingCombatSystem();
+    private final boolean[] defeatCleanupDone = new boolean[2];
     private State state = State.RUNNING;
     private Outcome outcome;
 
@@ -93,6 +93,19 @@ public class FightingGameSession {
 
     public void update(FightingInput input, double deltaSeconds) {
         if (state != State.RUNNING) return;
+        for (Fighter fighter : playerOneTeam.getMembers()) {
+            fighter.advanceDefeatedAnimation(deltaSeconds);
+        }
+        for (Fighter fighter : playerTwoTeam.getMembers()) {
+            fighter.advanceDefeatedAnimation(deltaSeconds);
+        }
+        replaceDefeatedFighters();
+        checkForWinner();
+        if (state != State.RUNNING) return;
+        if (hasPendingDefeatAnimation()) {
+            discardTransientInputs(input);
+            return;
+        }
         Fighter playerOne = fighters.get(0);
         Fighter playerTwo = fighters.get(1);
         playerOne.updateStatusEffects(deltaSeconds);
@@ -108,14 +121,26 @@ public class FightingGameSession {
         boolean playerOneUltimate = input.consumePlayerOneUltimate();
         boolean playerTwoUltimate = input.consumePlayerTwoUltimate();
         combatSystem.beginUltimateRequests(fighters, playerOneUltimate, playerTwoUltimate);
-        updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump, deltaSeconds);
-        updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump, deltaSeconds);
+        var beforeOne = PhysicsSystem.positionOf(playerOne);
+        var beforeTwo = PhysicsSystem.positionOf(playerTwo);
+        boolean walkingOne = updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump, deltaSeconds);
+        boolean walkingTwo = updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump, deltaSeconds);
+        PhysicsSystem.resolveBodies(playerOne, playerTwo, beforeOne, beforeTwo, width);
+        updateMotion(playerOne, walkingOne && Math.abs(playerOne.getX() - beforeOne.x()) > 0.01, deltaSeconds);
+        updateMotion(playerTwo, walkingTwo && Math.abs(playerTwo.getX() - beforeTwo.x()) > 0.01, deltaSeconds);
         combatSystem.update(fighters, width, platforms,
                 input.consumePlayerOneAttackRequest(), input.consumePlayerTwoAttackRequest(),
                 deltaSeconds);
         replaceDefeatedFighters();
         if (playerOneEvolution) tryEvolveActiveFighter(0);
         if (playerTwoEvolution) tryEvolveActiveFighter(1);
+        Fighter first = fighters.get(0);
+        Fighter second = fighters.get(1);
+        PhysicsSystem.resolveBodies(first, second, PhysicsSystem.positionOf(first),
+                PhysicsSystem.positionOf(second), width);
+        for (Fighter fighter : fighters) {
+            fighter.updateShieldVisual(combatSystem.getAttackVisual(fighter, fighters) != null, deltaSeconds);
+        }
         checkForWinner();
     }
 
@@ -146,16 +171,48 @@ public class FightingGameSession {
     private void replaceDefeatedFighters() {
         for (int playerIndex = 0; playerIndex < fighters.size(); playerIndex++) {
             Fighter defeated = fighters.get(playerIndex);
-            if (!defeated.isDefeated()) continue;
-            combatSystem.clearPlayerState(playerIndex);
+            if (!defeated.isDefeated()) {
+                defeatCleanupDone[playerIndex] = false;
+                continue;
+            }
+            if (!defeatCleanupDone[playerIndex]) {
+                combatSystem.clearPlayerState(playerIndex);
+                defeatCleanupDone[playerIndex] = true;
+            }
+            if (shouldPlayFaint(defeated)) continue;
             FightingTeam team = playerIndex == 0 ? playerOneTeam : playerTwoTeam;
             if (team.advanceAfterDefeat()) {
                 Fighter replacement = team.getActive();
                 Fighter opponent = fighters.get(1 - playerIndex);
                 positionReplacement(replacement, opponent, playerIndex);
                 fighters.set(playerIndex, replacement);
+                defeatCleanupDone[playerIndex] = false;
             }
         }
+    }
+
+    private boolean hasPendingDefeatAnimation() {
+        for (Fighter fighter : fighters) {
+            if (shouldPlayFaint(fighter)) return true;
+        }
+        return false;
+    }
+
+    private boolean shouldPlayFaint(Fighter fighter) {
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(fighter);
+        return profile != null && fighter.isDefeated()
+                && fighter.getDefeatedAnimationSeconds() < profile.faintDuration();
+    }
+
+    private void discardTransientInputs(FightingInput input) {
+        input.consumePlayerOneJump();
+        input.consumePlayerTwoJump();
+        input.consumePlayerOneAttackRequest();
+        input.consumePlayerTwoAttackRequest();
+        input.consumePlayerOneEvolution();
+        input.consumePlayerTwoEvolution();
+        input.consumePlayerOneUltimate();
+        input.consumePlayerTwoUltimate();
     }
 
     private void positionReplacement(Fighter replacement, Fighter opponent, int playerIndex) {
@@ -185,6 +242,7 @@ public class FightingGameSession {
         boolean playerOneDefeated = !playerOneTeam.hasAvailableFighter();
         boolean playerTwoDefeated = !playerTwoTeam.hasAvailableFighter();
         if (!playerOneDefeated && !playerTwoDefeated) return;
+        if (hasPendingDefeatAnimation()) return;
 
         if (playerOneDefeated && playerTwoDefeated) outcome = Outcome.DRAW;
         else if (playerTwoDefeated) outcome = Outcome.PLAYER_ONE_WINS;
@@ -193,24 +251,38 @@ public class FightingGameSession {
         combatSystem.clearAllState();
     }
 
-    private void updateFighter(Fighter fighter, int playerIndex, double direction,
+    private boolean updateFighter(Fighter fighter, int playerIndex, double direction,
                                boolean jumpRequested,
                                double deltaSeconds) {
         double halfWidth = PhysicsSystem.halfWidthFor(fighter);
         double forcedDelta = combatSystem.getForcedHorizontalDelta(
                 fighter, fighters, deltaSeconds, width);
         boolean inputLocked = combatSystem.isPlayerInputLocked(playerIndex, fighters);
+        double beforeInputX = fighter.getX();
+        boolean walkingFromInput = false;
         if (!fighter.isUltimateStunned() && !fighter.isHitStunned()
                 && !fighter.isBlocking() && forcedDelta != 0) {
             fighter.setX(fighter.getX() + forcedDelta);
         } else if (!inputLocked && !fighter.isUltimateStunned()) {
             fighter.moveHorizontally(direction,
                     PLAYER_SPEED * fighter.getMovementSpeedMultiplier() * deltaSeconds);
+            walkingFromInput = direction != 0;
         }
         double minX = halfWidth;
         double maxX = width - halfWidth;
         fighter.setX(Math.max(minX, Math.min(maxX, fighter.getX())));
+        walkingFromInput &= Math.abs(fighter.getX() - beforeInputX) > 0.01;
         physicsSystem.update(fighter, platforms, halfWidth,
                 jumpRequested && !inputLocked, deltaSeconds);
+        return walkingFromInput;
+    }
+
+    private void updateMotion(Fighter fighter, boolean walkingFromInput, double deltaSeconds) {
+        Fighter.MotionAnimation motion = fighter.isBlocking()
+                ? Fighter.MotionAnimation.BLOCKING
+                : !fighter.isOnGround() ? Fighter.MotionAnimation.JUMPING
+                : walkingFromInput ? Fighter.MotionAnimation.WALKING
+                : Fighter.MotionAnimation.IDLE;
+        fighter.updateMotionAnimation(motion, deltaSeconds);
     }
 }

@@ -67,7 +67,7 @@ public class FightingCombatSystem {
             0.12, 0.22, 0.68, 112, 82, 150, 0, 0, 0, new Color(0xD6D6C2));
     private static final AttackDefinition BITE = new AttackDefinition(
             "BITE", 28, AttackDefinition.Kind.HITBOX, 10,
-            0.12, 0.10, 0.68, 62, 66, 0, 0, 0, 0, new Color(0xA5A5A5));
+            0.08, 0.08, 0.44, 30, 42, 0, 0, 0, 0, new Color(0xA5A5A5));
 
     // Original prototype profiles remain available in the fallback session.
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
@@ -256,10 +256,17 @@ public class FightingCombatSystem {
                 continue;
             }
             tryStartBufferedAttack(i, fighters, arenaWidth);
+            var firstBefore = PhysicsSystem.positionOf(fighters.get(0));
+            var secondBefore = PhysicsSystem.positionOf(fighters.get(1));
             updateAttackState(i, fighters, arenaWidth, deltaSeconds);
+            PhysicsSystem.resolveBodies(fighters.get(0), fighters.get(1), firstBefore, secondBefore, arenaWidth);
         }
         updateProjectiles(fighters, arenaWidth, platforms, deltaSeconds);
+        var firstBeforeUltimate = PhysicsSystem.positionOf(fighters.get(0));
+        var secondBeforeUltimate = PhysicsSystem.positionOf(fighters.get(1));
         ultimateController.update(fighters, arenaWidth, 720, deltaSeconds);
+        PhysicsSystem.resolveBodies(fighters.get(0), fighters.get(1), firstBeforeUltimate,
+                secondBeforeUltimate, arenaWidth);
         updateImpactEffects(deltaSeconds);
     }
 
@@ -358,7 +365,8 @@ public class FightingCombatSystem {
             case 3 -> switch (pokemonId) {
                 case "BULBASAUR" -> GROWTH;
                 case "CHARMANDER" -> FLY;
-                case "SQUIRTLE", "EEVEE" -> TAIL_WHIP;
+                case "SQUIRTLE" -> BITE;
+                case "EEVEE" -> TAIL_WHIP;
                 default -> null;
             };
             default -> null;
@@ -423,6 +431,8 @@ public class FightingCombatSystem {
         } else if (state.phase == Phase.ACTIVE) {
             Fighter attacker = fighters.get(attackerIndex);
             Fighter target = fighters.get(1 - attackerIndex);
+            var attackerBefore = PhysicsSystem.positionOf(attacker);
+            var targetBefore = PhysicsSystem.positionOf(target);
             if (attacker.isDefeated()) {
                 resetAttackState(state);
                 return;
@@ -450,6 +460,8 @@ public class FightingCombatSystem {
                 }
             }
 
+            // Resolve dash/lunge movement before checking its independent offensive box.
+            PhysicsSystem.resolveBodies(attacker, target, attackerBefore, targetBefore, arenaWidth);
             boolean strikeReady = state.definition.kind() != AttackDefinition.Kind.FLY
                     || state.activeElapsed >= 0.12;
             if (strikeReady && !state.hasHit) {
@@ -625,17 +637,45 @@ public class FightingCombatSystem {
     private Hitbox attackHitbox(Fighter attacker, AttackDefinition definition) {
         double direction = attacker.isFacingLeft() ? -1 : 1;
         double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        double hitboxWidth = definition.hitboxWidth();
+        double hitboxHeight = definition.hitboxHeight();
+        double hitboxTop = hitboxHeight;
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(attacker);
+        FightingSpriteProfile.Contact contact = profile == null ? null : profile.contact(definition.moveId());
+        if (contact != null) {
+            hitboxWidth = contact.reach();
+            hitboxHeight = contact.height();
+            hitboxTop = contact.top();
+        }
+        if ("SQUIRTLE".equals(attacker.getBasePokemonId()) && !attacker.isEvolved()) {
+            switch (definition.moveId()) {
+                case "TACKLE" -> { hitboxWidth = 44; hitboxHeight = 54; }
+                case "BITE" -> { hitboxWidth = 30; hitboxHeight = 42; }
+                case "TAIL_WHIP" -> { hitboxWidth = 76; hitboxHeight = 60; }
+                default -> { }
+            }
+        }
         double left = direction > 0
                 ? attacker.getX() + halfWidth
-                : attacker.getX() - halfWidth - definition.hitboxWidth();
-        return new Hitbox(left, attacker.getY() - definition.hitboxHeight(),
-                definition.hitboxWidth(), definition.hitboxHeight());
+                : attacker.getX() - halfWidth - hitboxWidth;
+        if (contact == null) hitboxTop = hitboxHeight;
+        return new Hitbox(left, attacker.getY() - hitboxTop,
+                hitboxWidth, hitboxHeight);
     }
 
     private void spawnProjectile(Fighter attacker, int ownerIndex, AttackDefinition definition) {
         double direction = attacker.isFacingLeft() ? -1 : 1;
-        double originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) + 12);
-        double originY = attacker.getY() - 82;
+        double originX;
+        double originY;
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(attacker);
+        if (profile != null) {
+            FightingSpriteProfile.Origin origin = profile.projectileOrigin(attacker, definition.moveId());
+            originX = origin.x();
+            originY = origin.y();
+        } else {
+            originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) + 12);
+            originY = attacker.getY() - 82;
+        }
         projectiles.add(new FightingProjectile(definition.moveId(), originX, originY,
                 direction * definition.projectileSpeed(), definition.projectileSize(),
                 definition.damage(), definition.projectileLifetime(), definition.effectColor(), ownerIndex));

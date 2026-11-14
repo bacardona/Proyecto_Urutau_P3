@@ -7,6 +7,8 @@ import java.util.Objects;
 /** Mutable state for one participant in a free fight. */
 public class Fighter {
 
+    enum MotionAnimation { IDLE, WALKING, JUMPING, BLOCKING, BLOCK_RELEASE }
+
     private static final int MAX_HEALTH = 200;
     private static final double MAX_EVOLUTION_ENERGY = 100.0;
     private static final double EVOLUTION_ANIMATION_DURATION = 1.0;
@@ -38,6 +40,14 @@ public class Fighter {
     private double blockStunSeconds;
     private double comboStunResetSeconds;
     private int comboStunHitCount;
+    private MotionAnimation motionAnimation = MotionAnimation.IDLE;
+    private double motionAnimationSeconds;
+    private double defeatedAnimationSeconds;
+    private double damageAnimationSeconds;
+    private double damageVisualRemaining;
+    private double shieldOpacity;
+    private double shieldAnimationSeconds;
+    private boolean shieldWasBlocking;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
@@ -70,24 +80,28 @@ public class Fighter {
     }
     public Pokemon getPokemon() { return pokemon; }
     public int getRenderHeight() {
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(this);
+        if (profile != null) return profile.bodyHeight;
         if (evolved && evolutionProfile != null) return evolutionProfile.evolvedRenderHeight();
         return switch (basePokemonId) {
             case "PIKACHU" -> 145;
             case "CHARIZARD" -> 190;
             case "BULBASAUR" -> 130;
             case "CHARMANDER" -> 140;
-            case "SQUIRTLE" -> 132;
+            case "SQUIRTLE" -> evolved ? evolutionProfile.evolvedRenderHeight() : 75;
             case "EEVEE" -> 125;
             default -> 145;
         };
     }
     public double getBodyHalfWidth() {
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(this);
+        if (profile != null) return profile.bodyHalfWidth;
         return switch (basePokemonId) {
             case "PIKACHU" -> 47;
             case "CHARIZARD" -> 73;
             case "BULBASAUR" -> 48;
             case "CHARMANDER" -> 48;
-            case "SQUIRTLE" -> 52;
+            case "SQUIRTLE" -> evolved ? 52 : 30;
             case "EEVEE" -> 44;
             default -> 50;
         };
@@ -119,6 +133,31 @@ public class Fighter {
     public boolean isDefeated() { return defeated; }
     public boolean isUltimateStunned() { return ultimateStunCount > 0; }
     public boolean isBlocking() { return blocking; }
+    MotionAnimation getMotionAnimation() { return motionAnimation; }
+    double getMotionAnimationSeconds() { return motionAnimationSeconds; }
+    double getDefeatedAnimationSeconds() { return defeatedAnimationSeconds; }
+    double getDamageAnimationSeconds() { return damageAnimationSeconds; }
+    boolean isShowingDamage() { return damageVisualRemaining > 0; }
+    double getShieldOpacity() { return shieldOpacity; }
+    double getShieldAnimationSeconds() { return shieldAnimationSeconds; }
+
+    /** Visual only; never participates in canBlock, damage, or collision geometry. */
+    void updateShieldVisual(boolean attacking, double deltaSeconds) {
+        if (defeated || isAsleep() || isHitStunned() || isUltimateStunned()
+                || isEvolutionAnimating() || attacking) {
+            shieldOpacity = 0;
+            shieldAnimationSeconds = 0;
+            shieldWasBlocking = false;
+        } else if (blocking) {
+            if (!shieldWasBlocking) shieldAnimationSeconds = 0;
+            shieldWasBlocking = true;
+            shieldAnimationSeconds += deltaSeconds;
+            shieldOpacity = Math.min(1, shieldOpacity + deltaSeconds / 0.10);
+        } else {
+            shieldWasBlocking = false;
+            shieldOpacity = Math.max(0, shieldOpacity - deltaSeconds / 0.14);
+        }
+    }
     public boolean isHitStunned() { return normalHitStunSeconds > 0 || blockStunSeconds > 0; }
     public boolean isAsleep() { return sleepSeconds > 0; }
     public boolean hasAttackBoost() { return attackBoostSeconds > 0; }
@@ -134,6 +173,8 @@ public class Fighter {
     }
 
     void updateStatusEffects(double deltaSeconds) {
+        damageAnimationSeconds += deltaSeconds;
+        damageVisualRemaining = Math.max(0, damageVisualRemaining - deltaSeconds);
         sleepSeconds = Math.max(0, sleepSeconds - deltaSeconds);
         attackBoostSeconds = Math.max(0, attackBoostSeconds - deltaSeconds);
         attackReductionSeconds = Math.max(0, attackReductionSeconds - deltaSeconds);
@@ -237,6 +278,11 @@ public class Fighter {
     }
 
     void clearStatusEffects() {
+        shieldOpacity = 0;
+        shieldAnimationSeconds = 0;
+        shieldWasBlocking = false;
+        damageAnimationSeconds = 0;
+        damageVisualRemaining = 0;
         sleepSeconds = 0;
         attackBoostSeconds = 0;
         attackReductionSeconds = 0;
@@ -249,6 +295,46 @@ public class Fighter {
         blockStunSeconds = 0;
         comboStunResetSeconds = 0;
         comboStunHitCount = 0;
+        resetMotionAnimation();
+    }
+
+    void advanceDefeatedAnimation(double deltaSeconds) {
+        if (defeated) defeatedAnimationSeconds += Math.max(0, deltaSeconds);
+    }
+
+    /** Render-only locomotion state, advanced by the combat simulation clock. */
+    void updateMotionAnimation(MotionAnimation next, double deltaSeconds) {
+        if (next == MotionAnimation.BLOCKING) {
+            if (motionAnimation != MotionAnimation.BLOCKING) {
+                motionAnimation = MotionAnimation.BLOCKING;
+                motionAnimationSeconds = 0;
+            } else {
+                motionAnimationSeconds += deltaSeconds;
+            }
+            return;
+        }
+
+        if (motionAnimation == MotionAnimation.BLOCKING && next == MotionAnimation.IDLE) {
+            motionAnimation = MotionAnimation.BLOCK_RELEASE;
+            motionAnimationSeconds = 0;
+            return;
+        }
+        if (motionAnimation == MotionAnimation.BLOCK_RELEASE && next == MotionAnimation.IDLE) {
+            motionAnimationSeconds += deltaSeconds;
+            if (motionAnimationSeconds < 0.20) return;
+        }
+
+        if (motionAnimation != next) {
+            motionAnimation = next;
+            motionAnimationSeconds = 0;
+        } else {
+            motionAnimationSeconds += deltaSeconds;
+        }
+    }
+
+    private void resetMotionAnimation() {
+        motionAnimation = MotionAnimation.IDLE;
+        motionAnimationSeconds = 0;
     }
 
     void moveHorizontally(double direction, double distance) {
@@ -264,11 +350,16 @@ public class Fighter {
 
     void receiveDamage(int damage) {
         int actualDamage = Math.max(0, damage);
-        if (actualDamage > 0) sleepSeconds = 0;
+        if (actualDamage > 0) {
+            sleepSeconds = 0;
+            damageAnimationSeconds = 0;
+            damageVisualRemaining = 0.20;
+        }
         health = Math.max(0, health - actualDamage);
         if (health == 0) {
             defeated = true;
             clearStatusEffects();
+            defeatedAnimationSeconds = 0;
         }
     }
 
@@ -276,6 +367,7 @@ public class Fighter {
         health = 0;
         defeated = true;
         clearStatusEffects();
+        defeatedAnimationSeconds = 0;
     }
 
     void addEvolutionEnergy(double amount) {

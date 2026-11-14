@@ -21,21 +21,35 @@ public class FightingRenderer {
     static final int RESULT_OPTION_GAP = 12;
 
     private final SpriteLoader spriteLoader;
+    private final FightingMotionSpriteCache motionSprites;
 
     public FightingRenderer(SpriteLoader spriteLoader) {
         this.spriteLoader = spriteLoader;
+        this.motionSprites = new FightingMotionSpriteCache();
     }
 
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
         drawArena(g, session, frameIndex);
-        drawBars(g, session);
         drawAttackEffects(g, session);
+        for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
+        java.util.List<UltimateController.Visual> ultimateVisuals =
+                session.getCombatSystem().getUltimateVisuals();
         for (Fighter fighter : session.getFighters()) {
+            boolean inUltimateSequence = false;
+            for (UltimateController.Visual ultimate : ultimateVisuals) {
+                if (ultimate.owner() == fighter || ultimate.target() == fighter) {
+                    inUltimateSequence = true;
+                    break;
+                }
+            }
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
-                    session.getGroundY(), session.getCombatSystem(), session.getFighters());
+                    session.getGroundY(), session.getCombatSystem(), session.getFighters(),
+                    inUltimateSequence);
         }
+        for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
         drawPhysicalImpacts(g, session.getCombatSystem());
         drawUltimateEffects(g, session, frameIndex);
+        drawBars(g, session);
         drawFighterStatusIndicators(g, session);
         drawTeamIndicators(g, session, true, frameIndex, repaint);
         drawTeamIndicators(g, session, false, frameIndex, repaint);
@@ -170,6 +184,12 @@ public class FightingRenderer {
                     .getAttackVisual(attacker, session.getFighters());
             if (visual == null) continue;
             AttackDefinition definition = visual.definition();
+            if (hasSpriteAttackAnimation(attacker, definition.moveId())
+                    && !"VINE_WHIP".equals(definition.moveId())
+                    && !"GROWL".equals(definition.moveId())) {
+                // Keep projectile, vine and sound effects; the sheet supplies the body pose.
+                continue;
+            }
             if ("VINE_WHIP".equals(definition.moveId())) {
                 drawVineWhip(g, attacker, definition, visual);
             } else if ("BITE".equals(definition.moveId())) {
@@ -322,6 +342,12 @@ public class FightingRenderer {
         int direction = owner.isFacingLeft() ? -1 : 1;
         int x1 = (int) Math.round(owner.getX() + direction * owner.getBodyHalfWidth());
         int y1 = (int) Math.round(owner.getY() - owner.getRenderHeight() * 0.58);
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(owner);
+        if (profile != null && profile.isEvolution()) {
+            var mouth = profile.mouthOrigin(owner, "Shoot");
+            x1 = (int) Math.round(mouth.x());
+            y1 = (int) Math.round(mouth.y());
+        }
         int x2 = (int) Math.round(target.getX());
         int y2 = (int) Math.round(target.getY() - target.getRenderHeight() * 0.55);
         var oldStroke = g.getStroke();
@@ -419,6 +445,11 @@ public class FightingRenderer {
         int startX = (int) Math.round(attacker.getX() + direction * attacker.getBodyHalfWidth());
         int y = (int) Math.round(attacker.getY() - definition.hitboxHeight() * 0.60);
         int reach = (int) definition.hitboxWidth();
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(attacker);
+        if (profile != null && profile.contact(definition.moveId()) != null) {
+            reach = (int) profile.contact(definition.moveId()).reach();
+            y = (int) Math.round(attacker.getY() - profile.bodyHeight * 0.65);
+        }
         double progress = visual.activeProgress();
         double extension = progress < 0.56 ? progress / 0.56 : (1 - progress) / 0.44;
         extension = Math.max(0.05, Math.min(1, extension));
@@ -460,6 +491,12 @@ public class FightingRenderer {
         int centerX = (int) Math.round(attacker.getX()
                 + direction * (attacker.getBodyHalfWidth() + 20));
         int centerY = (int) Math.round(attacker.getY() - attacker.getRenderHeight() * 0.67);
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(attacker);
+        if (profile != null && "WARTORTLE".equals(profile.species)) {
+            var mouth = profile.mouthOrigin(attacker, "Idle");
+            centerX = (int) Math.round(mouth.x());
+            centerY = (int) Math.round(mouth.y());
+        }
         int open = (int) Math.round(10 * (1 - Math.sin(Math.PI * progress)));
         int jawW = 26;
         java.awt.Polygon upper = new java.awt.Polygon(
@@ -599,7 +636,6 @@ public class FightingRenderer {
                         (int) fighter.getY() - fighter.getRenderHeight() - 8, 14, color);
             }
 
-            if (fighter.isBlocking()) drawBlockGuard(g, fighter);
             FightingCombatSystem.ComboInfo combo = session.getCombatSystem().getComboInfo(player);
             if (combo.hits() >= 2 && combo.remainingSeconds() > 0) {
                 int centerX = player == 0 ? 225 : session.getWidth() - 225;
@@ -609,17 +645,55 @@ public class FightingRenderer {
         }
     }
 
-    private void drawBlockGuard(Graphics2D g, Fighter fighter) {
-        Color oldColor = g.getColor();
-        var oldStroke = g.getStroke();
-        int direction = fighter.isFacingLeft() ? -1 : 1;
-        int x = (int) Math.round(fighter.getX() + direction * (fighter.getBodyHalfWidth() + 10));
-        int y = (int) Math.round(fighter.getY() - fighter.getRenderHeight() * 0.63);
-        g.setColor(new Color(123, 220, 255, 210));
-        g.drawArc(x - 15, y - 26, 30, 52, direction > 0 ? 270 : 90, 180);
-        g.drawArc(x - 10, y - 19, 20, 38, direction > 0 ? 270 : 90, 180);
-        g.setColor(oldColor);
-        g.setStroke(oldStroke);
+    private void drawBlockShield(Graphics2D g, Fighter fighter, FightingCombatSystem combat, boolean front) {
+        double opacity = fighter.getShieldOpacity();
+        if (opacity <= 0 || fighter.isDefeated() || fighter.isHitStunned()
+                || fighter.isUltimateStunned() || fighter.isAsleep() || fighter.isEvolutionAnimating()) return;
+        double time = fighter.getShieldAnimationSeconds();
+        double activation = Math.max(0, 1 - time / 0.12);
+        double pulse = 1 + 0.012 * Math.sin(time * 4);
+        int rx = (int) Math.round((Math.max(fighter.getBodyHalfWidth() + 16,
+                fighter.getRenderHeight() * 0.5) + activation * 5) * pulse);
+        int ry = (int) Math.round((fighter.getRenderHeight() * 0.5 + 9 + activation * 4) * pulse);
+        int cx = (int) Math.round(fighter.getX());
+        int cy = (int) Math.round(fighter.getY()) - ry - 2;
+        double flash = 0;
+        for (var effect : combat.getImpactEffects()) {
+            if (effect.isBlocked() && Math.abs(effect.getX() - cx) < rx + 24
+                    && Math.abs(effect.getY() - cy) < ry + 24) {
+                flash = Math.max(flash, 1 - effect.getProgress());
+            }
+        }
+        var bubble = new java.awt.Polygon();
+        for (int i = 0; i < 48; i++) {
+            double angle = i * Math.PI / 24;
+            bubble.addPoint(cx + (int) Math.round(rx * Math.cos(angle) / 2) * 2,
+                    cy + (int) Math.round(ry * Math.sin(angle) / 2) * 2);
+        }
+        Graphics2D shield = (Graphics2D) g.create();
+        shield.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        shield.clipRect(0, 125, 1280, Math.max(0, (int) fighter.getY() - 126));
+        if (!front) {
+            shield.setColor(new Color(95, 200, 255, (int) ((26 + flash * 18) * opacity)));
+            shield.fillPolygon(bubble);
+            shield.setStroke(new java.awt.BasicStroke(4, java.awt.BasicStroke.CAP_SQUARE,
+                    java.awt.BasicStroke.JOIN_MITER));
+            shield.setColor(new Color(63, 157, 211, (int) (80 * opacity)));
+            shield.drawPolygon(bubble);
+        } else {
+            shield.setStroke(new java.awt.BasicStroke(2, java.awt.BasicStroke.CAP_SQUARE,
+                    java.awt.BasicStroke.JOIN_MITER));
+            shield.setColor(new Color(143, 230, 255, (int) ((155 + flash * 90) * opacity)));
+            shield.drawPolygon(bubble);
+            shield.setColor(new Color(218, 250, 255, (int) ((180 + flash * 70) * opacity)));
+            shield.fillRect(cx - rx + 8, cy - ry / 3, 4, 10);
+            shield.fillRect(cx - rx + 12, cy - ry / 3 - 6, 6, 4);
+            if (activation > 0 || flash > 0) {
+                shield.fillRect(cx - 4, cy - ry + 2, 8, 3);
+                shield.fillRect(cx + rx - 4, cy - 3, 3, 6);
+            }
+        }
+        shield.dispose();
     }
 
     private void drawTeamIndicators(Graphics2D g, FightingGameSession session,
@@ -632,7 +706,20 @@ public class FightingRenderer {
         for (int i = 0; i < team.getMembers().size(); i++) {
             Fighter fighter = team.getMembers().get(i);
             int x = startX + i * slotWidth;
-            GifAnimation icon = spriteLoader.getOrLoad(fighter.getPokemonId(), false, repaint);
+            FightingSpriteProfile profile = FightingSpriteProfile.forFighter(fighter);
+            boolean drewPixelSprite = false;
+            if (profile != null) {
+                var animation = profile.sprites().get(fighter.isDefeated() ? profile.defeatAnimation : "Idle");
+                if (animation != null) {
+                    var frame = animation.frameAtTime(fighter.isDefeated()
+                            ? fighter.getDefeatedAnimationSeconds() : fighter.getMotionAnimationSeconds(),
+                            fighter.isFacingLeft(), !fighter.isDefeated());
+                    drawTeamPixelFrame(g, frame, x, slotWidth, spriteTop, spriteHeight, fighter.isDefeated());
+                    drewPixelSprite = true;
+                }
+            }
+            GifAnimation icon = drewPixelSprite ? null
+                    : spriteLoader.getOrLoad(fighter.getPokemonId(), false, repaint);
             if (icon != null) {
                 BufferedImage image = icon.frame(frameIndex);
                 int h = spriteHeight;
@@ -659,7 +746,8 @@ public class FightingRenderer {
 
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
                              int frameIndex, Runnable repaint, int groundY,
-                             FightingCombatSystem combat, java.util.List<Fighter> fighters) {
+                             FightingCombatSystem combat, java.util.List<Fighter> fighters,
+                             boolean inUltimateSequence) {
         String name = fighter.getPokemonId();
         if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null) {
             boolean oldFormFrame = (int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0;
@@ -670,16 +758,41 @@ public class FightingRenderer {
                 name = fighter.getBasePokemonId();
             }
         }
-        GifAnimation animation = spriteLoader.getOrLoad(name, false, repaint);
+        FightingCombatSystem.AttackVisual visual = combat.getAttackVisual(fighter, fighters);
+        double shakeX = combat.getVisualShakeX(fighter);
         int centerX = (int) fighter.getX();
+        boolean frontForm = !fighter.isEvolved()
+                && fighter.getPokemonId().equals(fighter.getBasePokemonId());
+        // Select by the species actually drawn, including each transformation flash.
+        // Ultimate participation must never exclude the target's base-form sheet.
+        FightingSpriteProfile profile = FightingSpriteProfile.forSpecies(name);
+        UltimateController.Visual ownedUltimate = null;
+        for (var ultimate : combat.getUltimateVisuals()) {
+            if (ultimate.owner() == fighter) { ownedUltimate = ultimate; break; }
+        }
+        if (profile != null && drawSpriteAnimation(g, fighter, profile,
+                fighter.isEvolutionAnimating() ? null : visual, centerX + shakeX, ownedUltimate)) {
+            if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, centerX,
+                    (int) fighter.getY() - profile.bodyHeight / 2, profile.bodyHeight,
+                    fighter.getEvolutionAnimationProgress());
+            return;
+        }
+        if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null
+                && name.equals(fighter.getEvolutionProfile().evolvedPokemonId())) {
+            targetHeight = fighter.getEvolutionProfile().evolvedRenderHeight();
+        }
+        GifAnimation animation = spriteLoader.getOrLoad(name, false, repaint);
         if (animation == null) {
-            drawCentered(g, "CARGANDO " + name, centerX, groundY - 45, 21, RetroStyle.DARK);
+            if (!frontForm || !drawMotionAnimation(g, fighter, targetHeight,
+                    centerX + shakeX, visual, inUltimateSequence, shakeX)) {
+                drawCentered(g, "CARGANDO " + name, centerX, groundY - 45, 21, RetroStyle.DARK);
+            }
             return;
         }
         BufferedImage frame = animation.frame(frameIndex);
         int width = Math.round(targetHeight * (frame.getWidth() / (float) frame.getHeight()));
-        FightingCombatSystem.AttackVisual visual = combat.getAttackVisual(fighter, fighters);
-        double shakeX = combat.getVisualShakeX(fighter);
+        if (frontForm && drawMotionAnimation(g, fighter, targetHeight,
+                centerX + shakeX, visual, inUltimateSequence, shakeX)) return;
         double renderX = centerX + shakeX + visualOffsetX(visual);
         int x = (int) Math.round(renderX) - width / 2;
         int y = (int) fighter.getY() - targetHeight;
@@ -705,6 +818,277 @@ public class FightingRenderer {
         spriteGraphics.dispose();
         if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, (int) Math.round(renderX),
                 y + targetHeight / 2, targetHeight, fighter.getEvolutionAnimationProgress());
+    }
+
+    private boolean hasSpriteAttackAnimation(Fighter fighter, String moveId) {
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(fighter);
+        return profile != null && profile.attacks.containsKey(moveId)
+                && profile.sprites().get(profile.attacks.get(moveId)) != null;
+    }
+
+    private boolean drawSpriteAnimation(Graphics2D g, Fighter fighter, FightingSpriteProfile profile,
+                                         FightingCombatSystem.AttackVisual visual, double centerX) {
+        return drawSpriteAnimation(g, fighter, profile, visual, centerX, null);
+    }
+
+    private boolean drawSpriteAnimation(Graphics2D g, Fighter fighter, FightingSpriteProfile profile,
+                                         FightingCombatSystem.AttackVisual visual, double centerX,
+                                         UltimateController.Visual ultimate) {
+        SpriteCollabAnimationSet.Frame frame = spriteFrame(fighter, profile, visual, ultimate);
+        if (frame == null) return false;
+        int scale = profile.scale;
+        int x = (int) Math.round(centerX - frame.bodyX() * scale);
+        int y = (int) Math.round(fighter.getY() - frame.shadowY() * scale);
+        // Hop already contains vertical travel. Anchor its body to the physics trajectory
+        // so the sheet's jump and the game's jump do not add together.
+        boolean physicalJump = !fighter.isOnGround() && !fighter.isDefeated()
+                && !fighter.isShowingDamage() && !fighter.isHitStunned() && !fighter.isUltimateStunned()
+                && (visual == null || "FLY".equals(visual.definition().moveId()));
+        boolean squirtleBodyAnchor = "SQUIRTLE".equals(profile.species) && !fighter.isDefeated()
+                && !fighter.isHitStunned() && !fighter.isUltimateStunned() && !fighter.isShowingDamage()
+                && (visual == null || !"TACKLE".equals(visual.definition().moveId()));
+        if (physicalJump || squirtleBodyAnchor) {
+            var idleAnchor = profile.sprites().get("Idle").frame(fighter.isFacingLeft(), 0);
+            double bodyWorldY = fighter.getY() - (idleAnchor.shadowY() - idleAnchor.bodyY()) * scale;
+            y = (int) Math.round(bodyWorldY - frame.bodyY() * scale);
+        }
+        BufferedImage image = frame.image();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        var oldComposite = g.getComposite();
+        if (fighter.isDefeated() && "Hurt".equals(profile.defeatAnimation)) {
+            double fade = Math.max(0, fighter.getDefeatedAnimationSeconds() - (profile.faintDuration() - 0.18)) / 0.18;
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                    (float) Math.max(0.15, 1 - fade)));
+        }
+        g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
+        g.setComposite(oldComposite);
+        return true;
+    }
+
+    /** Selection is stateless: simulation clocks belong to each fighter/attack, never to painting. */
+    SpriteCollabAnimationSet.Frame spriteFrame(Fighter fighter, FightingSpriteProfile profile,
+                                               FightingCombatSystem.AttackVisual visual) {
+        return spriteFrame(fighter, profile, visual, null);
+    }
+
+    SpriteCollabAnimationSet.Frame spriteFrame(Fighter fighter, FightingSpriteProfile profile,
+                                               FightingCombatSystem.AttackVisual visual,
+                                               UltimateController.Visual ultimate) {
+        var sprites = profile.sprites();
+        boolean left = fighter.isFacingLeft();
+        double elapsed = fighter.getMotionAnimationSeconds();
+        if (fighter.isDefeated()) {
+            return sprites.get(profile.defeatAnimation).frameAtTime(fighter.getDefeatedAnimationSeconds(), left, false);
+        }
+        if (fighter.isEvolutionAnimating()) return sprites.get("Idle").frame(left, 0);
+        if (fighter.isHitStunned() || fighter.isUltimateStunned() || fighter.isShowingDamage()) {
+            return sprites.get("Hurt").frameAtTime(fighter.getDamageAnimationSeconds(), left, false);
+        }
+        if (fighter.isAsleep()) return sprites.get("Sleep").frameAtTime(elapsed, left, true);
+        if (ultimate != null && profile.isEvolution()) {
+            switch (ultimate.phase()) {
+                case CHARGING -> { return sprites.get("Charge").frameAtProgress(ultimate.progress(), left); }
+                case RELEASING -> { return sprites.get("Shoot").frameAtTime(ultimate.elapsedSeconds(), left, true); }
+                case INTERRUPTED -> { return sprites.get("Hurt").frameAtTime(fighter.getDamageAnimationSeconds(), left, false); }
+                default -> { }
+            }
+        }
+        if (visual != null) {
+            String move = visual.definition().moveId();
+            String name = profile.attacks.get(move);
+            var animation = name == null ? null : sprites.get(name);
+            if (animation != null) {
+                if ("TACKLE".equals(move) && !"SQUIRTLE".equals(profile.species)) {
+                    double recovery = visual.progress() * visual.definition().recoverySeconds()
+                            * (visual.hitConfirmed() ? 0.65 : 1.0);
+                    if ("RECOVERY".equals(visual.phase()) && recovery >= 0.16) {
+                        return spriteFrame(fighter, profile, null);
+                    }
+                    return attackFrame(animation, visual, left, recovery / 0.16);
+                }
+                if ("SQUIRTLE".equals(profile.species) && !"TACKLE".equals(move)) {
+                    return animation.frameAtTime(attackElapsed(visual), left, false);
+                }
+                if ("FLY".equals(move) && !fighter.isOnGround()) {
+                    return animation.frameAtProgress(jumpProgress(fighter), left);
+                }
+                // Growl/Growth retain their long gameplay cooldown, while their pose
+                // finishes at the package's pace and returns to breathing normally.
+                if (isStatusRecovery(visual) && recoveryProgress(animation, visual) >= 1) {
+                    return sprites.get("Idle").frameAtTime(attackElapsed(visual), left, true);
+                }
+                return attackFrame(animation, visual, left);
+            }
+        }
+        if (fighter.isBlocking() || fighter.getMotionAnimation() == Fighter.MotionAnimation.BLOCKING) {
+            if ("Idle".equals(profile.blockAnimation)) return sprites.get("Idle").frame(left, 0);
+            return sprites.get(profile.blockAnimation).frameAtTime(elapsed, left, false);
+        }
+        if (fighter.getMotionAnimation() == Fighter.MotionAnimation.BLOCK_RELEASE && fighter.isOnGround()) {
+            if ("Idle".equals(profile.blockAnimation)) return sprites.get("Idle").frame(left, 0);
+            return sprites.get(profile.blockAnimation).frameAtProgress(
+                    1 - Math.min(1, elapsed / 0.20), left);
+        }
+        if (!fighter.isOnGround()) {
+            return sprites.get("Hop").frameAtProgress(jumpProgress(fighter), left);
+        }
+        String name = fighter.getMotionAnimation() == Fighter.MotionAnimation.WALKING ? "Walk" : "Idle";
+        return sprites.get(name).frameAtTime(elapsed, left, true);
+    }
+
+    private double jumpProgress(Fighter fighter) {
+        return Math.max(0, Math.min(1, 0.5 + fighter.getVelocityY() / (2 * 650.0)));
+    }
+
+    private SpriteCollabAnimationSet.Frame attackFrame(SpriteCollabAnimationSet.Animation animation,
+                                                       FightingCombatSystem.AttackVisual visual,
+                                                       boolean left) {
+        return attackFrame(animation, visual, left, recoveryProgress(animation, visual));
+    }
+
+    private SpriteCollabAnimationSet.Frame attackFrame(SpriteCollabAnimationSet.Animation animation,
+                                                       FightingCombatSystem.AttackVisual visual,
+                                                       boolean left, double recoveryProgress) {
+        int count = animation.frameCount();
+        int hit = animation.hitFrame();
+        if (hit < 0) hit = Math.max(1, count / 3);
+        hit = Math.min(count - 1, hit);
+        int recovery = animation.returnFrame();
+        if (recovery < 0) recovery = Math.max(hit + 1, count * 2 / 3);
+        // Some packages mark the same hit/return frame; still expose the contact pose.
+        recovery = Math.min(count, Math.max(hit + 1, recovery));
+        return switch (visual.phase()) {
+            case "STARTUP" -> animation.frameAtProgressInRange(
+                    visual.progress(), left, 0, Math.max(1, hit));
+            case "ACTIVE" -> animation.frameAtProgressInRange(
+                    visual.activeProgress(), left, hit, recovery);
+            case "RECOVERY" -> animation.frameAtProgressInRange(
+                    recoveryProgress, left, Math.min(count - 1, recovery), count);
+            default -> animation.frame(left, 0);
+        };
+    }
+
+    private boolean isStatusRecovery(FightingCombatSystem.AttackVisual visual) {
+        return "RECOVERY".equals(visual.phase())
+                && (visual.definition().kind() == AttackDefinition.Kind.SELF_BUFF
+                    || visual.definition().kind() == AttackDefinition.Kind.GRUNT);
+    }
+
+    private double recoveryProgress(SpriteCollabAnimationSet.Animation animation,
+                                    FightingCombatSystem.AttackVisual visual) {
+        if (!isStatusRecovery(visual)) return visual.progress();
+        return visual.progress() * visual.definition().recoverySeconds()
+                * (visual.hitConfirmed() ? 0.65 : 1.0) / animation.durationSeconds();
+    }
+
+    private double attackElapsed(FightingCombatSystem.AttackVisual visual) {
+        AttackDefinition definition = visual.definition();
+        return switch (visual.phase()) {
+            case "STARTUP" -> visual.progress() * definition.startupSeconds();
+            case "ACTIVE" -> definition.startupSeconds()
+                    + visual.activeProgress() * definition.activeSeconds();
+            case "RECOVERY" -> definition.startupSeconds() + definition.activeSeconds()
+                    + visual.progress() * definition.recoverySeconds()
+                    * (visual.hitConfirmed() ? 0.65 : 1.0);
+            default -> 0;
+        };
+    }
+
+    private void drawTeamPixelFrame(Graphics2D g, SpriteCollabAnimationSet.Frame frame,
+                                    int slotX, int slotWidth, int spriteTop, int spriteHeight,
+                                    boolean defeated) {
+        if (frame == null) return;
+        int scale = 2;
+        BufferedImage image = frame.image();
+        int x = slotX + slotWidth / 2 - frame.bodyX() * scale;
+        int y = spriteTop + spriteHeight - frame.shadowY() * scale;
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        var oldComposite = g.getComposite();
+        if (defeated) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.68f));
+        g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
+        g.setComposite(oldComposite);
+    }
+    private boolean drawMotionAnimation(Graphics2D g, Fighter fighter, int targetHeight,
+                                        double centerX,
+                                        FightingCombatSystem.AttackVisual attackVisual,
+                                        boolean inUltimateSequence, double shakeX) {
+        if (fighter.isDefeated() || fighter.isEvolutionAnimating() || fighter.isAsleep()
+                || fighter.isHitStunned() || fighter.isUltimateStunned()
+                || inUltimateSequence || attackVisual != null || Math.abs(shakeX) > 0.01) {
+            return false;
+        }
+
+        Fighter.MotionAnimation motion = fighter.getMotionAnimation();
+        FightingMotionSpriteCache.Action action;
+        int frame;
+        switch (motion) {
+            case BLOCKING -> {
+                action = FightingMotionSpriteCache.Action.BLOCK;
+                frame = Math.min(action.frameCount() - 1,
+                        (int) (fighter.getMotionAnimationSeconds()
+                                * FightingMotionSpriteCache.BLOCK_FRAMES_PER_SECOND));
+            }
+            case BLOCK_RELEASE -> {
+                action = FightingMotionSpriteCache.Action.BLOCK;
+                double progress = Math.min(1.0, fighter.getMotionAnimationSeconds()
+                        / FightingMotionSpriteCache.BLOCK_RELEASE_SECONDS);
+                frame = Math.max(0, action.frameCount() - 1
+                        - (int) (progress * action.frameCount()));
+            }
+            case JUMPING -> {
+                if (fighter.isOnGround()) return false;
+                action = FightingMotionSpriteCache.Action.JUMP;
+                frame = jumpFrame(fighter.getVelocityY(), action.frameCount());
+            }
+            case WALKING -> {
+                action = FightingMotionSpriteCache.Action.WALK;
+                frame = (int) (fighter.getMotionAnimationSeconds()
+                        * FightingMotionSpriteCache.WALK_FRAMES_PER_SECOND) % action.frameCount();
+            }
+            default -> { return false; }
+        }
+        FightingMotionSpriteCache.Sheet sheet = motionSprites.get(fighter.getBasePokemonId(), action);
+        if (sheet == null || sheet.frame(frame) == null) return false;
+        drawMotionSprite(g, fighter, sheet, frame, targetHeight, centerX);
+        return true;
+    }
+
+    private int jumpFrame(double verticalVelocity, int frameCount) {
+        double normalized;
+        int ascentFrames = (frameCount - 1) / 2;
+        if (verticalVelocity < 0) {
+            normalized = 1.0 + verticalVelocity / 650.0;
+            return (int) Math.round(Math.max(0, Math.min(1, normalized)) * ascentFrames);
+        }
+        normalized = Math.max(0, Math.min(1, verticalVelocity / 650.0));
+        return ascentFrames + (int) Math.round(normalized * (frameCount - 1 - ascentFrames));
+    }
+
+    private void drawMotionSprite(Graphics2D g, Fighter fighter,
+                                  FightingMotionSpriteCache.Sheet sheet, int frameIndex,
+                                  int targetHeight, double centerX) {
+        FightingMotionSpriteCache.Frame frame = sheet.frame(frameIndex);
+        if (frame == null) return;
+        BufferedImage image = frame.image();
+        double scale = targetHeight / (double) sheet.contentHeight();
+        int frameWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
+        int frameHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
+        int unionWidth = Math.max(1, (int) Math.round(sheet.contentWidth() * scale));
+        int offsetX = frame.offsetX();
+        if (shouldFlipFrontSprite(fighter)) {
+            offsetX = sheet.contentWidth() - offsetX - image.getWidth();
+        }
+        int x = (int) Math.round(centerX - unionWidth / 2.0 + offsetX * scale);
+        int y = (int) Math.round(fighter.getY() - frameHeight);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        if (shouldFlipFrontSprite(fighter)) {
+            g.drawImage(image, x + frameWidth, y, -frameWidth, frameHeight, null);
+        } else {
+            g.drawImage(image, x, y, frameWidth, frameHeight, null);
+        }
     }
 
     private void drawQuickAfterimages(Graphics2D g, BufferedImage frame, Fighter fighter,
