@@ -13,8 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads and writes combats in Oracle (COMBATE and HISTORIAL_COMBATES) and keeps
- * the win/loss counters of JUGADOR up to date.
+ * Reads and writes combats in Oracle (COMBATE and HISTORIAL_COMBATES).
+ * The win/loss counters in JUGADOR are kept up to date automatically by the
+ * database trigger trig_actualizar_registros_jugador upon inserting into HISTORIAL_COMBATES.
  */
 public class JdbcCombatRepository implements CombatRepository {
 
@@ -26,13 +27,6 @@ public class JdbcCombatRepository implements CombatRepository {
 
     private static final String INSERT_HISTORY_SQL =
             "INSERT INTO historial_combates (id_entrenador, id_combate, resultado) VALUES (?, ?, ?)";
-
-    // Si el entrenador es una MAQUINA no hay fila en JUGADOR y el UPDATE no modifica nada
-    private static final String ADD_WIN_SQL =
-            "UPDATE jugador SET batallas_ganadas = batallas_ganadas + 1 WHERE id_entrenador = ?";
-
-    private static final String ADD_LOSS_SQL =
-            "UPDATE jugador SET batallas_perdidas = batallas_perdidas + 1 WHERE id_entrenador = ?";
 
     // Une el historial del entrenador con el de su rival (mismo combate, otro entrenador)
     private static final String HISTORY_SQL =
@@ -84,8 +78,8 @@ public class JdbcCombatRepository implements CombatRepository {
                 insertCombat(conn, combatId);
                 insertHistory(conn, winnerId, combatId, CombatResult.WIN);
                 insertHistory(conn, loserId, combatId, CombatResult.LOSS);
-                updateCounter(conn, ADD_WIN_SQL, winnerId);
-                updateCounter(conn, ADD_LOSS_SQL, loserId);
+                // La actualizacion de batallas_ganadas y batallas_perdidas en JUGADOR
+                // la realiza automaticamente el trigger trig_actualizar_registros_jugador en Oracle
                 conn.commit();
                 return combatId;
             } catch (SQLException e) {
@@ -118,13 +112,6 @@ public class JdbcCombatRepository implements CombatRepository {
             stmt.setInt(1, trainerId);
             stmt.setInt(2, combatId);
             stmt.setString(3, result.getDbValue());
-            stmt.executeUpdate();
-        }
-    }
-
-    private void updateCounter(Connection conn, String sql, int trainerId) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, trainerId);
             stmt.executeUpdate();
         }
     }
