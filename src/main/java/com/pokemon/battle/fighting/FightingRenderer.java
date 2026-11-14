@@ -33,6 +33,7 @@ public class FightingRenderer {
         for (Fighter fighter : session.getFighters()) {
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint, session.getGroundY());
         }
+        drawUltimateEffects(g, session, frameIndex);
         drawFighterStatusIndicators(g, session);
         drawTeamIndicators(g, session, true, frameIndex, repaint);
         drawTeamIndicators(g, session, false, frameIndex, repaint);
@@ -198,6 +199,139 @@ public class FightingRenderer {
         }
     }
 
+    private void drawUltimateEffects(Graphics2D g, FightingGameSession session, int frameIndex) {
+        for (UltimateController.Visual visual : session.getCombatSystem().getUltimateVisuals()) {
+            Fighter owner = visual.owner();
+            Fighter target = visual.target();
+            int ownerX = (int) Math.round(owner.getX());
+            int ownerY = (int) Math.round(owner.getY() - owner.getRenderHeight() * 0.55);
+            Color primary = visual.definition().primaryColor();
+            Color secondary = visual.definition().secondaryColor();
+            if (visual.phase() == UltimateController.Phase.CHARGING) {
+                drawUltimateCharge(g, ownerX, ownerY, owner.getRenderHeight(),
+                        visual.progress(), primary, secondary, frameIndex);
+                drawCentered(g, "CARGANDO ULTI", ownerX,
+                        ownerY - owner.getRenderHeight() / 2 - 12, 18, secondary);
+            } else if (visual.phase() == UltimateController.Phase.INTERRUPTED) {
+                drawCentered(g, "ULTI INTERRUMPIDA", ownerX,
+                        ownerY - owner.getRenderHeight() / 2 - 12, 16, new Color(0xFFF0A0));
+            } else if (visual.phase() == UltimateController.Phase.RELEASING) {
+                if (visual.definition().shape() == UltimateDefinition.Shape.RINGS) {
+                    drawUltimateRings(g, visual, primary, secondary);
+                } else {
+                    drawUltimateBeam(g, visual, primary, secondary, frameIndex);
+                }
+                if (visual.pulseFlash() > 0) {
+                    int radius = 34 + (int) (visual.pulseFlash() * 160);
+                    int tx = (int) Math.round(target.getX());
+                    int ty = (int) Math.round(target.getY() - target.getRenderHeight() * 0.55);
+                    g.setColor(new Color(secondary.getRed(), secondary.getGreen(),
+                            secondary.getBlue(), 155));
+                    g.fillOval(tx - radius, ty - radius, radius * 2, radius * 2);
+                    g.setColor(Color.WHITE);
+                    g.drawOval(tx - radius, ty - radius, radius * 2, radius * 2);
+                }
+            } else if (visual.phase() == UltimateController.Phase.FINISHING) {
+                int radius = 32 + (int) ((1 - visual.progress()) * 90);
+                g.setColor(new Color(primary.getRed(), primary.getGreen(), primary.getBlue(), 155));
+                g.fillOval(ownerX - radius, ownerY - radius, radius * 2, radius * 2);
+            }
+        }
+    }
+
+    private void drawUltimateCharge(Graphics2D g, int x, int y, int height,
+                                    double progress, Color primary, Color secondary,
+                                    int frameIndex) {
+        int radius = height / 3 + (int) (progress * 30);
+        var oldStroke = g.getStroke();
+        var oldComposite = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                (float) (0.48 + 0.42 * progress)));
+        g.setColor(primary);
+        g.setStroke(new java.awt.BasicStroke(4 + (float) (progress * 5)));
+        g.drawOval(x - radius, y - radius, radius * 2, radius * 2);
+        g.setColor(secondary);
+        g.drawOval(x - radius / 2, y - radius / 2, radius, radius);
+        for (int i = 0; i < 8; i++) {
+            double angle = (i * Math.PI / 4) + frameIndex * 0.08;
+            int outerX = x + (int) (Math.cos(angle) * (radius + 15));
+            int outerY = y + (int) (Math.sin(angle) * (radius + 15));
+            int innerX = x + (int) (Math.cos(angle) * Math.max(8, radius * 0.35));
+            int innerY = y + (int) (Math.sin(angle) * Math.max(8, radius * 0.35));
+            g.drawLine(outerX, outerY, innerX, innerY);
+            g.fillOval(outerX - 3, outerY - 3, 6, 6);
+        }
+        g.setColor(Color.WHITE);
+        int core = 8 + (int) (progress * 12);
+        g.fillOval(x - core / 2, y - core / 2, core, core);
+        g.setStroke(oldStroke);
+        g.setComposite(oldComposite);
+    }
+
+    private void drawUltimateBeam(Graphics2D g, UltimateController.Visual visual,
+                                  Color primary, Color secondary, int frameIndex) {
+        Fighter owner = visual.owner();
+        Fighter target = visual.target();
+        int direction = owner.isFacingLeft() ? -1 : 1;
+        int x1 = (int) Math.round(owner.getX() + direction * owner.getBodyHalfWidth());
+        int y1 = (int) Math.round(owner.getY() - owner.getRenderHeight() * 0.58);
+        int x2 = (int) Math.round(target.getX());
+        int y2 = (int) Math.round(target.getY() - target.getRenderHeight() * 0.55);
+        var oldStroke = g.getStroke();
+        var oldComposite = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.82f));
+        g.setColor(primary);
+        g.setStroke(new java.awt.BasicStroke(42, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.drawLine(x1, y1, x2, y2);
+        g.setColor(secondary);
+        g.setStroke(new java.awt.BasicStroke(25, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.drawLine(x1, y1, x2, y2);
+        g.setColor(Color.WHITE);
+        g.setStroke(new java.awt.BasicStroke(8, java.awt.BasicStroke.CAP_ROUND,
+                java.awt.BasicStroke.JOIN_ROUND));
+        g.drawLine(x1, y1, x2, y2);
+        g.setStroke(new java.awt.BasicStroke(3));
+        int segments = 9;
+        for (int i = 1; i < segments; i++) {
+            double ratio = i / (double) segments;
+            int px = x1 + (int) ((x2 - x1) * ratio);
+            int py = y1 + (int) ((y2 - y1) * ratio);
+            int sway = (int) (Math.sin(frameIndex * 0.37 + i) * 13);
+            g.setColor((i + frameIndex / 3) % 2 == 0 ? secondary : primary);
+            if ("LEAF_STORM".equals(visual.definition().moveId())) {
+                g.drawLine(px - 8, py + sway - 5, px + 8, py + sway + 5);
+                g.drawLine(px - 8, py + sway + 5, px + 8, py + sway - 5);
+            } else {
+                int size = "HYDRO_PUMP".equals(visual.definition().moveId()) ? 7 : 9;
+                g.fillOval(px - size / 2, py + sway - size / 2, size, size);
+            }
+        }
+        g.setStroke(oldStroke);
+        g.setComposite(oldComposite);
+    }
+
+    private void drawUltimateRings(Graphics2D g, UltimateController.Visual visual,
+                                   Color primary, Color secondary) {
+        int centerX = (int) Math.round(visual.centerX());
+        int centerY = (int) Math.round(visual.centerY());
+        var oldStroke = g.getStroke();
+        for (int i = 0; i < visual.ringRadii().size(); i++) {
+            int radius = (int) Math.round(visual.ringRadii().get(i));
+            if (radius <= 0) continue;
+            int alpha = Math.max(55, 220 - i * 28);
+            g.setColor(new Color(primary.getRed(), primary.getGreen(), primary.getBlue(), alpha));
+            g.setStroke(new java.awt.BasicStroke(11 - Math.min(i, 5)));
+            g.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
+            g.setColor(new Color(secondary.getRed(), secondary.getGreen(), secondary.getBlue(), alpha));
+            g.setStroke(new java.awt.BasicStroke(4));
+            int inner = Math.max(0, radius - 12);
+            g.drawOval(centerX - inner, centerY - inner, inner * 2, inner * 2);
+        }
+        g.setStroke(oldStroke);
+    }
+
     private void drawProjectileEffect(Graphics2D g, FightingProjectile projectile,
                                       int x, int y, int size) {
         String moveId = projectile.getMoveId();
@@ -305,22 +439,49 @@ public class FightingRenderer {
     }
 
     private void drawFighterStatusIndicators(Graphics2D g, FightingGameSession session) {
-        for (Fighter fighter : session.getFighters()) {
+        for (int player = 0; player < session.getFighters().size(); player++) {
+            Fighter fighter = session.getFighters().get(player);
             StringBuilder status = new StringBuilder();
             if (fighter.isAsleep()) status.append("DORMIDO  ");
+            if (fighter.isBlocking()) status.append("BLOQUEO  ");
+            else if (fighter.isHitStunned()) status.append("GOLPEADO  ");
             if (fighter.hasAttackBoost()) status.append("ATQ+  ");
             if (fighter.hasAttackReduction()) status.append("ATQ-  ");
             if (fighter.hasDefenseReduction()) status.append("DEF-  ");
+            if (fighter.isUltimateStunned()) status.append("ATURDIDO  ");
             AttackDefinition attack = session.getCombatSystem()
                     .getActiveDefinition(fighter, session.getFighters());
             if (attack != null && "GROWL".equals(attack.moveId())) status.append("GRITANDO  ");
-            if (status.isEmpty()) continue;
-            Color color = fighter.isAsleep() ? new Color(0xD9B9F2)
-                    : fighter.hasAttackBoost() ? new Color(0xA7EE77)
-                    : new Color(0xFFE28A);
-            drawCentered(g, status.toString().trim(), (int) fighter.getX(),
-                    (int) fighter.getY() - fighter.getRenderHeight() - 8, 14, color);
+            if (!status.isEmpty()) {
+                Color color = fighter.isAsleep() ? new Color(0xD9B9F2)
+                        : fighter.isBlocking() ? new Color(0x83DEFF)
+                        : fighter.hasAttackBoost() ? new Color(0xA7EE77)
+                        : new Color(0xFFE28A);
+                drawCentered(g, status.toString().trim(), (int) fighter.getX(),
+                        (int) fighter.getY() - fighter.getRenderHeight() - 8, 14, color);
+            }
+
+            if (fighter.isBlocking()) drawBlockGuard(g, fighter);
+            FightingCombatSystem.ComboInfo combo = session.getCombatSystem().getComboInfo(player);
+            if (combo.hits() >= 2 && combo.remainingSeconds() > 0) {
+                int centerX = player == 0 ? 225 : session.getWidth() - 225;
+                drawCentered(g, combo.hits() + " HITS COMBO", centerX, 244, 17,
+                        player == 0 ? new Color(0xFFF07A) : new Color(0x8FE7FF));
+            }
         }
+    }
+
+    private void drawBlockGuard(Graphics2D g, Fighter fighter) {
+        Color oldColor = g.getColor();
+        var oldStroke = g.getStroke();
+        int direction = fighter.isFacingLeft() ? -1 : 1;
+        int x = (int) Math.round(fighter.getX() + direction * (fighter.getBodyHalfWidth() + 10));
+        int y = (int) Math.round(fighter.getY() - fighter.getRenderHeight() * 0.63);
+        g.setColor(new Color(123, 220, 255, 210));
+        g.drawArc(x - 15, y - 26, 30, 52, direction > 0 ? 270 : 90, 180);
+        g.drawArc(x - 10, y - 19, 20, 38, direction > 0 ? 270 : 90, 180);
+        g.setColor(oldColor);
+        g.setStroke(oldStroke);
     }
 
     private void drawTeamIndicators(Graphics2D g, FightingGameSession session,
@@ -361,9 +522,14 @@ public class FightingRenderer {
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
                              int frameIndex, Runnable repaint, int groundY) {
         String name = fighter.getPokemonId();
-        if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null
-                && ((int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0)) {
-            name = fighter.getBasePokemonId();
+        if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null) {
+            boolean oldFormFrame = (int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0;
+            if (fighter.isReturningToBase()) {
+                name = oldFormFrame ? fighter.getEvolutionProfile().evolvedPokemonId()
+                        : fighter.getBasePokemonId();
+            } else if (oldFormFrame) {
+                name = fighter.getBasePokemonId();
+            }
         }
         GifAnimation animation = spriteLoader.getOrLoad(name, false, repaint);
         int centerX = (int) fighter.getX();

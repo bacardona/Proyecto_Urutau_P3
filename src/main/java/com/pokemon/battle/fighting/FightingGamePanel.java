@@ -155,11 +155,15 @@ public class FightingGamePanel extends JPanel {
         bindKey("DOWN", () -> {
             if (session.getState() == FightingGameSession.State.PAUSED) moveSelection(1);
             else if (session.getState() == FightingGameSession.State.FINISHED) moveResultSelection(1);
+            else if (session.getState() == FightingGameSession.State.RUNNING) input.setPlayerTwoBlock(true);
         });
+        bindKeyRelease("DOWN", input::setPlayerTwoBlock);
         bindKey("ENTER", this::activateSelected);
         if (DEBUG_KO_ENABLED) {
             bindKey("F6", () -> debugDefeat(0));
             bindKey("F7", () -> debugDefeat(1));
+            bindKey("F8", () -> session.debugFillActiveEnergy(0));
+            bindKey("F9", () -> session.debugFillActiveEnergy(1));
         }
 
         bindHeldKey("A", input::setPlayerOneLeft);
@@ -167,17 +171,20 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("LEFT", input::setPlayerTwoLeft);
         bindHeldKey("RIGHT", input::setPlayerTwoRight);
         bindHeldKey("W", input::setPlayerOneJump);
+        bindHeldKey("S", input::setPlayerOneBlock);
         bindKeyRelease("UP", input::setPlayerTwoJump);
         bindHeldKey("F", input::setPlayerOneAttackOne);
         bindHeldKey("G", input::setPlayerOneAttackTwo);
         bindHeldKey("H", input::setPlayerOneAttackThree);
         bindHeldKey("V", input::setPlayerOneAttackFour);
         bindHeldKey("R", input::setPlayerOneEvolution);
+        bindHeldKey("T", input::setPlayerOneUltimate);
         bindHeldKey("I", input::setPlayerTwoAttackOne);
         bindHeldKey("J", input::setPlayerTwoAttackTwo);
         bindHeldKey("K", input::setPlayerTwoAttackThree);
         bindHeldKey("L", input::setPlayerTwoAttackFour);
         bindHeldKey("P", input::setPlayerTwoEvolution);
+        bindHeldKey("O", input::setPlayerTwoUltimate);
 
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
@@ -733,15 +740,19 @@ public class FightingGamePanel extends JPanel {
 
             drawCentered(g, "JUGADOR 1: R EVOLUCIONAR  |  JUGADOR 2: P EVOLUCIONAR",
                     centerX, panelY + 166, 16, RetroStyle.DARK);
+            drawCentered(g, "JUGADOR 1: T ULTI  |  JUGADOR 2: O ULTI",
+                    centerX, panelY + 188, 16, RetroStyle.DARK);
+            drawCentered(g, "J1 S BLOQUEAR  |  J2 FLECHA ABAJO BLOQUEAR",
+                    centerX, panelY + 210, 16, RetroStyle.DARK);
 
             Fighter playerOne = session.getFighters().get(0);
             Fighter playerTwo = session.getFighters().get(1);
             String[] playerOneAttacks = attackSummary(playerOne, true);
             String[] playerTwoAttacks = attackSummary(playerTwo, false);
-            drawCentered(g, playerOneAttacks[0], centerX, panelY + 190, 15, RetroStyle.DARK);
-            drawCentered(g, playerOneAttacks[1], centerX, panelY + 214, 15, RetroStyle.DARK);
-            drawCentered(g, playerTwoAttacks[0], centerX, panelY + 246, 15, RetroStyle.DARK);
-            drawCentered(g, playerTwoAttacks[1], centerX, panelY + 270, 15, RetroStyle.DARK);
+            drawCentered(g, playerOneAttacks[0], centerX, panelY + 232, 15, RetroStyle.DARK);
+            drawCentered(g, playerOneAttacks[1], centerX, panelY + 254, 15, RetroStyle.DARK);
+            drawCentered(g, playerTwoAttacks[0], centerX, panelY + 282, 15, RetroStyle.DARK);
+            drawCentered(g, playerTwoAttacks[1], centerX, panelY + 304, 15, RetroStyle.DARK);
 
             drawCentered(g, "ESC O ENTER PARA VOLVER", centerX,
                     panelY + 348, 16, RetroStyle.DARK);

@@ -7,7 +7,7 @@ import java.util.Objects;
 /** Mutable state for one participant in a free fight. */
 public class Fighter {
 
-    private static final int MAX_HEALTH = 100;
+    private static final int MAX_HEALTH = 200;
     private static final double MAX_EVOLUTION_ENERGY = 100.0;
     private static final double EVOLUTION_ANIMATION_DURATION = 1.0;
 
@@ -31,6 +31,13 @@ public class Fighter {
     private double defenseReductionSeconds;
     private boolean evolved;
     private double evolutionAnimationSeconds;
+    private boolean returningToBase;
+    private int ultimateStunCount;
+    private boolean blocking;
+    private double normalHitStunSeconds;
+    private double blockStunSeconds;
+    private double comboStunResetSeconds;
+    private int comboStunHitCount;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
@@ -99,6 +106,7 @@ public class Fighter {
     public boolean isEvolutionReady() { return evolutionEnergy >= MAX_EVOLUTION_ENERGY; }
     public boolean isEvolved() { return evolved; }
     public boolean isEvolutionAnimating() { return evolutionAnimationSeconds > 0; }
+    public boolean isReturningToBase() { return returningToBase; }
     public double getEvolutionAnimationProgress() {
         return 1.0 - evolutionAnimationSeconds / EVOLUTION_ANIMATION_DURATION;
     }
@@ -109,6 +117,9 @@ public class Fighter {
     }
     public boolean isOnGround() { return onGround; }
     public boolean isDefeated() { return defeated; }
+    public boolean isUltimateStunned() { return ultimateStunCount > 0; }
+    public boolean isBlocking() { return blocking; }
+    public boolean isHitStunned() { return normalHitStunSeconds > 0 || blockStunSeconds > 0; }
     public boolean isAsleep() { return sleepSeconds > 0; }
     public boolean hasAttackBoost() { return attackBoostSeconds > 0; }
     public boolean hasAttackReduction() { return attackReductionSeconds > 0; }
@@ -128,11 +139,17 @@ public class Fighter {
         attackReductionSeconds = Math.max(0, attackReductionSeconds - deltaSeconds);
         defenseReductionSeconds = Math.max(0, defenseReductionSeconds - deltaSeconds);
         evolutionAnimationSeconds = Math.max(0, evolutionAnimationSeconds - deltaSeconds);
+        if (evolutionAnimationSeconds == 0) returningToBase = false;
+        normalHitStunSeconds = Math.max(0, normalHitStunSeconds - deltaSeconds);
+        blockStunSeconds = Math.max(0, blockStunSeconds - deltaSeconds);
+        comboStunResetSeconds = Math.max(0, comboStunResetSeconds - deltaSeconds);
+        if (comboStunResetSeconds == 0) comboStunHitCount = 0;
     }
 
     boolean canEvolve() {
         return !evolved && evolutionProfile != null && isEvolutionReady()
-                && !defeated && !isAsleep();
+                && !defeated && !isAsleep() && !blocking && !isHitStunned()
+                && !isUltimateStunned();
     }
 
     boolean evolve() {
@@ -140,7 +157,59 @@ public class Fighter {
         evolved = true;
         evolutionEnergy = 0;
         evolutionAnimationSeconds = EVOLUTION_ANIMATION_DURATION;
+        returningToBase = false;
         return true;
+    }
+
+    boolean consumeUltimateEnergy() {
+        if (!isUltimateReady() || defeated || isAsleep() || isUltimateStunned()) return false;
+        evolutionEnergy = 0;
+        return true;
+    }
+
+    void refundInterruptedUltimate() {
+        if (evolved && !defeated) evolutionEnergy = 50;
+    }
+
+    void returnToBaseAfterUltimate() {
+        if (!evolved || evolutionProfile == null) return;
+        evolved = false;
+        evolutionEnergy = 0;
+        evolutionAnimationSeconds = EVOLUTION_ANIMATION_DURATION;
+        returningToBase = true;
+    }
+
+    void addUltimateStun() {
+        if (!defeated) ultimateStunCount++;
+    }
+
+    void removeUltimateStun() {
+        ultimateStunCount = Math.max(0, ultimateStunCount - 1);
+    }
+
+    void setBlocking(boolean requested) {
+        blocking = requested && onGround && !defeated && !isAsleep()
+                && !isHitStunned() && !isUltimateStunned();
+    }
+
+    int recordNormalComboHit(double resetAfterSeconds) {
+        comboStunHitCount = comboStunResetSeconds > 0 ? comboStunHitCount + 1 : 1;
+        comboStunResetSeconds = resetAfterSeconds;
+        return comboStunHitCount;
+    }
+
+    void applyNormalHitStun(double seconds) {
+        if (!defeated && !isUltimateStunned()) {
+            normalHitStunSeconds = Math.max(0, seconds);
+            blocking = false;
+        }
+    }
+
+    void applyBlockStun(double seconds) {
+        if (!defeated) {
+            blockStunSeconds = Math.max(blockStunSeconds, seconds);
+            blocking = false;
+        }
     }
 
     boolean applySleep(double durationSeconds) {
@@ -173,6 +242,13 @@ public class Fighter {
         attackReductionSeconds = 0;
         defenseReductionSeconds = 0;
         evolutionAnimationSeconds = 0;
+        returningToBase = false;
+        ultimateStunCount = 0;
+        blocking = false;
+        normalHitStunSeconds = 0;
+        blockStunSeconds = 0;
+        comboStunResetSeconds = 0;
+        comboStunHitCount = 0;
     }
 
     void moveHorizontally(double direction, double distance) {

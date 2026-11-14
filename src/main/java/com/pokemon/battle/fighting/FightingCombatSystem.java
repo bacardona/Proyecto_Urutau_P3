@@ -3,8 +3,10 @@ package com.pokemon.battle.fighting;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /** Runs free-fight attacks, temporary status effects, and projectile collisions. */
 public class FightingCombatSystem {
@@ -22,6 +24,12 @@ public class FightingCombatSystem {
     private static final double FLY_RETREAT_SPEED = 125;
     private static final double TAIL_LUNGE_SECONDS = 0.16;
     private static final double EEVEE_QUICK_ATTACK_MAX_DISTANCE = 120;
+    private static final double INPUT_BUFFER_SECONDS = 0.18;
+    private static final double BLOCK_STUN_SECONDS = 0.35;
+    private static final double COMBO_STUN_RESET_SECONDS = 0.90;
+    private static final double COMBO_CANCEL_WINDOW_SECONDS = 0.18;
+    private static final double HIT_RECOVERY_MULTIPLIER = 0.65;
+    private static final double[] COMBO_HIT_STUN_SECONDS = {0.20, 0.15, 0.10};
 
     private static final AttackDefinition QUICK_ATTACK = new AttackDefinition(
             "QUICK_ATTACK", 22, AttackDefinition.Kind.DASH, 11,
@@ -75,6 +83,8 @@ public class FightingCombatSystem {
         private double activeElapsed;
         private boolean hasHit;
         private boolean activeEffectStarted;
+        private boolean hitConfirmed;
+        private double cancelWindowRemaining;
         private double flyTargetY;
         private double flyLandingX;
         private double flyDirection;
@@ -84,6 +94,14 @@ public class FightingCombatSystem {
         private double flyRetreatRemaining;
         private double dashDirection;
         private double dashDistanceTravelled;
+    }
+
+    public record ComboInfo(int hits, double remainingSeconds) { }
+
+    private static final class ComboState {
+        private int hits;
+        private double remainingSeconds;
+        private Fighter target;
     }
 
     public static final class ImpactEffect {
@@ -105,6 +123,11 @@ public class FightingCombatSystem {
     }
 
     private final AttackState[] states = {new AttackState(), new AttackState()};
+    private final int[] bufferedAttack = {-1, -1};
+    private final double[] bufferedAttackRemaining = new double[2];
+    private final List<Map<String, Double>> moveCooldowns = List.of(new HashMap<>(), new HashMap<>());
+    private final ComboState[] combos = {new ComboState(), new ComboState()};
+    private final UltimateController ultimateController = new UltimateController();
     private final List<FightingProjectile> projectiles = new ArrayList<>();
     private final List<FightingProjectile> projectileView = Collections.unmodifiableList(projectiles);
     private final List<ImpactEffect> impactEffects = new ArrayList<>();
@@ -120,12 +143,52 @@ public class FightingCombatSystem {
     public void clearPlayerState(int playerIndex) {
         if (playerIndex < 0 || playerIndex >= states.length) return;
         resetAttackState(states[playerIndex]);
+        for (int i = 0; i < 2; i++) {
+            bufferedAttack[i] = -1;
+            bufferedAttackRemaining[i] = 0;
+            combos[i].hits = 0;
+            combos[i].remainingSeconds = 0;
+            combos[i].target = null;
+        }
+        moveCooldowns.get(playerIndex).clear();
         AttackState other = states[1 - playerIndex];
         if (other.definition != null && other.definition.kind() == AttackDefinition.Kind.GRUNT) {
             resetAttackState(other);
         }
         projectiles.clear();
         impactEffects.clear();
+        ultimateController.clearPlayerState(playerIndex);
+    }
+
+    public void clearAllState() {
+        resetAttackState(states[0]);
+        resetAttackState(states[1]);
+        projectiles.clear();
+        impactEffects.clear();
+        ultimateController.clearAll();
+        for (int i = 0; i < 2; i++) {
+            bufferedAttack[i] = -1;
+            bufferedAttackRemaining[i] = 0;
+            moveCooldowns.get(i).clear();
+            combos[i].hits = 0;
+            combos[i].remainingSeconds = 0;
+            combos[i].target = null;
+        }
+    }
+
+    public void clearPendingInputs() {
+        for (int i = 0; i < 2; i++) {
+            bufferedAttack[i] = -1;
+            bufferedAttackRemaining[i] = 0;
+        }
+    }
+
+    public void beginUltimateRequests(List<Fighter> fighters,
+                                     boolean playerOneRequested, boolean playerTwoRequested) {
+        boolean p1Ready = states[0].phase == Phase.READY && !isPlayerInputLocked(0, fighters);
+        boolean p2Ready = states[1].phase == Phase.READY && !isPlayerInputLocked(1, fighters);
+        ultimateController.begin(0, fighters, playerOneRequested, p1Ready);
+        ultimateController.begin(1, fighters, playerTwoRequested, p2Ready);
     }
 
     public void update(List<Fighter> fighters, int arenaWidth,
@@ -149,21 +212,84 @@ public class FightingCombatSystem {
                 playerOneAttackThree, playerOneAttackFour);
         int playerTwoRequest = requestedAttackIndex(playerTwoAttackOne, playerTwoAttackTwo,
                 playerTwoAttackThree, playerTwoAttackFour);
-        startRequestedAttack(states[0], attackFor(fighters.get(0).getBasePokemonId(), playerOneRequest),
-                fighters.get(0), fighters.get(1));
-        startRequestedAttack(states[1], attackFor(fighters.get(1).getBasePokemonId(), playerTwoRequest),
-                fighters.get(1), fighters.get(0));
+        update(fighters, arenaWidth, platforms, playerOneRequest, playerTwoRequest, deltaSeconds);
+    }
+
+    public void update(List<Fighter> fighters, int arenaWidth, List<Platform> platforms,
+                       int playerOneRequest, int playerTwoRequest, double deltaSeconds) {
+        updateCooldownsAndCombos(deltaSeconds);
+        captureInput(0, playerOneRequest, fighters, deltaSeconds);
+        captureInput(1, playerTwoRequest, fighters, deltaSeconds);
 
         for (int i = 0; i < states.length; i++) {
             Fighter attacker = fighters.get(i);
-            if (attacker.isDefeated() || attacker.isAsleep() || controlledByOtherGrowl(i)) {
+            if (attacker.isDefeated() || attacker.isAsleep() || attacker.isBlocking()
+                    || attacker.isHitStunned() || controlledByOtherGrowl(i)
+                    || ultimateController.isPlayerInputLocked(i, fighters)) {
                 resetAttackState(states[i]);
                 continue;
             }
+            tryStartBufferedAttack(i, fighters, arenaWidth);
             updateAttackState(i, fighters, arenaWidth, deltaSeconds);
         }
         updateProjectiles(fighters, arenaWidth, platforms, deltaSeconds);
+        ultimateController.update(fighters, arenaWidth, 720, deltaSeconds);
         updateImpactEffects(deltaSeconds);
+    }
+
+    private void updateCooldownsAndCombos(double dt) {
+        for (Map<String, Double> cooldowns : moveCooldowns) {
+            cooldowns.replaceAll((move, seconds) -> Math.max(0, seconds - dt));
+        }
+        for (ComboState combo : combos) {
+            combo.remainingSeconds = Math.max(0, combo.remainingSeconds - dt);
+            if (combo.remainingSeconds == 0) { combo.hits = 0; combo.target = null; }
+        }
+    }
+
+    private void captureInput(int player, int request, List<Fighter> fighters, double dt) {
+        Fighter fighter = fighters.get(player);
+        if (fighter.isDefeated() || fighter.isAsleep() || fighter.isBlocking()
+                || fighter.isHitStunned() || ultimateController.isPlayerInputLocked(player, fighters)
+                || controlledByOtherGrowl(player)) {
+            bufferedAttack[player] = -1;
+            bufferedAttackRemaining[player] = 0;
+            return;
+        }
+        if (request >= 0 && request < 4
+                && attackFor(fighter.getBasePokemonId(), request) != null) {
+            bufferedAttack[player] = request;
+            bufferedAttackRemaining[player] = INPUT_BUFFER_SECONDS;
+        } else if (bufferedAttack[player] >= 0) {
+            bufferedAttackRemaining[player] -= dt;
+            if (bufferedAttackRemaining[player] <= 0) {
+                bufferedAttack[player] = -1;
+                bufferedAttackRemaining[player] = 0;
+            }
+        }
+    }
+
+    private void tryStartBufferedAttack(int player, List<Fighter> fighters, int arenaWidth) {
+        int slot = bufferedAttack[player];
+        if (slot < 0) return;
+        Fighter attacker = fighters.get(player);
+        AttackState state = states[player];
+        AttackDefinition requested = attackFor(attacker.getBasePokemonId(), slot);
+        if (requested == null) { bufferedAttack[player] = -1; return; }
+        double cooldown = moveCooldowns.get(player).getOrDefault(requested.moveId(), 0.0);
+        boolean ready = state.phase == Phase.READY;
+        boolean cancel = state.definition != null && state.hitConfirmed
+                && state.cancelWindowRemaining > 0 && state.definition != requested
+                && (state.phase == Phase.ACTIVE || state.phase == Phase.RECOVERY);
+        if (cooldown > 0 || (!ready && !cancel)) return;
+        if (cancel) resetAttackState(state);
+        if (startRequestedAttack(state, requested, attacker, fighters.get(1 - player))) {
+            double actionDuration = requested.startupSeconds() + requested.activeSeconds()
+                    + requested.recoverySeconds();
+            moveCooldowns.get(player).put(requested.moveId(), actionDuration);
+            bufferedAttack[player] = -1;
+            bufferedAttackRemaining[player] = 0;
+        }
     }
 
     private int requestedAttackIndex(boolean attackOne, boolean attackTwo,
@@ -218,20 +344,24 @@ public class FightingCombatSystem {
                 || "SQUIRTLE".equals(pokemonId) || "EEVEE".equals(pokemonId);
     }
 
-    private void startRequestedAttack(AttackState state, AttackDefinition requested,
+    private boolean startRequestedAttack(AttackState state, AttackDefinition requested,
                                       Fighter attacker, Fighter target) {
         if (requested == null || state.phase != Phase.READY
-                || attacker.isDefeated() || attacker.isAsleep()) return;
+                || attacker.isDefeated() || attacker.isAsleep() || attacker.isBlocking()
+                || attacker.isHitStunned() || ultimateController.isFighterInputLocked(attacker)) return false;
         if (requested.kind() == AttackDefinition.Kind.FLY
-                && !prepareFlight(state, requested, attacker, target)) return;
+                && !prepareFlight(state, requested, attacker, target)) return false;
         state.definition = requested;
         state.phase = Phase.STARTUP;
         state.remaining = requested.startupSeconds();
         state.activeElapsed = 0;
         state.hasHit = false;
         state.activeEffectStarted = false;
+        state.hitConfirmed = false;
+        state.cancelWindowRemaining = 0;
         state.dashDirection = attacker.isFacingLeft() ? -1 : 1;
         state.dashDistanceTravelled = 0;
+        return true;
     }
 
     private boolean prepareFlight(AttackState state, AttackDefinition definition,
@@ -258,6 +388,7 @@ public class FightingCombatSystem {
                                    int arenaWidth, double deltaSeconds) {
         AttackState state = states[attackerIndex];
         if (state.phase == Phase.READY) return;
+        state.cancelWindowRemaining = Math.max(0, state.cancelWindowRemaining - deltaSeconds);
         state.remaining -= deltaSeconds;
 
         if (state.phase == Phase.STARTUP && state.remaining <= 0) {
@@ -306,7 +437,7 @@ public class FightingCombatSystem {
                         || state.definition.kind() == AttackDefinition.Kind.HITBOX
                         || state.definition.kind() == AttackDefinition.Kind.DASH) {
                     if (attackHitbox(attacker, state.definition).intersects(target)) {
-                        applyHit(attacker, target, state.definition);
+                        resolveContact(attackerIndex, attacker, target, state.definition, arenaWidth);
                         state.hasHit = true;
                     }
                 }
@@ -314,7 +445,8 @@ public class FightingCombatSystem {
 
             if (state.remaining <= 0) {
                 state.phase = Phase.RECOVERY;
-                state.remaining += state.definition.recoverySeconds();
+                state.remaining += state.definition.recoverySeconds()
+                        * (state.hitConfirmed ? HIT_RECOVERY_MULTIPLIER : 1.0);
             }
         } else if (state.phase == Phase.RECOVERY) {
             updateRecovery(state, fighters.get(attackerIndex), deltaSeconds);
@@ -356,7 +488,8 @@ public class FightingCombatSystem {
     public boolean isPlayerInputLocked(int playerIndex, List<Fighter> fighters) {
         if (playerIndex < 0 || playerIndex >= states.length) return false;
         Fighter fighter = fighters.get(playerIndex);
-        if (fighter.isAsleep()) return true;
+        if (ultimateController.isPlayerInputLocked(playerIndex, fighters)
+                || fighter.isAsleep() || fighter.isBlocking() || fighter.isHitStunned()) return true;
         for (AttackState state : states) {
             if (state.definition != null && state.definition.kind() == AttackDefinition.Kind.GRUNT
                     && (state.phase == Phase.STARTUP || state.phase == Phase.ACTIVE)) return true;
@@ -370,6 +503,23 @@ public class FightingCombatSystem {
         return false;
     }
 
+    public boolean canBlock(int playerIndex, List<Fighter> fighters) {
+        if (playerIndex < 0 || playerIndex >= fighters.size()) return false;
+        Fighter fighter = fighters.get(playerIndex);
+        AttackState own = states[playerIndex];
+        return fighter.isOnGround() && !fighter.isDefeated() && !fighter.isAsleep()
+                && !fighter.isHitStunned() && !fighter.isUltimateStunned()
+                && own.phase == Phase.READY
+                && !ultimateController.isPlayerInputLocked(playerIndex, fighters)
+                && !controlledByOtherGrowl(playerIndex);
+    }
+
+    public ComboInfo getComboInfo(int playerIndex) {
+        if (playerIndex < 0 || playerIndex >= combos.length) return new ComboInfo(0, 0);
+        ComboState combo = combos[playerIndex];
+        return new ComboInfo(combo.hits, combo.remainingSeconds);
+    }
+
     /** Evolution is only allowed after all of that fighter's actions have resolved. */
     public boolean canEvolve(int playerIndex, List<Fighter> fighters) {
         if (playerIndex < 0 || playerIndex >= states.length || fighters.size() < 2) return false;
@@ -378,6 +528,18 @@ public class FightingCombatSystem {
                 && !controlledByOtherGrowl(playerIndex)
                 && !isPlayerInputLocked(playerIndex, fighters)
                 && !fighter.isDefeated() && !fighter.isAsleep();
+    }
+
+    public List<UltimateController.Visual> getUltimateVisuals() {
+        return ultimateController.getVisuals();
+    }
+
+    public String getUltimatePhaseName(int playerIndex) {
+        return ultimateController.getPhaseName(playerIndex);
+    }
+
+    public int getUltimatePulsesApplied(int playerIndex) {
+        return ultimateController.getPulsesApplied(playerIndex);
     }
 
     /** Horizontal displacement imposed by a locked Fly arc or its landing recoil. */
@@ -457,16 +619,68 @@ public class FightingCombatSystem {
         if ("TAIL_WHIP".equals(moveId)) target.applyDefenseReduction(DEFENSE_REDUCTION_DURATION);
     }
 
-    private void applyHit(Fighter attacker, Fighter target, AttackDefinition definition) {
+    private void applyHit(int attackerIndex, Fighter attacker, Fighter target,
+                          AttackDefinition definition) {
         if (attacker.isDefeated() || target.isDefeated()) return;
         int damage = Math.max(1, (int) Math.round(definition.damage()
                 * attacker.getOutgoingDamageMultiplier()
                 * target.getIncomingDamageMultiplier()));
         target.receiveDamage(damage);
+        ultimateController.onDamagingHit(target);
         attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+        int hitCount = target.recordNormalComboHit(COMBO_STUN_RESET_SECONDS);
+        if (hitCount <= COMBO_HIT_STUN_SECONDS.length) {
+            target.applyNormalHitStun(COMBO_HIT_STUN_SECONDS[hitCount - 1]);
+        }
+        AttackState state = states[attackerIndex];
+        if (state.definition == definition && state.phase != Phase.READY) {
+            state.hitConfirmed = true;
+            state.cancelWindowRemaining = COMBO_CANCEL_WINDOW_SECONDS;
+        }
+        registerCombo(attackerIndex, target);
         if ("TAIL_WHIP".equals(definition.moveId())) {
             target.applyDefenseReduction(DEFENSE_REDUCTION_DURATION);
         }
+    }
+
+    private void resolveContact(int attackerIndex, Fighter attacker, Fighter target,
+                                AttackDefinition definition, int arenaWidth) {
+        if (definition.kind() != AttackDefinition.Kind.HITBOX
+                && definition.kind() != AttackDefinition.Kind.DASH
+                && definition.kind() != AttackDefinition.Kind.LUNGE
+                && definition.kind() != AttackDefinition.Kind.FLY) {
+            applyHit(attackerIndex, attacker, target, definition);
+            return;
+        }
+        if (target.isBlocking() && isAttackerInFront(target, attacker)) {
+            AttackState state = states[attackerIndex];
+            state.hasHit = true;
+            state.phase = Phase.RECOVERY;
+            state.remaining = definition.recoverySeconds();
+            double direction = target.getX() >= attacker.getX() ? -1 : 1;
+            double safeGap = PhysicsSystem.halfWidthFor(attacker)
+                    + PhysicsSystem.halfWidthFor(target) + 1;
+            double x = target.getX() + direction * safeGap;
+            double half = PhysicsSystem.halfWidthFor(attacker);
+            attacker.setX(Math.max(half, Math.min(arenaWidth - half, x)));
+            attacker.applyBlockStun(BLOCK_STUN_SECONDS);
+            state.phase = Phase.RECOVERY;
+            state.remaining = Math.max(state.remaining, definition.recoverySeconds());
+            return;
+        }
+        applyHit(attackerIndex, attacker, target, definition);
+    }
+
+    private boolean isAttackerInFront(Fighter defender, Fighter attacker) {
+        return defender.isFacingLeft() ? attacker.getX() < defender.getX()
+                : attacker.getX() > defender.getX();
+    }
+
+    private void registerCombo(int owner, Fighter target) {
+        ComboState combo = combos[owner];
+        combo.hits = combo.target == target && combo.remainingSeconds > 0 ? combo.hits + 1 : 1;
+        combo.target = target;
+        combo.remainingSeconds = COMBO_STUN_RESET_SECONDS;
     }
 
     private void updateProjectiles(List<Fighter> fighters, int arenaWidth,
@@ -491,7 +705,10 @@ public class FightingCombatSystem {
                                 * attacker.getOutgoingDamageMultiplier()
                                 * target.getIncomingDamageMultiplier()));
                         target.receiveDamage(damage);
+                        ultimateController.onDamagingHit(target);
                         attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+                        registerDamagingProjectileHit(projectile.getOwnerIndex(), target,
+                                projectile.getMoveId());
                     }
                     if (!wasAsleep && !target.isDefeated()) target.applySleep(SLEEP_DURATION);
                     impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
@@ -500,12 +717,29 @@ public class FightingCombatSystem {
                             * attacker.getOutgoingDamageMultiplier()
                             * target.getIncomingDamageMultiplier()));
                     target.receiveDamage(damage);
+                    ultimateController.onDamagingHit(target);
                     attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+                    registerDamagingProjectileHit(projectile.getOwnerIndex(), target,
+                            projectile.getMoveId());
                 }
                 iterator.remove();
             } else if (projectile.isExpired(arenaWidth)) {
                 iterator.remove();
             }
+        }
+    }
+
+    private void registerDamagingProjectileHit(int ownerIndex, Fighter target, String moveId) {
+        if (target.isDefeated()) return;
+        int hitCount = target.recordNormalComboHit(COMBO_STUN_RESET_SECONDS);
+        if (hitCount <= COMBO_HIT_STUN_SECONDS.length) {
+            target.applyNormalHitStun(COMBO_HIT_STUN_SECONDS[hitCount - 1]);
+        }
+        registerCombo(ownerIndex, target);
+        AttackState ownerState = states[ownerIndex];
+        if (ownerState.definition != null && ownerState.definition.moveId().equals(moveId)) {
+            ownerState.hitConfirmed = true;
+            ownerState.cancelWindowRemaining = COMBO_CANCEL_WINDOW_SECONDS;
         }
     }
 
@@ -532,6 +766,8 @@ public class FightingCombatSystem {
         state.activeElapsed = 0;
         state.hasHit = false;
         state.activeEffectStarted = false;
+        state.hitConfirmed = false;
+        state.cancelWindowRemaining = 0;
         state.flyTargetY = 0;
         state.flyLandingX = 0;
         state.flyDirection = 0;

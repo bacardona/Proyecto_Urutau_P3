@@ -81,7 +81,10 @@ public class FightingGameSession {
     }
 
     public void pause() {
-        if (state == State.RUNNING) state = State.PAUSED;
+        if (state == State.RUNNING) {
+            state = State.PAUSED;
+            combatSystem.clearPendingInputs();
+        }
     }
 
     public void resume() {
@@ -94,17 +97,21 @@ public class FightingGameSession {
         Fighter playerTwo = fighters.get(1);
         playerOne.updateStatusEffects(deltaSeconds);
         playerTwo.updateStatusEffects(deltaSeconds);
+        playerOne.setBlocking(input.isPlayerOneBlockingRequested()
+                && combatSystem.canBlock(0, fighters));
+        playerTwo.setBlocking(input.isPlayerTwoBlockingRequested()
+                && combatSystem.canBlock(1, fighters));
         boolean playerOneJump = input.consumePlayerOneJump();
         boolean playerTwoJump = input.consumePlayerTwoJump();
         boolean playerOneEvolution = input.consumePlayerOneEvolution();
         boolean playerTwoEvolution = input.consumePlayerTwoEvolution();
+        boolean playerOneUltimate = input.consumePlayerOneUltimate();
+        boolean playerTwoUltimate = input.consumePlayerTwoUltimate();
+        combatSystem.beginUltimateRequests(fighters, playerOneUltimate, playerTwoUltimate);
         updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump, deltaSeconds);
         updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump, deltaSeconds);
         combatSystem.update(fighters, width, platforms,
-                input.consumePlayerOneAttackOne(), input.consumePlayerOneAttackTwo(),
-                input.consumePlayerOneAttackThree(), input.consumePlayerOneAttackFour(),
-                input.consumePlayerTwoAttackOne(), input.consumePlayerTwoAttackTwo(),
-                input.consumePlayerTwoAttackThree(), input.consumePlayerTwoAttackFour(),
+                input.consumePlayerOneAttackRequest(), input.consumePlayerTwoAttackRequest(),
                 deltaSeconds);
         replaceDefeatedFighters();
         if (playerOneEvolution) tryEvolveActiveFighter(0);
@@ -125,6 +132,14 @@ public class FightingGameSession {
         active.markDefeated();
         replaceDefeatedFighters();
         checkForWinner();
+        return true;
+    }
+
+    public boolean debugFillActiveEnergy(int playerIndex) {
+        if (state != State.RUNNING || (playerIndex != 0 && playerIndex != 1)) return false;
+        Fighter active = fighters.get(playerIndex);
+        if (active.isDefeated()) return false;
+        active.addEvolutionEnergy(100);
         return true;
     }
 
@@ -175,6 +190,7 @@ public class FightingGameSession {
         else if (playerTwoDefeated) outcome = Outcome.PLAYER_ONE_WINS;
         else outcome = Outcome.PLAYER_TWO_WINS;
         state = State.FINISHED;
+        combatSystem.clearAllState();
     }
 
     private void updateFighter(Fighter fighter, int playerIndex, double direction,
@@ -184,9 +200,10 @@ public class FightingGameSession {
         double forcedDelta = combatSystem.getForcedHorizontalDelta(
                 fighter, fighters, deltaSeconds, width);
         boolean inputLocked = combatSystem.isPlayerInputLocked(playerIndex, fighters);
-        if (forcedDelta != 0) {
+        if (!fighter.isUltimateStunned() && !fighter.isHitStunned()
+                && !fighter.isBlocking() && forcedDelta != 0) {
             fighter.setX(fighter.getX() + forcedDelta);
-        } else if (!inputLocked) {
+        } else if (!inputLocked && !fighter.isUltimateStunned()) {
             fighter.moveHorizontally(direction,
                     PLAYER_SPEED * fighter.getMovementSpeedMultiplier() * deltaSeconds);
         }
