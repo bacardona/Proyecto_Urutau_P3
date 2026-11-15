@@ -136,6 +136,7 @@ public class FightingGamePanel extends JPanel {
                     animationTimer.stop();
                     simulationTimer.stop();
                     input.clear();
+                    FightingSound.get().stopMusic();
                 }
 
                 repaint();
@@ -622,6 +623,7 @@ public class FightingGamePanel extends JPanel {
             if (session.getState() == FightingGameSession.State.PAUSED) {
                 drawPause(menuGraphics);
             } else {
+                renderer.drawWinnerBackdrop(menuGraphics, session);
                 renderer.drawResults(menuGraphics, session, selectedResultOption);
             }
 

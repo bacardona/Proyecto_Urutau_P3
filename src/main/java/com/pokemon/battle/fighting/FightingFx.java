@@ -113,6 +113,8 @@ public final class FightingFx {
     private final List<Decal> decals = new ArrayList<>();
     // Efectos dibujados a mano (Pixel FX Pack, CC0)
     private final PixelFxSheets sheets = new PixelFxSheets();
+    // Intro VS, cuenta 3-2-1, cinematica de la ulti, K.O. en camara lenta y ganador
+    private final FightingDirector director = new FightingDirector();
     private double groundY = 677;
     // Zoom de camara en los golpes fuertes
     private double zoom;
@@ -141,6 +143,7 @@ public final class FightingFx {
 
     /** Forget everything (new match or rematch). */
     public void clear() {
+        director.reset();
         sheets.clear();
         particles.clear();
         bolts.clear();
@@ -170,14 +173,26 @@ public final class FightingFx {
      */
     public void step(FightingGameSession session, FightingInput input, double dt) {
         time += dt;
+        director.tick(dt);
         tick(dt);
+        if (director.freezesSimulation()) {
+            // Durante la intro y la cinematica de la ulti los pokemon esperan
+            director.discardTransientInputs(input);
+            return;
+        }
         if (hitStop > 0) {
             hitStop -= dt;
             return;
         }
-        session.update(input, dt);
-        simTime += dt;
-        react(session, dt);
+        double sdt = dt * director.timeScale();
+        session.update(input, sdt);
+        simTime += sdt;
+        react(session, sdt);
+        if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished();
+    }
+
+    FightingDirector director() {
+        return director;
     }
 
     private void tick(double dt) {
@@ -285,7 +300,12 @@ public final class FightingFx {
         }
         for (Fighter f : all) {
             boolean wasDefeated = lastDefeated.getOrDefault(f, false);
-            if (f.isDefeated() && !wasDefeated) knockOut(f);
+            if (f.isDefeated() && !wasDefeated) {
+                knockOut(f);
+                FightingTeam team = session.getPlayerOneTeam().getMembers().contains(f)
+                        ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
+                director.startKnockOut(!team.hasAvailableFighter());
+            }
             lastDefeated.put(f, f.isDefeated());
         }
         for (Fighter f : active) {
@@ -909,8 +929,10 @@ public final class FightingFx {
 
     private void ultimates(FightingGameSession session, double dt) {
         UltimateController.Phase[] now = new UltimateController.Phase[2];
+        UltimateController.Visual[] byOwner = new UltimateController.Visual[2];
         for (UltimateController.Visual v : session.getCombatSystem().getUltimateVisuals()) {
             now[v.ownerIndex()] = v.phase();
+            byOwner[v.ownerIndex()] = v;
             Fighter owner = v.owner();
             Color primary = v.definition().primaryColor();
             double cx = owner.getX();
@@ -931,6 +953,8 @@ public final class FightingFx {
             if (now[i] != lastUltimatePhase[i]) {
                 if (now[i] == UltimateController.Phase.CHARGING) {
                     sound.play(FightingSound.Sfx.ULTI_CHARGE);
+                    // Franja con el pokemon y el nombre del ataque antes de soltarlo
+                    director.startCutIn(i, byOwner[i].owner(), byOwner[i].definition());
                 } else if (now[i] == UltimateController.Phase.RELEASING) {
                     sound.play(FightingSound.Sfx.ULTI_RELEASE);
                     shake(12, 0.5);

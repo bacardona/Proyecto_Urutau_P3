@@ -299,6 +299,7 @@ public final class FreeFightGameplayCheck {
         System.out.println("OK normal MainGUI startup, real FightingGamePanel, live timers, key bindings, guard, hit, pause/resume, jump-over and replacement");
     }
     public static void main(String[] args) throws Exception {
+        System.setProperty("pokemon.fighting.skipIntro", "true");
         try {
             if(args.length>0 && args[0].equals("--window"))windowCheck();
             else {collisions();jumpEvolutionAndAttacks();shieldsAndTackle();}

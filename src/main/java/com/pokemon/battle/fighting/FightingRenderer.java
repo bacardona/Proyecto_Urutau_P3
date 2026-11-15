@@ -66,6 +66,12 @@ public class FightingRenderer {
         double hudDt = Math.max(0, Math.min(0.1, now - lastHudTime));
         lastHudTime = now;
         hud.draw(g, session, frameIndex, repaint, hudDt);
+        fx.director().draw(g, session);
+    }
+
+    /** Rays and the winning Pokemon behind the results menu. */
+    public void drawWinnerBackdrop(Graphics2D g, FightingGameSession session) {
+        fx.director().drawWinner(g, session);
     }
 
     private void drawScene(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
