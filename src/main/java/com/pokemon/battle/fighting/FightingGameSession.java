@@ -43,13 +43,8 @@ public class FightingGameSession {
         this.width = 1280;
         this.height = 720;
         this.groundY = 677;
+        // Solo el piso: sin plataformas flotantes, pelea cara a cara
         this.platforms = List.of(
-                new Platform(100, 570, 180, 24),
-                new Platform(320, 475, 160, 24),
-                new Platform(510, 375, 155, 24),
-                new Platform(700, 425, 145, 24),
-                new Platform(870, 475, 160, 24),
-                new Platform(1060, 570, 170, 24),
                 new Platform(0, groundY, width, 24)
         );
         List<Pokemon> firstTeam = usePrototypeTeams ? List.of() : teamOne;

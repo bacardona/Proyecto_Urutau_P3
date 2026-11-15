@@ -26,9 +26,12 @@ public class FightingRenderer {
     private final FightingFx fx = new FightingFx();
     // Silueta blanca de cada cuadro, para el destello al recibir un golpe
     private final java.util.Map<BufferedImage, BufferedImage> whiteFrames = new java.util.WeakHashMap<>();
+    private final FightingHud hud;
+    private double lastHudTime;
 
     public FightingRenderer(SpriteLoader spriteLoader) {
         this.spriteLoader = spriteLoader;
+        this.hud = new FightingHud(spriteLoader);
     }
 
     public FightingFx fx() {
@@ -38,6 +41,7 @@ public class FightingRenderer {
     /** Forget effects of the previous match. */
     public void reset() {
         fx.clear();
+        hud.clear();
     }
 
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
@@ -53,13 +57,17 @@ public class FightingRenderer {
         drawScene(scene, session, frameIndex, repaint);
         scene.dispose();
         fx.drawScreenFlash(g, session.getWidth(), session.getHeight());
-        drawBars(g, session);
-        drawTeamIndicators(g, session, true, frameIndex, repaint);
-        drawTeamIndicators(g, session, false, frameIndex, repaint);
+        // Barra nueva: retrato, vida en bloques, evolucion y equipo (ver FightingHud)
+        double now = fx.time();
+        double hudDt = Math.max(0, Math.min(0.1, now - lastHudTime));
+        lastHudTime = now;
+        hud.draw(g, session, frameIndex, repaint, hudDt);
     }
 
     private void drawScene(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
-        stage.draw(g, session);
+        // Templo de la selva si esta la imagen; si no, el escenario de Angel
+        if (TempleStage.available()) TempleStage.drawBack(g, fx.time());
+        else stage.draw(g, session);
         fx.drawDecals(g);
         fx.drawBehind(g);
         drawAttackEffects(g, session);
@@ -72,6 +80,7 @@ public class FightingRenderer {
         drawPhysicalImpacts(g, session.getCombatSystem());
         drawUltimateEffects(g, session, frameIndex);
         fx.drawFront(g, session);
+        TempleStage.drawFront(g, fx.time());
         drawFighterStatusIndicators(g, session);
         fx.drawPopups(g);
         fx.drawOverlay(g, session.getWidth(), session.getHeight());
@@ -109,62 +118,6 @@ public class FightingRenderer {
 
         drawCentered(g, "FLECHAS + ENTER / CLIC", centerX,
                 panelY + panelHeight - 14, 17, RetroStyle.DARK);
-    }
-
-    private void drawBars(Graphics2D g, FightingGameSession session) {
-        g.setColor(new Color(20, 35, 60, 130));
-        g.fillRoundRect(24, 20, session.getWidth() - 48, 116, 18, 18);
-        int leftX = 42;
-        int barWidth = 360;
-        int rightX = session.getWidth() - 42 - barWidth;
-        g.setFont(RetroStyle.font(28));
-        g.setColor(Color.WHITE);
-        Fighter leftFighter = session.getFighters().get(0);
-        Fighter rightFighter = session.getFighters().get(1);
-        String leftName = leftFighter.getName().toUpperCase();
-        String rightName = rightFighter.getName().toUpperCase();
-        g.drawString(leftName, leftX, 51);
-        int nameWidth = g.getFontMetrics().stringWidth(rightName);
-        g.drawString(rightName, rightX + barWidth - nameWidth, 51);
-        drawBar(g, leftX, 60, barWidth, 22, new Color(0x56B75C),
-                leftFighter.getHealth() / (double) leftFighter.getMaxHealth());
-        drawBar(g, rightX, 60, barWidth, 22, new Color(0x56B75C),
-                rightFighter.getHealth() / (double) rightFighter.getMaxHealth());
-        g.setFont(RetroStyle.font(15));
-        g.setColor(Color.WHITE);
-        String leftEnergyLabel = energyLabel(leftFighter, "R");
-        String rightEnergyLabel = energyLabel(rightFighter, "P");
-        g.setColor(leftFighter.isEvolutionReady() ? new Color(0xFFD45A) : Color.WHITE);
-        g.drawString(leftEnergyLabel, leftX, 108);
-        g.setColor(rightFighter.isEvolutionReady() ? new Color(0xFFD45A) : Color.WHITE);
-        int rightLabelWidth = g.getFontMetrics().stringWidth(rightEnergyLabel);
-        g.drawString(rightEnergyLabel, rightX + barWidth - rightLabelWidth, 108);
-        drawBar(g, leftX, 113, barWidth, 12, new Color(0xFFD45A),
-                leftFighter.getEvolutionEnergy() / 100.0);
-        drawBar(g, rightX, 113, barWidth, 12, new Color(0xFFD45A),
-                rightFighter.getEvolutionEnergy() / 100.0);
-        drawCentered(g, "VS", session.getWidth() / 2, 83, 31, Color.WHITE);
-    }
-
-    private String energyLabel(Fighter fighter, String evolutionKey) {
-        if (fighter.isEvolved()) {
-            return fighter.isUltimateReady() ? "ULTI DISPONIBLE" : "ENERGIA ULTI";
-        }
-        return fighter.isEvolutionReady()
-                ? "EVOLUCION DISPONIBLE (" + evolutionKey + ")"
-                : "EVOLUCION (" + evolutionKey + ")";
-    }
-
-    private void drawBar(Graphics2D g, int x, int y, int width, int height, Color fill, double ratio) {
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRect(x, y, width, height);
-        g.setColor(new Color(0xB7B7B7));
-        g.fillRect(x + 3, y + 3, width - 6, height - 6);
-        if (ratio > 0) {
-            g.setColor(fill);
-            int fillWidth = (int) Math.round((width - 6) * Math.min(1, ratio));
-            g.fillRect(x + 3, y + 3, fillWidth, height - 6);
-        }
     }
 
     private void drawAttackEffects(Graphics2D g, FightingGameSession session) {
@@ -655,54 +608,6 @@ public class FightingRenderer {
             }
         }
         shield.dispose();
-    }
-
-    private void drawTeamIndicators(Graphics2D g, FightingGameSession session,
-                                    boolean playerOne, int frameIndex, Runnable repaint) {
-        FightingTeam team = playerOne ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
-        int slotWidth = 112;
-        int startX = playerOne ? 42 : session.getWidth() - 3 * slotWidth - 42;
-        int spriteTop = 145;
-        int spriteHeight = 50;
-        for (int i = 0; i < team.getMembers().size(); i++) {
-            Fighter fighter = team.getMembers().get(i);
-            int x = startX + i * slotWidth;
-            FightingSpriteProfile profile = FightingSpriteProfile.forFighter(fighter);
-            boolean drewPixelSprite = false;
-            if (profile != null) {
-                var animation = profile.sprites().get(fighter.isDefeated() ? profile.defeatAnimation : "Idle");
-                if (animation != null) {
-                    var frame = animation.frameAtTime(fighter.isDefeated()
-                            ? fighter.getDefeatedAnimationSeconds() : fighter.getMotionAnimationSeconds(),
-                            fighter.isFacingLeft(), !fighter.isDefeated());
-                    drawTeamPixelFrame(g, frame, x, slotWidth, spriteTop, spriteHeight, fighter.isDefeated());
-                    drewPixelSprite = true;
-                }
-            }
-            GifAnimation icon = drewPixelSprite ? null
-                    : spriteLoader.getOrLoad(fighter.getPokemonId(), false, repaint);
-            if (icon != null) {
-                BufferedImage image = icon.frame(frameIndex);
-                int h = spriteHeight;
-                int w = Math.min(68, Math.max(1, Math.round(h * image.getWidth() / (float) image.getHeight())));
-                int spriteX = x + (slotWidth - w) / 2;
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                if (fighter.isDefeated()) {
-                    var oldComposite = g.getComposite();
-                    g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.38f));
-                    g.drawImage(image, spriteX, spriteTop, w, h, null);
-                    g.setComposite(oldComposite);
-                } else {
-                    g.drawImage(image, spriteX, spriteTop, w, h, null);
-                }
-            }
-            String status = fighter.isDefeated() ? "KO" : i == team.getActiveIndex() ? "ACTIVO" : "RESERVA";
-            Color statusColor = fighter.isDefeated() ? new Color(0xFF9999)
-                    : i == team.getActiveIndex() ? new Color(0xFFE36E) : Color.WHITE;
-            String label = (i == team.getActiveIndex() && !fighter.isDefeated() ? "> " : "")
-                    + (i + 1) + "  " + status;
-            drawCentered(g, label, x + slotWidth / 2, 214, 14, statusColor);
-        }
     }
 
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
