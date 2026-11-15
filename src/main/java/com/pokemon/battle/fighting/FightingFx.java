@@ -148,6 +148,7 @@ public final class FightingFx {
     public void clear() {
         director.reset();
         big.clear();
+        cameraZoom = 0;
         sheets.clear();
         particles.clear();
         bolts.clear();
@@ -193,6 +194,7 @@ public final class FightingFx {
         session.update(input, sdt);
         simTime += sdt;
         react(session, sdt);
+        followCamera(session, dt);
         if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished();
     }
 
@@ -1207,17 +1209,47 @@ public final class FightingFx {
         speedLinesY = y;
     }
 
-    /** Extra zoom of the camera (0 = normal). */
+    /** Extra zoom of the camera (0 = normal): the bigger of the hit "punch" and the follow camera. */
     public double zoom() {
-        return zoom;
+        return Math.max(zoom, cameraZoom);
     }
 
     public double zoomFocusX() {
-        return zoomFocusX;
+        return zoom >= cameraZoom ? zoomFocusX : cameraX;
     }
 
     public double zoomFocusY() {
-        return zoomFocusY;
+        return zoom >= cameraZoom ? zoomFocusY : cameraY;
+    }
+
+    // ------------------------------------------------------------------ camara dinamica
+
+    /** Distance between fighters below which the camera starts to get closer. */
+    static final double CAMERA_NEAR_DISTANCE = 520;
+    static final double CAMERA_MAX_ZOOM = 0.16;
+    private double cameraZoom;
+    private double cameraX = 640;
+    private double cameraY = 420;
+
+    /**
+     * Follow camera: when both Pokemon are close it zooms in a little on the middle point;
+     * when they separate it goes back to the full arena. Zooming in around a point inside
+     * the arena never shows anything outside it, so nobody can leave the screen.
+     */
+    private void followCamera(FightingGameSession session, double dt) {
+        List<Fighter> fighters = session.getFighters();
+        if (fighters.size() < 2) return;
+        Fighter a = fighters.get(0);
+        Fighter b = fighters.get(1);
+        double gap = Math.abs(a.getX() - b.getX());
+        double target = gap >= CAMERA_NEAR_DISTANCE ? 0
+                : CAMERA_MAX_ZOOM * (1 - gap / CAMERA_NEAR_DISTANCE);
+        double follow = Math.min(1, dt * 2.5);
+        cameraZoom += (target - cameraZoom) * follow;
+        double midX = (a.getX() + b.getX()) / 2;
+        double midY = Math.min(a.getY(), b.getY()) - 150;
+        cameraX += (Math.max(0, Math.min(session.getWidth(), midX)) - cameraX) * follow;
+        cameraY += (Math.max(0, Math.min(session.getHeight(), midY)) - cameraY) * follow;
     }
 
     private void bolt(double x1, double y1, double x2, double y2, double life, float width, Color glow) {
