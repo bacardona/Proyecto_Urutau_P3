@@ -30,6 +30,8 @@ final class FightingDirector {
     static final double KO_SLOW_SECONDS = 0.9;
     static final double KO_TEXT_SECONDS = 1.6;
     static final double KO_TIME_SCALE = 0.3;
+    static final double EVOLUTION_SECONDS = 2.4;
+    static final double EVOLUTION_FLASH_AT = 1.5;
 
     private static final Color P1_COLOR = new Color(0xF2C230);
     private static final Color P2_COLOR = new Color(0x3C86EA);
@@ -49,6 +51,12 @@ final class FightingDirector {
     private double koTime = -1;
     private boolean finalKo;
     private boolean finishedHandled;
+    private double evolutionTime = -1;
+    private FightingSpriteProfile evolutionFrom;
+    private FightingSpriteProfile evolutionTo;
+    private String evolutionFromName = "";
+    private String evolutionToName = "";
+    private final java.util.Map<BufferedImage, BufferedImage> silhouettes = new java.util.IdentityHashMap<>();
 
     /** New match or rematch: the intro starts again. */
     void reset() {
@@ -58,6 +66,8 @@ final class FightingDirector {
         cutOwner = -1;
         cutFighter = null;
         koTime = -1;
+        evolutionTime = -1;
+        pendingEvolutions.clear();
         finishedHandled = false;
         if (!introEnabled) sound.startBattleMusic();
     }
@@ -81,6 +91,18 @@ final class FightingDirector {
                 cutFighter = null;
             }
         }
+        if (evolutionTime >= 0) {
+            double before = evolutionTime;
+            evolutionTime += dt;
+            if (before < EVOLUTION_FLASH_AT && evolutionTime >= EVOLUTION_FLASH_AT) {
+                sound.play(FightingSound.Sfx.ULTI_RELEASE, 0.5f);
+                sound.play(FightingSound.Sfx.BUFF);
+            }
+            if (evolutionTime >= EVOLUTION_SECONDS) {
+                evolutionTime = -1;
+                if (!pendingEvolutions.isEmpty()) startEvolution(pendingEvolutions.poll());
+            }
+        }
         if (koTime >= 0) {
             koTime += dt;
             if (koTime > KO_TEXT_SECONDS) koTime = -1;
@@ -89,7 +111,7 @@ final class FightingDirector {
 
     /** While true the fighters do not move (intro and ultimate banner). */
     boolean freezesSimulation() {
-        return introTime < INTRO_SECONDS || cutOwner >= 0;
+        return introTime < INTRO_SECONDS || cutOwner >= 0 || evolutionTime >= 0;
     }
 
     /** 1 = normal speed; less than 1 during the slow motion of a K.O. */
@@ -109,6 +131,26 @@ final class FightingDirector {
         cutName = "¡" + definition.displayName() + "!";
         cutColor = definition.primaryColor();
         sound.play(FightingSound.Sfx.CUT_IN);
+    }
+
+    /** Short evolution cinematic: rays, white silhouette that changes shape, flash and the new name. */
+    private final java.util.ArrayDeque<Fighter> pendingEvolutions = new java.util.ArrayDeque<>();
+
+    void startEvolution(Fighter fighter) {
+        if (evolutionTime >= 0) {
+            // Si los dos evolucionan a la vez, se muestra uno y luego el otro
+            pendingEvolutions.add(fighter);
+            return;
+        }
+        FightingSpriteProfile to = FightingSpriteProfile.forFighter(fighter);
+        FightingSpriteProfile from = FightingSpriteProfile.forSpecies(fighter.getBasePokemonId());
+        if (to == null || from == null) return;
+        evolutionFrom = from;
+        evolutionTo = to;
+        evolutionFromName = fighter.getBasePokemonId();
+        evolutionToName = fighter.getName().toUpperCase();
+        evolutionTime = 0;
+        sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.7f);
     }
 
     void startKnockOut(boolean lastOfTeam) {
@@ -149,6 +191,7 @@ final class FightingDirector {
             drawCountdown(g, w, h, introTime - VS_SECONDS);
         }
         if (session.getState() == FightingGameSession.State.FINISHED) return;
+        if (evolutionTime >= 0) drawEvolution(g, w, h);
         if (cutOwner >= 0 && cutFighter != null) drawCutIn(g, w, h);
         if (koTime >= 0) drawKnockOut(g, w, h);
     }
@@ -257,6 +300,80 @@ final class FightingDirector {
         outlined(g, cutFighter.getName().toUpperCase() + " - ATAQUE DEFINITIVO", textX, h / 2 + 62, 28,
                 Color.WHITE, OUTLINE, 3);
         if (u < 0.07) flash(g, w, h, 0.7f);
+    }
+
+    private void drawEvolution(Graphics2D g, int w, int h) {
+        double u = evolutionTime;
+        Composite old = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.min(0.88, u / 0.25 * 0.88)));
+        g.setColor(new Color(0x08061A));
+        g.fillRect(0, 0, w, h);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.min(0.35, u / 0.3 * 0.35)));
+        g.setColor(new Color(0xFFF0C8));
+        int cx = w / 2;
+        int cy = h / 2 + 10;
+        for (int i = 0; i < 16; i++) {
+            double a = time * 0.6 + i * Math.PI * 2 / 16;
+            g.fill(new Polygon(new int[]{cx, (int) (cx + Math.cos(a) * 1500), (int) (cx + Math.cos(a + 0.12) * 1500)},
+                    new int[]{cy, (int) (cy + Math.sin(a) * 1500), (int) (cy + Math.sin(a + 0.12) * 1500)}, 3));
+        }
+        g.setComposite(old);
+        if (u < EVOLUTION_FLASH_AT) {
+            // La silueta blanca cambia entre las dos formas, cada vez mas rapido
+            double q = u / EVOLUTION_FLASH_AT;
+            double period = Math.max(0.05, 0.32 * Math.pow(1 - q, 1.5));
+            boolean showNew = ((int) (u / period)) % 2 == 1;
+            drawProfile(g, showNew ? evolutionTo : evolutionFrom, cx, cy, 300, true);
+            g.setColor(new Color(0xFFE9A0));
+            for (int i = 0; i < 8; i++) {
+                double a = time * 2.2 + i * Math.PI / 4;
+                double r = 190 - 70 * q;
+                int sx = (int) (cx + Math.cos(a) * r);
+                int sy = (int) (cy + Math.sin(a) * r);
+                g.fillRect(sx - 3, sy - 12, 6, 24);
+                g.fillRect(sx - 12, sy - 3, 24, 6);
+            }
+        } else {
+            drawProfile(g, evolutionTo, cx, cy, 300, false);
+            outlined(g, "¡" + evolutionFromName + " EVOLUCIONÓ", cx, 120, 56, new Color(0xFFE45A), OUTLINE, 4);
+            outlined(g, "A " + evolutionToName + "!", cx, 180, 56, new Color(0xFFE45A), OUTLINE, 4);
+            double f = u - EVOLUTION_FLASH_AT;
+            if (f < 0.2) flash(g, w, h, (float) (0.9 * (1 - f / 0.2)));
+        }
+        if (u > EVOLUTION_SECONDS - 0.2) {
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                    (float) Math.min(1, (u - (EVOLUTION_SECONDS - 0.2)) / 0.2 * 0.6)));
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, w, h);
+            g.setComposite(old);
+        }
+    }
+
+    private void drawProfile(Graphics2D g, FightingSpriteProfile profile, int cx, int cy, int height, boolean white) {
+        if (profile == null) return;
+        var animation = profile.sprites().get(white ? "Idle" : "Pose");
+        if (animation == null) animation = profile.sprites().get("Idle");
+        if (animation == null) return;
+        BufferedImage image = animation.frameAtTime(white ? 0 : time, false, true).image();
+        if (white) image = silhouettes.computeIfAbsent(image, FightingDirector::whiteOf);
+        int[] box = opaqueBounds(image);
+        if (box == null) return;
+        int bw = box[2] - box[0];
+        int bh = box[3] - box[1];
+        int scale = Math.max(2, Math.min(10, height / Math.max(1, bh)));
+        g.drawImage(image, cx - bw * scale / 2, cy - bh * scale / 2, cx - bw * scale / 2 + bw * scale,
+                cy - bh * scale / 2 + bh * scale, box[0], box[1], box[2], box[3], null);
+    }
+
+    private static BufferedImage whiteOf(BufferedImage source) {
+        BufferedImage out = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                int alpha = source.getRGB(x, y) >>> 24;
+                if (alpha > 20) out.setRGB(x, y, (alpha << 24) | 0xFFFFFF);
+            }
+        }
+        return out;
     }
 
     private void drawKnockOut(Graphics2D g, int w, int h) {

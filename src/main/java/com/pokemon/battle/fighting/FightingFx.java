@@ -107,6 +107,7 @@ public final class FightingFx {
     private final Map<Fighter, Boolean> lastOnGround = new IdentityHashMap<>();
     private final Map<Fighter, Double> lastVelocityY = new IdentityHashMap<>();
     private final Map<Fighter, Boolean> lastDefeated = new IdentityHashMap<>();
+    private final Map<Fighter, Boolean> lastEvolved = new IdentityHashMap<>();
     private final Map<FightingProjectile, double[]> projectileOrigins = new IdentityHashMap<>();
     private final UltimateController.Phase[] lastUltimatePhase = new UltimateController.Phase[2];
 
@@ -158,6 +159,7 @@ public final class FightingFx {
         lastOnGround.clear();
         lastVelocityY.clear();
         lastDefeated.clear();
+        lastEvolved.clear();
         projectileOrigins.clear();
         decals.clear();
         zoom = 0;
@@ -315,6 +317,11 @@ public final class FightingFx {
                 director.startKnockOut(!team.hasAvailableFighter());
             }
             lastDefeated.put(f, f.isDefeated());
+        }
+        for (Fighter f : active) {
+            boolean wasEvolved = lastEvolved.getOrDefault(f, f.isEvolved());
+            if (f.isEvolved() && !wasEvolved) director.startEvolution(f);
+            lastEvolved.put(f, f.isEvolved());
         }
         for (Fighter f : active) {
             jumpAndLanding(f);
