@@ -149,7 +149,16 @@ public class FightingGameSession {
         combatSystem.update(fighters, width, platforms,
                 input.consumePlayerOneAttackRequest(), input.consumePlayerTwoAttackRequest(),
                 deltaSeconds);
+        for (Fighter fighter : fighters) {
+            fighter.advanceKnockback(deltaSeconds, width, PhysicsSystem.halfWidthFor(fighter));
+        }
         replaceDefeatedFighters();
+        boolean playerOneSwitch = input.consumePlayerOneSwitch();
+        boolean playerTwoSwitch = input.consumePlayerTwoSwitch();
+        if (playerOneSwitch) trySwitchActiveFighter(0);
+        if (playerTwoSwitch) trySwitchActiveFighter(1);
+        if (switchCooldown[0] > 0) switchCooldown[0] -= deltaSeconds;
+        if (switchCooldown[1] > 0) switchCooldown[1] -= deltaSeconds;
         if (playerOneEvolution) tryEvolveActiveFighter(0);
         if (playerTwoEvolution) tryEvolveActiveFighter(1);
         Fighter first = fighters.get(0);
@@ -183,6 +192,47 @@ public class FightingGameSession {
         Fighter active = fighters.get(playerIndex);
         if (active.isDefeated()) return false;
         active.addEvolutionEnergy(100);
+        return true;
+    }
+
+    // Cambio de Pokemon tocando la pared (Q jugador 1, U jugador 2)
+    static final double SWITCH_COOLDOWN_SECONDS = 4.0;
+    static final double WALL_TOUCH_MARGIN = 8;
+    private final double[] switchCooldown = new double[2];
+
+    /** True when the fighter is touching the left or right wall of the arena. */
+    boolean isTouchingWall(Fighter fighter) {
+        double halfWidth = PhysicsSystem.halfWidthFor(fighter);
+        return fighter.getX() <= halfWidth + WALL_TOUCH_MARGIN
+                || fighter.getX() >= width - halfWidth - WALL_TOUCH_MARGIN;
+    }
+
+    /**
+     * Switches the active Pokemon for the other one of the team. Only against the wall,
+     * on the ground, when the player is free (not attacking, stunned, asleep or in an
+     * ultimate) and not more than once every few seconds. Each Pokemon keeps its health.
+     */
+    boolean trySwitchActiveFighter(int playerIndex) {
+        Fighter current = fighters.get(playerIndex);
+        FightingTeam team = playerIndex == 0 ? playerOneTeam : playerTwoTeam;
+        if (switchCooldown[playerIndex] > 0 || !current.isOnGround() || current.isHitStunned()
+                || current.isEvolutionAnimating() || !isTouchingWall(current)
+                || !combatSystem.canEvolve(playerIndex, fighters)
+                || java.util.Set.of("CHARGING", "RELEASING", "FINISHING", "RECOVERY")
+                        .contains(combatSystem.getUltimatePhaseName(playerIndex))) {
+            return false;
+        }
+        if (!team.switchActive()) return false;
+        Fighter incoming = team.getActive();
+        current.setBlocking(false);
+        combatSystem.clearPlayerState(playerIndex);
+        incoming.setX(current.getX());
+        incoming.setY(groundY);
+        incoming.setVelocityY(0);
+        incoming.setOnGround(true);
+        incoming.setFacingLeft(current.isFacingLeft());
+        fighters.set(playerIndex, incoming);
+        switchCooldown[playerIndex] = SWITCH_COOLDOWN_SECONDS;
         return true;
     }
 

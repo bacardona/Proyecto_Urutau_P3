@@ -108,6 +108,7 @@ public final class FightingFx {
     private final Map<Fighter, Double> lastVelocityY = new IdentityHashMap<>();
     private final Map<Fighter, Boolean> lastDefeated = new IdentityHashMap<>();
     private final Map<Fighter, Boolean> lastEvolved = new IdentityHashMap<>();
+    private final Fighter[] lastActive = new Fighter[2];
     private final Map<FightingProjectile, double[]> projectileOrigins = new IdentityHashMap<>();
     private final UltimateController.Phase[] lastUltimatePhase = new UltimateController.Phase[2];
 
@@ -161,6 +162,8 @@ public final class FightingFx {
         lastVelocityY.clear();
         lastDefeated.clear();
         lastEvolved.clear();
+        lastActive[0] = null;
+        lastActive[1] = null;
         projectileOrigins.clear();
         decals.clear();
         zoom = 0;
@@ -268,6 +271,14 @@ public final class FightingFx {
         groundY = session.getGroundY();
         List<Fighter> active = session.getFighters();
         List<CombatEvent> events = session.getCombatSystem().drainEvents();
+        // Cambio de Pokemon en la pared: humo y aviso
+        for (int i = 0; i < active.size() && i < 2; i++) {
+            Fighter now = active.get(i);
+            if (lastActive[i] != null && lastActive[i] != now && !lastActive[i].isDefeated()) {
+                switchEffect(now);
+            }
+            lastActive[i] = now;
+        }
 
         // Quien perdio vida en este paso (puede que ya lo hayan cambiado por otro del equipo)
         Map<Fighter, Integer> damaged = new IdentityHashMap<>();
@@ -1361,6 +1372,23 @@ public final class FightingFx {
         p.maxLife = 0.7;
         p.size = damage >= 11 ? 30 : 24;
         p.color = damage >= 11 ? new Color(0xFFB13B) : Color.WHITE;
+        popups.add(p);
+    }
+
+    private void switchEffect(Fighter incoming) {
+        sound.play(FightingSound.Sfx.WHOOSH, 1f);
+        sound.play(FightingSound.Sfx.BUFF, 0.6f);
+        big.play(PvfxEffects.Effect.SMOKE_DUST_PUFF, incoming.getX(), incoming.getY() + 6, 3, false);
+        big.play(PvfxEffects.Effect.UI_LEVEL_UP, incoming.getX(), incoming.getY() + 6, 2, false);
+        Popup p = new Popup();
+        p.text = "¡CAMBIO!";
+        // Cerca de la pared: el texto se corre hacia adentro para que se lea completo
+        p.x = Math.max(110, Math.min(1170, incoming.getX()));
+        p.y = incoming.getY() - incoming.getRenderHeight() - 10;
+        p.life = 0.9;
+        p.maxLife = 0.9;
+        p.size = 30;
+        p.color = new Color(0xFFE45A);
         popups.add(p);
     }
 

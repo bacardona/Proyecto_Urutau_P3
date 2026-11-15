@@ -52,6 +52,17 @@ public final class FightingTeam {
         return members.stream().anyMatch(member -> !member.isDefeated());
     }
 
+    /** Puts the other healthy member in front. False when there is nobody to switch with. */
+    public boolean switchActive() {
+        for (int i = 0; i < members.size(); i++) {
+            if (i != activeIndex && !members.get(i).isDefeated()) {
+                activeIndex = i;
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean advanceAfterDefeat() {
         if (!getActive().isDefeated()) return false;
         for (int i = activeIndex + 1; i < members.size(); i++) {

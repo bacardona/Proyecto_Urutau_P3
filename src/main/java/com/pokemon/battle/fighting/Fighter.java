@@ -346,6 +346,25 @@ public class Fighter {
     }
 
     void setX(double x) { this.x = x; }
+
+    // Retroceso al recibir un golpe: empuja hacia atras y se frena solo
+    private double knockbackVelocity;
+
+    /** Pushes the fighter back; a stronger push replaces a weaker one. */
+    void applyKnockback(double direction, double speed) {
+        if (defeated || speed <= 0 || direction == 0) return;
+        double push = Math.signum(direction) * speed;
+        if (Math.abs(push) >= Math.abs(knockbackVelocity)) knockbackVelocity = push;
+    }
+
+    void advanceKnockback(double deltaSeconds, double arenaWidth, double halfWidth) {
+        if (knockbackVelocity == 0) return;
+        x = Math.max(halfWidth, Math.min(arenaWidth - halfWidth, x + knockbackVelocity * deltaSeconds));
+        knockbackVelocity *= Math.exp(-7 * deltaSeconds);
+        if (Math.abs(knockbackVelocity) < 12) knockbackVelocity = 0;
+    }
+
+    public double getKnockbackVelocity() { return knockbackVelocity; }
     void setY(double y) { this.y = y; }
     void setVelocityY(double velocityY) { this.velocityY = velocityY; }
     void setOnGround(boolean onGround) { this.onGround = onGround; }

@@ -172,6 +172,8 @@ public final class UltimateController {
                     ? ShieldRules.chipDamage(pulse.damage(), ShieldRules.ULTIMATE_BLOCK)
                     : pulse.damage();
             pulse.target().receiveDamage(damage);
+            Fighter owner = pulse.state().owner;
+            pulse.target().applyKnockback(pulse.target().getX() >= owner.getX() ? 1 : -1, 150);
         }
         for (Pulse pulse : duePulses) {
             onDamagingHit(pulse.target());

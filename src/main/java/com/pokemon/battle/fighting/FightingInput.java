@@ -27,6 +27,10 @@ public class FightingInput {
     private boolean playerTwoAttackTwoRequested;
     private boolean playerTwoAttackThreeRequested;
     private boolean playerTwoAttackFourRequested;
+    private boolean playerOneSwitchHeld;
+    private boolean playerTwoSwitchHeld;
+    private boolean playerOneSwitchRequested;
+    private boolean playerTwoSwitchRequested;
     private boolean playerOneEvolutionHeld;
     private boolean playerTwoEvolutionHeld;
     private boolean playerOneEvolutionRequested;
@@ -97,6 +101,29 @@ public class FightingInput {
     public void setPlayerTwoAttackFour(boolean pressed) {
         if (pressed && !playerTwoAttackFourHeld) { playerTwoAttackFourRequested = true; playerTwoAttackRequestIndex = 3; }
         playerTwoAttackFourHeld = pressed;
+    }
+
+    /** Switch Pokemon (only works touching the wall). */
+    public void setPlayerOneSwitch(boolean pressed) {
+        if (pressed && !playerOneSwitchHeld) playerOneSwitchRequested = true;
+        playerOneSwitchHeld = pressed;
+    }
+
+    public void setPlayerTwoSwitch(boolean pressed) {
+        if (pressed && !playerTwoSwitchHeld) playerTwoSwitchRequested = true;
+        playerTwoSwitchHeld = pressed;
+    }
+
+    public boolean consumePlayerOneSwitch() {
+        boolean requested = playerOneSwitchRequested;
+        playerOneSwitchRequested = false;
+        return requested;
+    }
+
+    public boolean consumePlayerTwoSwitch() {
+        boolean requested = playerTwoSwitchRequested;
+        playerTwoSwitchRequested = false;
+        return requested;
     }
 
     public void setPlayerOneEvolution(boolean pressed) {
@@ -234,6 +261,10 @@ public class FightingInput {
     }
 
     public void clear() {
+        playerOneSwitchHeld = false;
+        playerTwoSwitchHeld = false;
+        playerOneSwitchRequested = false;
+        playerTwoSwitchRequested = false;
         playerOneLeft = false;
         playerOneRight = false;
         playerTwoLeft = false;

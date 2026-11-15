@@ -758,6 +758,7 @@ public class FightingCombatSystem {
                 * attacker.getOutgoingDamageMultiplier()
                 * target.getIncomingDamageMultiplier()));
         target.receiveDamage(damage);
+        target.applyKnockback(target.getX() >= attacker.getX() ? 1 : -1, knockbackFor(definition.kind(), damage));
         emit(CombatEvent.Type.HIT, definition.moveId(), attackerIndex,
                 (attacker.getX() + target.getX()) / 2.0,
                 target.getY() - target.getRenderHeight() * 0.55,
@@ -795,6 +796,7 @@ public class FightingCombatSystem {
             // El escudo para casi todo el golpe, pero algo pasa (ver ShieldRules)
             int chip = blockedDamage(attacker, target, definition.damage(), definition.moveId());
             if (chip > 0) target.receiveDamage(chip);
+            target.applyKnockback(target.getX() >= attacker.getX() ? 1 : -1, BLOCK_KNOCKBACK);
             emit(CombatEvent.Type.BLOCK, definition.moveId(), attackerIndex,
                     (attacker.getX() + target.getX()) / 2.0,
                     target.getY() - target.getRenderHeight() * 0.55,
@@ -818,6 +820,22 @@ public class FightingCombatSystem {
             return;
         }
         applyHit(attackerIndex, attacker, target, definition);
+    }
+
+    // Cuanto retrocede el que recibe el golpe (pixeles por segundo al inicio)
+    static final double BLOCK_KNOCKBACK = 110;
+
+    /** Physical hits push more than projectiles; strong hits push more. */
+    static double knockbackFor(AttackDefinition.Kind kind, int damage) {
+        double base = switch (kind) {
+            case HITBOX -> 300;
+            case LUNGE -> 380;
+            case DASH -> 430;
+            case FLY -> 470;
+            case PROJECTILE -> 230;
+            default -> 0;
+        };
+        return damage >= 12 ? base * 1.3 : base;
     }
 
     /** Damage that gets through the shield, with the same multipliers as a normal hit. */
@@ -879,6 +897,7 @@ public class FightingCombatSystem {
                     // Proyectil contra el escudo: solo pasa una parte del dano
                     int chip = blockedDamage(attacker, target, projectile.getDamage(), projectile.getMoveId());
                     if (chip > 0) target.receiveDamage(chip);
+                    target.applyKnockback(Math.signum(projectile.getVelocityX()), BLOCK_KNOCKBACK);
                     emit(CombatEvent.Type.BLOCK, projectile.getMoveId(), projectile.getOwnerIndex(),
                             projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), chip);
                     impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.18));
@@ -887,6 +906,8 @@ public class FightingCombatSystem {
                             * attacker.getOutgoingDamageMultiplier()
                             * target.getIncomingDamageMultiplier()));
                     target.receiveDamage(damage);
+                    target.applyKnockback(Math.signum(projectile.getVelocityX()),
+                            knockbackFor(AttackDefinition.Kind.PROJECTILE, damage));
                     emitProjectileHit(projectile, damage);
                     ultimateController.onDamagingHit(target);
                     attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);

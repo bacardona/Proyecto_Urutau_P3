@@ -190,6 +190,9 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("L", input::setPlayerTwoAttackFour);
         bindHeldKey("P", input::setPlayerTwoEvolution);
         bindHeldKey("O", input::setPlayerTwoUltimate);
+        // Cambiar de Pokemon tocando la pared
+        bindHeldKey("Q", input::setPlayerOneSwitch);
+        bindHeldKey("U", input::setPlayerTwoSwitch);
 
         // Resaltar el boton de pausa al pasar el raton
         addMouseMotionListener(new MouseAdapter() {
