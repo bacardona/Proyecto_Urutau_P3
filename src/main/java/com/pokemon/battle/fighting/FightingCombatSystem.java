@@ -158,6 +158,8 @@ public class FightingCombatSystem {
     private final List<FightingProjectile> projectileView = Collections.unmodifiableList(projectiles);
     private final List<ImpactEffect> impactEffects = new ArrayList<>();
     private final List<ImpactEffect> impactEffectView = Collections.unmodifiableList(impactEffects);
+    // Lo que paso en este paso de la simulacion; FightingFx lo usa para efectos y sonidos
+    private final List<CombatEvent> events = new ArrayList<>();
 
     public boolean hasAttackProfile(String pokemonId) {
         return switch (pokemonId) {
@@ -317,6 +319,8 @@ public class FightingCombatSystem {
         if (cooldown > 0 || (!ready && !cancel)) return;
         if (cancel) resetAttackState(state);
         if (startRequestedAttack(state, requested, attacker, fighters.get(1 - player))) {
+            emit(CombatEvent.Type.ATTACK_START, requested.moveId(), player,
+                    attacker.getX(), attacker.getY(), state.dashDirection, 0);
             moveCooldowns.get(player).put(requested.moveId(), requested.cooldownSeconds());
             bufferedAttack[player] = -1;
             bufferedAttackRemaining[player] = 0;
@@ -437,6 +441,8 @@ public class FightingCombatSystem {
             }
             if (!state.activeEffectStarted) {
                 state.activeEffectStarted = true;
+                emit(CombatEvent.Type.ATTACK_ACTIVE, state.definition.moveId(), attackerIndex,
+                        attacker.getX(), attacker.getY(), attacker.isFacingLeft() ? -1 : 1, 0);
                 switch (state.definition.kind()) {
                     case PROJECTILE -> spawnProjectile(attacker, attackerIndex, state.definition);
                     case SELF_BUFF -> attacker.applyAttackBoost(GROWTH_DURATION);
@@ -674,6 +680,8 @@ public class FightingCombatSystem {
             originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) + 12);
             originY = attacker.getY() - 82;
         }
+        emit(CombatEvent.Type.PROJECTILE_FIRED, definition.moveId(), ownerIndex,
+                originX, originY, direction, 0);
         projectiles.add(new FightingProjectile(definition.moveId(), originX, originY,
                 direction * definition.projectileSpeed(), definition.projectileSize(),
                 definition.damage(), definition.projectileLifetime(), definition.effectColor(), ownerIndex));
@@ -690,6 +698,10 @@ public class FightingCombatSystem {
                 * attacker.getOutgoingDamageMultiplier()
                 * target.getIncomingDamageMultiplier()));
         target.receiveDamage(damage);
+        emit(CombatEvent.Type.HIT, definition.moveId(), attackerIndex,
+                (attacker.getX() + target.getX()) / 2.0,
+                target.getY() - target.getRenderHeight() * 0.55,
+                target.getX() >= attacker.getX() ? 1 : -1, damage);
         ultimateController.onDamagingHit(target);
         attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
         int hitCount = target.recordNormalComboHit(COMBO_STUN_RESET_SECONDS);
@@ -720,6 +732,10 @@ public class FightingCombatSystem {
             return;
         }
         if (target.isBlocking() && isAttackerInFront(target, attacker)) {
+            emit(CombatEvent.Type.BLOCK, definition.moveId(), attackerIndex,
+                    (attacker.getX() + target.getX()) / 2.0,
+                    target.getY() - target.getRenderHeight() * 0.55,
+                    target.getX() >= attacker.getX() ? 1 : -1, 0);
             AttackState state = states[attackerIndex];
             addPhysicalImpact((attacker.getX() + target.getX()) / 2.0,
                     target.getY() - target.getRenderHeight() * 0.55,
@@ -764,6 +780,8 @@ public class FightingCombatSystem {
                 iterator.remove();
             } else if ("SLEEP_POWDER".equals(projectile.getMoveId())
                     && isBlockedByPlatform(projectile.hitbox(), platforms)) {
+                emit(CombatEvent.Type.FIZZLE, projectile.getMoveId(), projectile.getOwnerIndex(),
+                        projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), 0);
                 impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
                 iterator.remove();
             } else if (projectile.hitbox().intersects(target)) {
@@ -775,6 +793,7 @@ public class FightingCombatSystem {
                                 * attacker.getOutgoingDamageMultiplier()
                                 * target.getIncomingDamageMultiplier()));
                         target.receiveDamage(damage);
+                        emitProjectileHit(projectile, damage);
                         ultimateController.onDamagingHit(target);
                         attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
                         registerDamagingProjectileHit(projectile.getOwnerIndex(), target,
@@ -787,6 +806,7 @@ public class FightingCombatSystem {
                             * attacker.getOutgoingDamageMultiplier()
                             * target.getIncomingDamageMultiplier()));
                     target.receiveDamage(damage);
+                    emitProjectileHit(projectile, damage);
                     ultimateController.onDamagingHit(target);
                     attacker.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
                     registerDamagingProjectileHit(projectile.getOwnerIndex(), target,
@@ -858,6 +878,24 @@ public class FightingCombatSystem {
         state.flyLaunched = false;
         state.flyRetreatStarted = false;
         state.flyRetreatRemaining = 0;
+    }
+
+    private void emit(CombatEvent.Type type, String moveId, int attackerIndex,
+                      double x, double y, double direction, int damage) {
+        events.add(new CombatEvent(type, moveId, attackerIndex, x, y, direction, damage));
+    }
+
+    private void emitProjectileHit(FightingProjectile projectile, int damage) {
+        emit(CombatEvent.Type.HIT, projectile.getMoveId(), projectile.getOwnerIndex(),
+                projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), damage);
+    }
+
+    /** Returns what happened since the last call and forgets it. */
+    public List<CombatEvent> drainEvents() {
+        if (events.isEmpty()) return List.of();
+        List<CombatEvent> copy = List.copyOf(events);
+        events.clear();
+        return copy;
     }
 
     public List<FightingProjectile> getProjectiles() { return projectileView; }
