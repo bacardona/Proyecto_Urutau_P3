@@ -199,7 +199,7 @@ public final class FreeFightSpriteCheck {
             blocked.update(blockInput, DT);
             blockInput.setPlayerOneAttackOne(true);
             for (int i = 0; i < 15; i++) blocked.update(blockInput, DT);
-            check(b.getHealth() == 200 && a.isHitStunned(), species + " blocking regression");
+            check(b.getHealth() == 198 && a.isHitStunned(), species + " shield must let 20% of Placaje through");
         }
         System.out.println("OK combat, hit/miss, both sides, combo and blocking: " + species);
     }

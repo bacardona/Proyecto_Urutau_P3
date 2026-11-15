@@ -164,7 +164,7 @@ public final class FreeFightGameplayCheck {
             var rival=s.getFighters().get(1);
             rival.setX(f.getX()+f.getBodyHalfWidth()+rival.getBodyHalfWidth()+6);rival.setFacingLeft(true);
             input.setPlayerTwoAttackOne(true);ticks(s,input,15);
-            check(f.getHealth()==200 && f.getShieldOpacity()==1,"Shield changed successful blocking");
+            check(f.getHealth()<200 && f.getHealth()>=197 && f.getShieldOpacity()==1,"Shield must stop most damage but let a little through");
             check(s.getCombatSystem().getImpactEffects().stream().anyMatch(FightingCombatSystem.ImpactEffect::isBlocked),
                     "Missing blocked impact for shield flash");
             f.receiveDamage(1);s.update(input,DT);

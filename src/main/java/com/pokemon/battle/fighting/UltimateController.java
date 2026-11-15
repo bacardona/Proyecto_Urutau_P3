@@ -167,7 +167,11 @@ public final class UltimateController {
 
         // Resolve simultaneous ultimates without player-order advantage.
         for (Pulse pulse : duePulses) {
-            pulse.target().receiveDamage(pulse.damage());
+            // La ulti tambien se puede tapar con el escudo, pero solo para la mitad
+            int damage = ShieldRules.blocks(pulse.target(), pulse.state().owner)
+                    ? ShieldRules.chipDamage(pulse.damage(), ShieldRules.ULTIMATE_BLOCK)
+                    : pulse.damage();
+            pulse.target().receiveDamage(damage);
         }
         for (Pulse pulse : duePulses) {
             onDamagingHit(pulse.target());

@@ -267,7 +267,13 @@ public final class FightingFx {
                     if (target != null) damaged.remove(target);
                     impact(e, target);
                 }
-                case BLOCK -> block(e.x(), e.y(), e.direction());
+                case BLOCK -> {
+                    // El dano que paso el escudo sale pequeno y celeste, sin golpe completo
+                    Fighter target = damagedOf(1 - e.attackerIndex(), session, damaged, active);
+                    if (target != null) damaged.remove(target);
+                    block(e.x(), e.y(), e.direction());
+                    chipPopup(e.x(), e.y() - 40, e.damage());
+                }
                 case FIZZLE -> fizzle(e.x(), e.y());
                 default -> { }
             }
@@ -1116,6 +1122,19 @@ public final class FightingFx {
         p.maxLife = 0.7;
         p.size = damage >= 11 ? 30 : 24;
         p.color = damage >= 11 ? new Color(0xFFB13B) : Color.WHITE;
+        popups.add(p);
+    }
+
+    private void chipPopup(double x, double y, int damage) {
+        if (damage <= 0) return;
+        Popup p = new Popup();
+        p.text = "-" + damage;
+        p.x = x;
+        p.y = y;
+        p.life = 0.6;
+        p.maxLife = 0.6;
+        p.size = 20;
+        p.color = new Color(0xA7E8FF);
         popups.add(p);
     }
 

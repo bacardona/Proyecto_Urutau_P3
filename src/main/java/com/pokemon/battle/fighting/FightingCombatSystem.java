@@ -732,10 +732,13 @@ public class FightingCombatSystem {
             return;
         }
         if (target.isBlocking() && isAttackerInFront(target, attacker)) {
+            // El escudo para casi todo el golpe, pero algo pasa (ver ShieldRules)
+            int chip = blockedDamage(attacker, target, definition.damage(), definition.moveId());
+            if (chip > 0) target.receiveDamage(chip);
             emit(CombatEvent.Type.BLOCK, definition.moveId(), attackerIndex,
                     (attacker.getX() + target.getX()) / 2.0,
                     target.getY() - target.getRenderHeight() * 0.55,
-                    target.getX() >= attacker.getX() ? 1 : -1, 0);
+                    target.getX() >= attacker.getX() ? 1 : -1, chip);
             AttackState state = states[attackerIndex];
             addPhysicalImpact((attacker.getX() + target.getX()) / 2.0,
                     target.getY() - target.getRenderHeight() * 0.55,
@@ -755,6 +758,16 @@ public class FightingCombatSystem {
             return;
         }
         applyHit(attackerIndex, attacker, target, definition);
+    }
+
+    /** Damage that gets through the shield, with the same multipliers as a normal hit. */
+    private int blockedDamage(Fighter attacker, Fighter target, int baseDamage, String moveId) {
+        if (attacker.isDefeated() || target.isDefeated() || baseDamage <= 0) return 0;
+        int full = Math.max(1, (int) Math.round(baseDamage
+                * attacker.getOutgoingDamageMultiplier()
+                * target.getIncomingDamageMultiplier()));
+        return ShieldRules.chipDamage(full,
+                ShieldRules.blockedFraction(moveId, target.getPokemon(), false));
     }
 
     private boolean isAttackerInFront(Fighter defender, Fighter attacker) {
@@ -801,6 +814,14 @@ public class FightingCombatSystem {
                     }
                     if (!wasAsleep && !target.isDefeated()) target.applySleep(SLEEP_DURATION);
                     impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
+                } else if (!attacker.isDefeated() && projectile.getDamage() > 0
+                        && ShieldRules.blocks(target, attacker)) {
+                    // Proyectil contra el escudo: solo pasa una parte del dano
+                    int chip = blockedDamage(attacker, target, projectile.getDamage(), projectile.getMoveId());
+                    if (chip > 0) target.receiveDamage(chip);
+                    emit(CombatEvent.Type.BLOCK, projectile.getMoveId(), projectile.getOwnerIndex(),
+                            projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), chip);
+                    impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.18));
                 } else if (!attacker.isDefeated() && projectile.getDamage() > 0) {
                     int damage = Math.max(1, (int) Math.round(projectile.getDamage()
                             * attacker.getOutgoingDamageMultiplier()
