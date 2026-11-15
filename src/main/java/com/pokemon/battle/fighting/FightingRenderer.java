@@ -21,31 +21,19 @@ public class FightingRenderer {
     static final int RESULT_OPTION_GAP = 12;
 
     private final SpriteLoader spriteLoader;
-    private final FightingMotionSpriteCache motionSprites;
     private final FightingStageRenderer stage = new FightingStageRenderer();
 
     public FightingRenderer(SpriteLoader spriteLoader) {
         this.spriteLoader = spriteLoader;
-        this.motionSprites = new FightingMotionSpriteCache();
     }
 
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
         stage.draw(g, session);
         drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
-        java.util.List<UltimateController.Visual> ultimateVisuals =
-                session.getCombatSystem().getUltimateVisuals();
         for (Fighter fighter : session.getFighters()) {
-            boolean inUltimateSequence = false;
-            for (UltimateController.Visual ultimate : ultimateVisuals) {
-                if (ultimate.owner() == fighter || ultimate.target() == fighter) {
-                    inUltimateSequence = true;
-                    break;
-                }
-            }
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
-                    session.getGroundY(), session.getCombatSystem(), session.getFighters(),
-                    inUltimateSequence);
+                    session.getGroundY(), session.getCombatSystem(), session.getFighters());
         }
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
         drawPhysicalImpacts(g, session.getCombatSystem());
@@ -724,8 +712,7 @@ public class FightingRenderer {
 
     private void drawPokemon(Graphics2D g, Fighter fighter, int targetHeight,
                              int frameIndex, Runnable repaint, int groundY,
-                             FightingCombatSystem combat, java.util.List<Fighter> fighters,
-                             boolean inUltimateSequence) {
+                             FightingCombatSystem combat, java.util.List<Fighter> fighters) {
         String name = fighter.getPokemonId();
         if (fighter.isEvolutionAnimating() && fighter.getEvolutionProfile() != null) {
             boolean oldFormFrame = (int) (fighter.getEvolutionAnimationProgress() * 12) % 2 == 0;
@@ -739,8 +726,6 @@ public class FightingRenderer {
         FightingCombatSystem.AttackVisual visual = combat.getAttackVisual(fighter, fighters);
         double shakeX = combat.getVisualShakeX(fighter);
         int centerX = (int) fighter.getX();
-        boolean frontForm = !fighter.isEvolved()
-                && fighter.getPokemonId().equals(fighter.getBasePokemonId());
         // Select by the species actually drawn, including each transformation flash.
         // Ultimate participation must never exclude the target's base-form sheet.
         FightingSpriteProfile profile = FightingSpriteProfile.forSpecies(name);
@@ -761,16 +746,11 @@ public class FightingRenderer {
         }
         GifAnimation animation = spriteLoader.getOrLoad(name, false, repaint);
         if (animation == null) {
-            if (!frontForm || !drawMotionAnimation(g, fighter, targetHeight,
-                    centerX + shakeX, visual, inUltimateSequence, shakeX)) {
-                drawCentered(g, "CARGANDO " + name, centerX, groundY - 45, 21, RetroStyle.DARK);
-            }
+            drawCentered(g, "CARGANDO " + name, centerX, groundY - 45, 21, RetroStyle.DARK);
             return;
         }
         BufferedImage frame = animation.frame(frameIndex);
         int width = Math.round(targetHeight * (frame.getWidth() / (float) frame.getHeight()));
-        if (frontForm && drawMotionAnimation(g, fighter, targetHeight,
-                centerX + shakeX, visual, inUltimateSequence, shakeX)) return;
         double renderX = centerX + shakeX + visualOffsetX(visual);
         int x = (int) Math.round(renderX) - width / 2;
         int y = (int) fighter.getY() - targetHeight;
@@ -970,87 +950,6 @@ public class FightingRenderer {
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         g.setComposite(oldComposite);
     }
-    private boolean drawMotionAnimation(Graphics2D g, Fighter fighter, int targetHeight,
-                                        double centerX,
-                                        FightingCombatSystem.AttackVisual attackVisual,
-                                        boolean inUltimateSequence, double shakeX) {
-        if (fighter.isDefeated() || fighter.isEvolutionAnimating() || fighter.isAsleep()
-                || fighter.isHitStunned() || fighter.isUltimateStunned()
-                || inUltimateSequence || attackVisual != null || Math.abs(shakeX) > 0.01) {
-            return false;
-        }
-
-        Fighter.MotionAnimation motion = fighter.getMotionAnimation();
-        FightingMotionSpriteCache.Action action;
-        int frame;
-        switch (motion) {
-            case BLOCKING -> {
-                action = FightingMotionSpriteCache.Action.BLOCK;
-                frame = Math.min(action.frameCount() - 1,
-                        (int) (fighter.getMotionAnimationSeconds()
-                                * FightingMotionSpriteCache.BLOCK_FRAMES_PER_SECOND));
-            }
-            case BLOCK_RELEASE -> {
-                action = FightingMotionSpriteCache.Action.BLOCK;
-                double progress = Math.min(1.0, fighter.getMotionAnimationSeconds()
-                        / FightingMotionSpriteCache.BLOCK_RELEASE_SECONDS);
-                frame = Math.max(0, action.frameCount() - 1
-                        - (int) (progress * action.frameCount()));
-            }
-            case JUMPING -> {
-                if (fighter.isOnGround()) return false;
-                action = FightingMotionSpriteCache.Action.JUMP;
-                frame = jumpFrame(fighter.getVelocityY(), action.frameCount());
-            }
-            case WALKING -> {
-                action = FightingMotionSpriteCache.Action.WALK;
-                frame = (int) (fighter.getMotionAnimationSeconds()
-                        * FightingMotionSpriteCache.WALK_FRAMES_PER_SECOND) % action.frameCount();
-            }
-            default -> { return false; }
-        }
-        FightingMotionSpriteCache.Sheet sheet = motionSprites.get(fighter.getBasePokemonId(), action);
-        if (sheet == null || sheet.frame(frame) == null) return false;
-        drawMotionSprite(g, fighter, sheet, frame, targetHeight, centerX);
-        return true;
-    }
-
-    private int jumpFrame(double verticalVelocity, int frameCount) {
-        double normalized;
-        int ascentFrames = (frameCount - 1) / 2;
-        if (verticalVelocity < 0) {
-            normalized = 1.0 + verticalVelocity / 650.0;
-            return (int) Math.round(Math.max(0, Math.min(1, normalized)) * ascentFrames);
-        }
-        normalized = Math.max(0, Math.min(1, verticalVelocity / 650.0));
-        return ascentFrames + (int) Math.round(normalized * (frameCount - 1 - ascentFrames));
-    }
-
-    private void drawMotionSprite(Graphics2D g, Fighter fighter,
-                                  FightingMotionSpriteCache.Sheet sheet, int frameIndex,
-                                  int targetHeight, double centerX) {
-        FightingMotionSpriteCache.Frame frame = sheet.frame(frameIndex);
-        if (frame == null) return;
-        BufferedImage image = frame.image();
-        double scale = targetHeight / (double) sheet.contentHeight();
-        int frameWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
-        int frameHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
-        int unionWidth = Math.max(1, (int) Math.round(sheet.contentWidth() * scale));
-        int offsetX = frame.offsetX();
-        if (shouldFlipFrontSprite(fighter)) {
-            offsetX = sheet.contentWidth() - offsetX - image.getWidth();
-        }
-        int x = (int) Math.round(centerX - unionWidth / 2.0 + offsetX * scale);
-        int y = (int) Math.round(fighter.getY() - frameHeight);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        if (shouldFlipFrontSprite(fighter)) {
-            g.drawImage(image, x + frameWidth, y, -frameWidth, frameHeight, null);
-        } else {
-            g.drawImage(image, x, y, frameWidth, frameHeight, null);
-        }
-    }
-
     private void drawQuickAfterimages(Graphics2D g, BufferedImage frame, Fighter fighter,
                                      int width, int height, double renderX, double direction) {
         var oldComposite = g.getComposite();

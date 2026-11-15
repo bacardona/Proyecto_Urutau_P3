@@ -65,7 +65,7 @@ public final class FreeFightEvolutionCheck {
     }
     private static void draw(Fighter f,FightingCombatSystem combat,List<Fighter> pair)throws Exception{
         var g=CANVAS.createGraphics();g.setComposite(AlphaComposite.Clear);g.fillRect(0,0,1280,720);g.setComposite(AlphaComposite.SrcOver);
-        drawPokemon.invoke(RENDERER,g,f,f.getRenderHeight(),0,(Runnable)()->{},677,combat,pair,!combat.getUltimateVisuals().isEmpty());g.dispose();
+        drawPokemon.invoke(RENDERER,g,f,f.getRenderHeight(),0,(Runnable)()->{},677,combat,pair);g.dispose();
     }
     private static void noOverlap(Fighter a,Fighter b){
         boolean y=a.getY()>b.getY()-b.getRenderHeight()+1e-7 && b.getY()>a.getY()-a.getRenderHeight()+1e-7;
@@ -339,7 +339,7 @@ public final class FreeFightEvolutionCheck {
         try{
             if(args.length>0&&args[0].equals("--window"))window();
             else{
-                drawPokemon=FightingRenderer.class.getDeclaredMethod("drawPokemon",Graphics2D.class,Fighter.class,int.class,int.class,Runnable.class,int.class,FightingCombatSystem.class,List.class,boolean.class);drawPokemon.setAccessible(true);
+                drawPokemon=FightingRenderer.class.getDeclaredMethod("drawPokemon",Graphics2D.class,Fighter.class,int.class,int.class,Runnable.class,int.class,FightingCombatSystem.class,List.class);drawPokemon.setAccessible(true);
                 attackFor=FightingCombatSystem.class.getDeclaredMethod("attackFor",String.class,int.class);attackFor.setAccessible(true);
                 attackHitbox=FightingCombatSystem.class.getDeclaredMethod("attackHitbox",Fighter.class,AttackDefinition.class);attackHitbox.setAccessible(true);
                 drawSprite=FightingRenderer.class.getDeclaredMethod("drawSpriteAnimation",Graphics2D.class,Fighter.class,FightingSpriteProfile.class,FightingCombatSystem.AttackVisual.class,double.class);drawSprite.setAccessible(true);

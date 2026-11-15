@@ -51,14 +51,13 @@ public final class FreeFightSpriteCheck {
     private static FightingCombatSystem.AttackVisual visual(AttackDefinition def, String phase, double p) {
         return new FightingCombatSystem.AttackVisual(def, phase, p, p, false, 1);
     }
-    private static void draw(Fighter f, FightingCombatSystem combat, List<Fighter> fighters,
-                             boolean ultimate) throws Exception {
+    private static void draw(Fighter f, FightingCombatSystem combat, List<Fighter> fighters) throws Exception {
         Graphics2D graphics = CANVAS.createGraphics();
         graphics.setComposite(AlphaComposite.Clear);
         graphics.fillRect(0, 0, CANVAS.getWidth(), CANVAS.getHeight());
         graphics.setComposite(AlphaComposite.SrcOver);
         drawPokemon.invoke(RENDERER, graphics, f, f.getRenderHeight(), 0,
-                (Runnable) () -> {}, 677, combat, fighters, ultimate);
+                (Runnable) () -> {}, 677, combat, fighters);
         graphics.dispose();
     }
     private static boolean belongs(SpriteCollabAnimationSet.Animation animation,
@@ -99,7 +98,7 @@ public final class FreeFightSpriteCheck {
                 check(belongs(sprites.get("Hop"), RENDERER.spriteFrame(f, profile, null), left), "Jump");
             }
             f.setVelocityY(0);
-            draw(f, combat, pair, false);
+            draw(f, combat, pair);
             int topPixel = CANVAS.getHeight();
             for (int y = 0; y < CANVAS.getHeight(); y++) {
                 for (int x = 0; x < CANVAS.getWidth(); x++) {
@@ -135,10 +134,10 @@ public final class FreeFightSpriteCheck {
             f.receiveDamage(1);
             var staleAttack = visual(definition(species, 0), "ACTIVE", 0.5);
             check(belongs(sprites.get("Hurt"), RENDERER.spriteFrame(f, profile, staleAttack), left), "Damage priority");
-            draw(f, combat, pair, true);
+            draw(f, combat, pair);
             f.markDefeated();
             check(belongs(sprites.get("Faint"), RENDERER.spriteFrame(f, profile, staleAttack), left), "KO priority");
-            draw(f, combat, pair, true);
+            draw(f, combat, pair);
             check(f.getX() == 600 && f.getY() == 677, "Drawing moves the fighter");
         }
         System.out.println("OK states and four unique attacks: " + species);
@@ -298,8 +297,8 @@ public final class FreeFightSpriteCheck {
             owner.updateStatusEffects(DT); target.updateStatusEffects(DT);
             combat.update(pair, 1280, List.of(), -1, -1, DT);
             hit |= target.getHealth() < before;
-            draw(target, combat, pair, !combat.getUltimateVisuals().isEmpty());
-            draw(owner, combat, pair, !combat.getUltimateVisuals().isEmpty());
+            draw(target, combat, pair);
+            draw(owner, combat, pair);
             if (target.isDefeated()) {
                 check(belongs(FightingSpriteProfile.forSpecies(targetSpecies).sprites().get("Faint"),
                         RENDERER.spriteFrame(target, FightingSpriteProfile.forSpecies(targetSpecies), null), true), "Ulti KO");
@@ -367,7 +366,7 @@ public final class FreeFightSpriteCheck {
     public static void main(String[] args) throws Exception {
         drawPokemon = FightingRenderer.class.getDeclaredMethod("drawPokemon", Graphics2D.class,
                 Fighter.class, int.class, int.class, Runnable.class, int.class,
-                FightingCombatSystem.class, List.class, boolean.class); drawPokemon.setAccessible(true);
+                FightingCombatSystem.class, List.class); drawPokemon.setAccessible(true);
         attackFor = FightingCombatSystem.class.getDeclaredMethod("attackFor",String.class,int.class);
         attackFor.setAccessible(true);
         attackHitbox = FightingCombatSystem.class.getDeclaredMethod("attackHitbox", Fighter.class, AttackDefinition.class);
