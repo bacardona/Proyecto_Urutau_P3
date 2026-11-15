@@ -7,23 +7,28 @@ import java.util.Map;
 
 /** Species choices and fixed geometry, independent of transparent sheet dimensions. */
 final class FightingSpriteProfile {
-    private static final Map<String, FightingSpriteProfile> PROFILES = Map.of(
-            "SQUIRTLE", new FightingSpriteProfile("SQUIRTLE", 4, 75, 30, "Withdraw", Map.of(
-                    "TACKLE", "Attack", "WATER_GUN", "Shoot", "TAIL_WHIP", "Swing", "BITE", "Nod")),
-            "BULBASAUR", new FightingSpriteProfile("BULBASAUR", 4, 72, 34, "Idle", Map.of(
-                    "TACKLE", "Swing", "VINE_WHIP", "Shoot", "SLEEP_POWDER", "Shake", "GROWTH", "DeepBreath")),
-            "CHARMANDER", new FightingSpriteProfile("CHARMANDER", 4, 84, 26, "Idle", Map.of(
-                    "TACKLE", "Strike", "EMBER", "Shoot", "GROWL", "DeepBreath", "FLY", "Hop")),
-            "EEVEE", new FightingSpriteProfile("EEVEE", 4, 80, 30, "Idle", Map.of(
-                    "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip")),
-            "IVYSAUR", new FightingSpriteProfile("IVYSAUR", "BULBASAUR", 4, 80, 38, "Idle", "Hurt", Map.of(
-                    "TACKLE", "Swing", "VINE_WHIP", "Shoot", "SLEEP_POWDER", "Shake", "GROWTH", "Charge")),
-            "CHARMELEON", new FightingSpriteProfile("CHARMELEON", "CHARMANDER", 4, 104, 32, "Idle", "Faint", Map.of(
-                    "TACKLE", "Strike", "EMBER", "Shoot", "GROWL", "DeepBreath", "FLY", "Hop")),
-            "WARTORTLE", new FightingSpriteProfile("WARTORTLE", "SQUIRTLE", 4, 96, 32, "Withdraw", "Hurt", Map.of(
-                    "TACKLE", "Attack", "WATER_GUN", "Shoot", "TAIL_WHIP", "Swing")),
-            "FLAREON", new FightingSpriteProfile("FLAREON", "EEVEE", 4, 92, 36, "Idle", "Faint", Map.of(
-                    "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip")));
+    private static final Map<String, FightingSpriteProfile> PROFILES = Map.ofEntries(
+
+            Map.entry("SQUIRTLE", new FightingSpriteProfile("SQUIRTLE", 4, 75, 30, "Withdraw", Map.of(
+                    "TACKLE", "Attack", "WATER_GUN", "Shoot", "TAIL_WHIP", "Swing", "BITE", "Nod"))),
+            Map.entry("BULBASAUR", new FightingSpriteProfile("BULBASAUR", 4, 72, 34, "Idle", Map.of(
+                    "TACKLE", "Swing", "VINE_WHIP", "Shoot", "SLEEP_POWDER", "Shake", "GROWTH", "DeepBreath"))),
+            Map.entry("CHARMANDER", new FightingSpriteProfile("CHARMANDER", 4, 84, 26, "Idle", Map.of(
+                    "TACKLE", "Strike", "EMBER", "Shoot", "GROWL", "DeepBreath", "FLY", "Hop"))),
+            Map.entry("EEVEE", new FightingSpriteProfile("EEVEE", 4, 80, 30, "Idle", Map.of(
+                    "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip"))),
+            Map.entry("IVYSAUR", new FightingSpriteProfile("IVYSAUR", "BULBASAUR", 4, 80, 38, "Idle", "Hurt", Map.of(
+                    "TACKLE", "Swing", "VINE_WHIP", "Shoot", "SLEEP_POWDER", "Shake", "GROWTH", "Charge"))),
+            Map.entry("CHARMELEON", new FightingSpriteProfile("CHARMELEON", "CHARMANDER", 4, 104, 32, "Idle", "Faint", Map.of(
+                    "TACKLE", "Strike", "EMBER", "Shoot", "GROWL", "DeepBreath", "FLY", "Hop"))),
+            Map.entry("WARTORTLE", new FightingSpriteProfile("WARTORTLE", "SQUIRTLE", 4, 96, 32, "Withdraw", "Hurt", Map.of(
+                    "TACKLE", "Attack", "WATER_GUN", "Shoot", "TAIL_WHIP", "Swing"))),
+            Map.entry("FLAREON", new FightingSpriteProfile("FLAREON", "EEVEE", 4, 92, 36, "Idle", "Faint", Map.of(
+                    "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip"))),
+            Map.entry("PIKACHU", new FightingSpriteProfile("PIKACHU", 4, 78, 30, "Idle", Map.of(
+                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
+            Map.entry("RAICHU", new FightingSpriteProfile("RAICHU", "PIKACHU", 4, 96, 34, "Idle", "Faint", Map.of(
+                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))));
 
     final String species;
     final int scale;

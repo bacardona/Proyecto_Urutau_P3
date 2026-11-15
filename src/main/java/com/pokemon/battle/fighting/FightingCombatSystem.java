@@ -70,6 +70,12 @@ public class FightingCombatSystem {
             0.08, 0.08, 0.44, 30, 42, 0, 0, 0, 0, new Color(0xA5A5A5));
 
     // Original prototype profiles remain available in the fallback session.
+    // Pikachu / Raichu: Onda Trueno baja el ataque del rival como Grunido, con su propio efecto
+    private static final AttackDefinition THUNDER_WAVE = new AttackDefinition(
+            "THUNDER_WAVE", 83, AttackDefinition.Kind.GRUNT, 0,
+            0.12, GRUNT_LOCK_SECONDS, 3.60, 0, 0, 0, 0, 0, 0,
+            new Color(0xFFE45A));
+
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
             "TACKLE", 18, AttackDefinition.Kind.DASH, 12,
             0.08, 0.16, 0.40, 64, 82, 360, 0, 0, 0, new Color(0xF2C28B));
@@ -338,8 +344,17 @@ public class FightingCombatSystem {
 
     private AttackDefinition attackFor(String pokemonId, int requestedAttack) {
         if (requestedAttack < 0) return null;
+        if ("PIKACHU".equals(pokemonId)) {
+            return switch (requestedAttack) {
+                case 0 -> QUICK_ATTACK;
+                case 1 -> THUNDER_SHOCK;
+                case 2 -> TAIL_WHIP;
+                case 3 -> THUNDER_WAVE;
+                default -> null;
+            };
+        }
         if (!isSelectableFreeFightPokemon(pokemonId)) {
-            if ("PIKACHU".equals(pokemonId)) {
+            if ("PIKACHU_PROTOTYPE".equals(pokemonId)) {
                 if (requestedAttack == 0) return QUICK_ATTACK;
                 if (requestedAttack == 1) return THUNDER_SHOCK;
             } else if ("CHARIZARD".equals(pokemonId)) {
@@ -377,7 +392,8 @@ public class FightingCombatSystem {
 
     private boolean isSelectableFreeFightPokemon(String pokemonId) {
         return "BULBASAUR".equals(pokemonId) || "CHARMANDER".equals(pokemonId)
-                || "SQUIRTLE".equals(pokemonId) || "EEVEE".equals(pokemonId);
+                || "SQUIRTLE".equals(pokemonId) || "EEVEE".equals(pokemonId)
+                || "PIKACHU".equals(pokemonId);
     }
 
     private boolean startRequestedAttack(AttackState state, AttackDefinition requested,
@@ -456,7 +472,7 @@ public class FightingCombatSystem {
             if (state.definition.kind() == AttackDefinition.Kind.DASH
                     || (state.definition.kind() == AttackDefinition.Kind.LUNGE
                         && state.activeElapsed <= TAIL_LUNGE_SECONDS)) {
-                if ("EEVEE".equals(attacker.getBasePokemonId())
+                if (("EEVEE".equals(attacker.getBasePokemonId()) || "PIKACHU".equals(attacker.getBasePokemonId()))
                         && "QUICK_ATTACK".equals(state.definition.moveId())) {
                     moveQuickAttack(attacker, state, arenaWidth, deltaSeconds);
                 } else {

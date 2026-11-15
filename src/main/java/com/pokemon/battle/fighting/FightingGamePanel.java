@@ -851,12 +851,12 @@ public class FightingGamePanel extends JPanel {
         String moveThree;
         String moveFour;
         switch (fighter.getBasePokemonId()) {
-            case "PIKACHU" -> { moveOne = "RAPIDO"; moveTwo = "IMPACTRUENO"; moveThree = "—"; moveFour = "—"; }
             case "CHARIZARD" -> { moveOne = "ASCUAS"; moveTwo = "PLACAJE"; moveThree = "—"; moveFour = "—"; }
             case "BULBASAUR" -> { moveOne = "PLACAJE"; moveTwo = "LATIGO CEPA"; moveThree = "SOMNIFERO"; moveFour = "DESARROLLO"; }
             case "CHARMANDER" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "VUELO"; }
             case "SQUIRTLE" -> { moveOne = "PLACAJE"; moveTwo = "PISTOLA AGUA"; moveThree = "LATIGO"; moveFour = "MORDISCO"; }
             case "EEVEE" -> { moveOne = "PLACAJE"; moveTwo = "RAPIDO"; moveThree = "GRUNIDO"; moveFour = "LATIGO"; }
+            case "PIKACHU" -> { moveOne = "RAPIDO"; moveTwo = "IMPACTRUENO"; moveThree = "LATIGO"; moveFour = "ONDA TRUENO"; }
             default -> { return new String[]{"ATAQUES NO DISPONIBLES", ""}; }
         }
         String prefix = playerOne ? "P1 " : "P2 ";

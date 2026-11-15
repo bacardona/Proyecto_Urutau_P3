@@ -11,6 +11,8 @@ public record EvolutionProfile(String basePokemonId, int baseOracleId,
     public static final double EVOLVED_MOVEMENT_SPEED_BONUS = 0.07;
 
     private static final Map<String, EvolutionProfile> BY_BASE_ID = Map.of(
+            "PIKACHU", new EvolutionProfile("PIKACHU", 25,
+                    "RAICHU", 26, "Raichu", 120),
             "BULBASAUR", new EvolutionProfile("BULBASAUR", 1,
                     "IVYSAUR", 2, "Ivysaur", 148),
             "CHARMANDER", new EvolutionProfile("CHARMANDER", 4,

@@ -348,7 +348,7 @@ public final class FightingFx {
         if ("FLY".equals(moveId)) return;   // Vuelo ya se mueve de verdad
         Hop hop = new Hop();
         hop.ranged = switch (moveId) {
-            case "EMBER", "WATER_GUN", "THUNDER_SHOCK", "SLEEP_POWDER", "GROWL", "GROWTH" -> true;
+            case "EMBER", "WATER_GUN", "THUNDER_SHOCK", "SLEEP_POWDER", "GROWL", "GROWTH", "THUNDER_WAVE" -> true;
             default -> false;
         };
         hops.put(attacker, hop);
@@ -445,6 +445,17 @@ public final class FightingFx {
                     ring(mx, my, 8, 420, 0.55, new Color(0xFFE15A), i * 0.12, 7);
                 }
                 shake(5, 0.45);
+            }
+            case "THUNDER_WAVE" -> {
+                // Onda Trueno: chispazo alrededor de Pikachu y ondas amarillas hacia el rival
+                sound.play(FightingSound.Sfx.ELECTRIC_SHOT, 1f);
+                double[] mouth = MouthPoint.of(attacker, "GROWL");
+                big.play(PvfxEffects.Effect.LIGHTNING_STATIC_BURST, attacker.getX(),
+                        feetY - attacker.getRenderHeight() * 0.5, 2, false);
+                for (int i = 0; i < 3; i++) {
+                    ring(mouth[0], mouth[1], 8, 380, 0.5, new Color(0xFFE45A), i * 0.12, 6);
+                }
+                shake(4, 0.3);
             }
             case "GROWTH" -> {
                 sound.play(FightingSound.Sfx.BUFF, 1f);
@@ -1036,6 +1047,8 @@ public final class FightingFx {
             }
             case "INFERNO_BURST" -> big.play(PvfxEffects.Effect.FIRE_FIRE_TORNADO, owner.getX(), owner.getY() + 6,
                     4, false, 0, seconds);
+            case "THUNDER" -> big.play(PvfxEffects.Effect.STATUS_ELECTRIFIED, owner.getX(), owner.getY() + 6,
+                    4, false, 0, seconds);
             default -> { }
         }
     }
@@ -1056,6 +1069,10 @@ public final class FightingFx {
             case "LEAF_STORM" -> {
                 big.play(PvfxEffects.Effect.HOLY_HOLY_SMITE, x, feet, 3, false);
                 big.play(PvfxEffects.Effect.NATURE_SPORE_BURST, x, feet, 3, false);
+            }
+            case "THUNDER" -> {
+                big.play(PvfxEffects.Effect.LIGHTNING_LIGHTNING_STRIKE, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.IMPACTS_SHOCKWAVE_RING, x, feet - 6, 3, false);
             }
             case "INFERNO_BURST" -> {
                 big.play(PvfxEffects.Effect.EXPLOSIONS_FIRE_NOVA, x, feet - 10, 3, false);

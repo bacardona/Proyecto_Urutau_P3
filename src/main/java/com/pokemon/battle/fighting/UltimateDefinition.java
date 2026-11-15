@@ -12,6 +12,9 @@ public record UltimateDefinition(String moveId, String displayName, Shape shape,
     public enum Shape { BEAM, RINGS }
 
     private static final Map<String, UltimateDefinition> BY_EVOLVED_FORM = Map.of(
+            "RAICHU", new UltimateDefinition("THUNDER", "TRUENO",
+                    Shape.BEAM, 85, 5, 1.0, 0.27,
+                    new Color(0xFFD21F), new Color(0xFFF7A8)),
             "IVYSAUR", new UltimateDefinition("LEAF_STORM", "TORMENTA DE HOJAS",
                     Shape.BEAM, 80, 4, 1.0, 0.30,
                     new Color(0x4BCE55), new Color(0xB5FF79)),

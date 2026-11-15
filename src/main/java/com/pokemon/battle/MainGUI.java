@@ -36,7 +36,7 @@ public class MainGUI {
     // La colección se puede ampliar cuando se aprueben más especies.
     // Pokemon que se pueden elegir en Combate Libre (por nombre, asi no importa el ID de la base)
     private static final Set<String> FREE_FIGHT_POKEMON = Set.of(
-            "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE");
+            "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE", "PIKACHU");
 
     private static final String PROJECT_TITLE = "POKKEN BATTLE";
 
