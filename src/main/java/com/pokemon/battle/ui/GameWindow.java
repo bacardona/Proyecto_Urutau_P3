@@ -1,11 +1,16 @@
 package com.pokemon.battle.ui;
 
+import com.pokemon.battle.gamepad.GameAction;
+import com.pokemon.battle.gamepad.GamepadInput;
+import com.pokemon.battle.gamepad.InputProfile;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingWorker;
 import java.awt.CardLayout;
 import java.awt.Dimension;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -22,17 +27,23 @@ public class GameWindow extends JFrame {
     private final Map<String, JComponent> screens = new HashMap<>();
     private final LoadingScreen loading = new LoadingScreen();
 
+
     public GameWindow() {
         setTitle("Pokken Battle");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setResizable(false);
-
         container.setPreferredSize(new Dimension(960, 640));
         add(container);
         addScreen("loading", loading);
+        gamepad.setListener(this::onGamepadAction);
+        gamepad.start();   // si no hay mando o falla, el juego sigue con teclado
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent e) { gamepad.stop(); }
+        });
         pack();
         setLocationRelativeTo(null);
     }
+
 
     // Si ya existia una pantalla con ese nombre, la reemplaza
     public void addScreen(String name, JComponent screen) {
@@ -46,6 +57,24 @@ public class GameWindow extends JFrame {
 
     public void showScreen(String name) {
         cards.show(container, name);
+        currentScreen = name;
+        gamepad.setProfile(PROFILES.getOrDefault(name, InputProfile.MENU));
+    }
+
+    private void onGamepadAction(GameAction action) {
+        JComponent screen = screens.get(currentScreen);
+        if (!(screen instanceof RetroScreen retro)) return;
+
+        String key = switch (action) {
+            case UP -> "UP";
+            case DOWN -> "DOWN";
+            case LEFT -> "LEFT";
+            case RIGHT -> "RIGHT";
+            case CONFIRM, ANY_BUTTON -> "ENTER";
+            case BACK -> "ESCAPE";
+            default -> null;   // REMOVE_LAST, PAGE_PREV, PAGE_NEXT: pendientes
+        };
+        if (key != null) retro.pressKey(key);
     }
 
     /**
@@ -90,6 +119,26 @@ public class GameWindow extends JFrame {
             }
         }.execute();
     }
+
+    private final GamepadInput gamepad = new GamepadInput();
+    private String currentScreen;
+
+    // Perfil del mando por pantalla (las que no estén aquí usan MENU)
+    private static final Map<String, InputProfile> PROFILES = Map.ofEntries(
+            Map.entry("intro", InputProfile.CUALQUIER_BOTON),
+            Map.entry("loading", InputProfile.CUALQUIER_BOTON),
+            Map.entry("menu", InputProfile.MENU),
+            Map.entry("combatMenu", InputProfile.MENU),
+            Map.entry("pokedex", InputProfile.LISTA),
+            Map.entry("history", InputProfile.LISTA),
+            Map.entry("historyView", InputProfile.LISTA),
+            Map.entry("pveHub", InputProfile.LISTA),
+            Map.entry("pvpHub1", InputProfile.LISTA),
+            Map.entry("pvpHub2", InputProfile.LISTA),
+            Map.entry("pveTeam", InputProfile.EQUIPO),
+            Map.entry("pvpTeam1", InputProfile.EQUIPO),
+            Map.entry("pvpTeam2", InputProfile.EQUIPO));
+
 
     /** Muestra un error con el estilo retro; ESC o Enter vuelven a backScreen. */
     public void showError(String message, String backScreen) {
