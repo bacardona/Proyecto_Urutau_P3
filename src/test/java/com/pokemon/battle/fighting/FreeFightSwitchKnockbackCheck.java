@@ -70,6 +70,15 @@ public class FreeFightSwitchKnockbackCheck {
         jumper.setY(air.getGroundY() - 120);
         check(air.trySwitchActiveFighter(0), "Switch in the air at the wall must work");
         check(air.getFighters().get(0).getY() < air.getGroundY() - 100, "Incoming keeps the height of the jump");
+        // Aunque sigan apretando hacia la pared, el que entra mira al centro toda la entrada
+        FightingInput holdLeft = new FightingInput();
+        holdLeft.setPlayerOneLeft(true);
+        Fighter entering = air.getFighters().get(0);
+        for (int i = 0; i < 90 && !entering.isOnGround(); i++) {
+            air.update(holdLeft, 1 / 60.0);
+            check(!entering.isFacingLeft(), "Incoming must face the center while entering");
+        }
+        check(entering.isOnGround() && !entering.isFacingLeft(), "Incoming lands facing the center");
 
         // Combos: del tercer golpe en adelante pegan mas
         check(FightingCombatSystem.comboDamageMultiplier(2) == 1.0

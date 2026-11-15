@@ -361,6 +361,12 @@ public class FightingGameSession {
     private boolean updateFighter(Fighter fighter, int playerIndex, double direction,
                                boolean jumpRequested, boolean jumpHeld,
                                double deltaSeconds) {
+        if (playerIndex >= 0 && playerIndex < 2 && entranceAirborne[playerIndex]) {
+            // Saltando de entrada: no se voltea hacia la pared aunque sigan apretando hacia alla
+            direction = 0;
+            jumpRequested = false;
+            fighter.setFacingLeft(fighter.getX() > width / 2.0);
+        }
         double halfWidth = PhysicsSystem.halfWidthFor(fighter);
         double forcedDelta = combatSystem.getForcedHorizontalDelta(
                 fighter, fighters, deltaSeconds, width);
