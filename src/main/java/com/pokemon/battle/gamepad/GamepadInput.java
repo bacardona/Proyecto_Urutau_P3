@@ -91,8 +91,8 @@ public class GamepadInput {
 
     private void directions(ControllerState s, long now) {
         GameAction dir = null;
-        if (s.dpadUp    || s.leftStickY >  DEADZONE) dir = GameAction.UP;
-        else if (s.dpadDown  || s.leftStickY < -DEADZONE) dir = GameAction.DOWN;
+        if (s.dpadUp    || s.leftStickY < -DEADZONE) dir = GameAction.UP;
+        else if (s.dpadDown  || s.leftStickY >  DEADZONE) dir = GameAction.DOWN;
         else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
         else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
 
