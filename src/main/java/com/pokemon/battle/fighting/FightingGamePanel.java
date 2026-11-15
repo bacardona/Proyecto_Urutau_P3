@@ -159,6 +159,8 @@ public class FightingGamePanel extends JPanel {
         });
         bindKeyRelease("DOWN", input::setPlayerTwoBlock);
         bindKey("ENTER", this::activateSelected);
+        // M: silenciar o activar los sonidos del combate
+        bindKey("M", () -> FightingSound.get().setMuted(!FightingSound.get().isMuted()));
         if (DEBUG_KO_ENABLED) {
             bindKey("F6", () -> debugDefeat(0));
             bindKey("F7", () -> debugDefeat(1));
@@ -310,7 +312,8 @@ public class FightingGamePanel extends JPanel {
         simulationAccumulatorNanos += elapsed;
 
         while (simulationAccumulatorNanos >= SIMULATION_STEP_NANOS) {
-            session.update(input, SIMULATION_STEP_NANOS / 1_000_000_000.0);
+            // FightingFx avanza la simulacion y agrega efectos (y el congelado al golpear)
+            renderer.fx().step(session, input, SIMULATION_STEP_NANOS / 1_000_000_000.0);
             simulationAccumulatorNanos -= SIMULATION_STEP_NANOS;
             if (session.getState() == FightingGameSession.State.FINISHED) {
                 stopGameTimersAndClearInput();
@@ -477,6 +480,7 @@ public class FightingGamePanel extends JPanel {
     }
 
     private FightingGameSession createSession() {
+        renderer.reset();
         return setup != null && setup.isComplete()
                 ? new FightingGameSession(setup)
                 : new FightingGameSession();
@@ -754,7 +758,7 @@ public class FightingGamePanel extends JPanel {
             drawCentered(g, playerTwoAttacks[0], centerX, panelY + 282, 15, RetroStyle.DARK);
             drawCentered(g, playerTwoAttacks[1], centerX, panelY + 304, 15, RetroStyle.DARK);
 
-            drawCentered(g, "ESC O ENTER PARA VOLVER", centerX,
+            drawCentered(g, "ESC O ENTER PARA VOLVER  |  M SONIDO", centerX,
                     panelY + 348, 16, RetroStyle.DARK);
         }
 

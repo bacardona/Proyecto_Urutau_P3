@@ -22,13 +22,46 @@ public class FightingRenderer {
 
     private final SpriteLoader spriteLoader;
     private final FightingStageRenderer stage = new FightingStageRenderer();
+    // Particulas, temblor, zoom, destellos, numeros de dano y sonidos (ver FightingFx)
+    private final FightingFx fx = new FightingFx();
+    // Silueta blanca de cada cuadro, para el destello al recibir un golpe
+    private final java.util.Map<BufferedImage, BufferedImage> whiteFrames = new java.util.WeakHashMap<>();
 
     public FightingRenderer(SpriteLoader spriteLoader) {
         this.spriteLoader = spriteLoader;
     }
 
+    public FightingFx fx() {
+        return fx;
+    }
+
+    /** Forget effects of the previous match. */
+    public void reset() {
+        fx.clear();
+    }
+
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
+        // Todo el escenario tiembla y hace zoom junto; las barras de arriba se quedan quietas
+        Graphics2D scene = (Graphics2D) g.create();
+        scene.translate(fx.shakeX(), fx.shakeY());
+        if (fx.zoom() > 0) {
+            double z = 1 + fx.zoom();
+            scene.translate(fx.zoomFocusX(), fx.zoomFocusY());
+            scene.scale(z, z);
+            scene.translate(-fx.zoomFocusX(), -fx.zoomFocusY());
+        }
+        drawScene(scene, session, frameIndex, repaint);
+        scene.dispose();
+        fx.drawScreenFlash(g, session.getWidth(), session.getHeight());
+        drawBars(g, session);
+        drawTeamIndicators(g, session, true, frameIndex, repaint);
+        drawTeamIndicators(g, session, false, frameIndex, repaint);
+    }
+
+    private void drawScene(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
         stage.draw(g, session);
+        fx.drawDecals(g);
+        fx.drawBehind(g);
         drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         for (Fighter fighter : session.getFighters()) {
@@ -38,10 +71,10 @@ public class FightingRenderer {
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
         drawPhysicalImpacts(g, session.getCombatSystem());
         drawUltimateEffects(g, session, frameIndex);
-        drawBars(g, session);
+        fx.drawFront(g, session);
         drawFighterStatusIndicators(g, session);
-        drawTeamIndicators(g, session, true, frameIndex, repaint);
-        drawTeamIndicators(g, session, false, frameIndex, repaint);
+        fx.drawPopups(g);
+        fx.drawOverlay(g, session.getWidth(), session.getHeight());
     }
 
     public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption) {
@@ -135,12 +168,7 @@ public class FightingRenderer {
     }
 
     private void drawAttackEffects(Graphics2D g, FightingGameSession session) {
-        for (FightingProjectile projectile : session.getProjectiles()) {
-            int x = (int) Math.round(projectile.getX() - projectile.getSize() / 2);
-            int y = (int) Math.round(projectile.getY() - projectile.getSize() / 2);
-            int size = (int) Math.round(projectile.getSize());
-            drawProjectileEffect(g, projectile, x, y, size);
-        }
+        // Los proyectiles (fuego, agua, rayo, polvo) los dibuja FightingFx
         for (Fighter attacker : session.getFighters()) {
             FightingCombatSystem.AttackVisual visual = session.getCombatSystem()
                     .getAttackVisual(attacker, session.getFighters());
@@ -365,39 +393,6 @@ public class FightingRenderer {
             g.drawOval(centerX - inner, centerY - inner, inner * 2, inner * 2);
         }
         g.setStroke(oldStroke);
-    }
-
-    private void drawProjectileEffect(Graphics2D g, FightingProjectile projectile,
-                                      int x, int y, int size) {
-        String moveId = projectile.getMoveId();
-        if ("EMBER".equals(moveId)) {
-            g.setColor(new Color(0xE84A20));
-            g.fillOval(x + size / 5, y + size / 5, size * 3 / 5, size * 4 / 5);
-            g.fillOval(x + size / 3, y, size / 3, size * 2 / 3);
-            g.setColor(new Color(0xFFD75E));
-            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 2);
-        } else if ("WATER_GUN".equals(moveId)) {
-            int direction = projectile.getVelocityX() < 0 ? -1 : 1;
-            g.setColor(new Color(0x2087D8));
-            g.fillOval(x + size / 5, y + size / 4, size * 3 / 5, size / 2);
-            g.setColor(new Color(0x9CEBFF));
-            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 3);
-            g.setColor(new Color(0x5BCBFF));
-            g.fillOval(x - direction * size / 3, y + size / 3, size / 3, size / 3);
-        } else if ("SLEEP_POWDER".equals(moveId)) {
-            g.setColor(new Color(0x854BB0));
-            g.fillOval(x + size / 8, y + size / 8, size * 3 / 4, size * 3 / 4);
-            g.setColor(new Color(0xE8C8FF));
-            g.fillOval(x + size / 3, y + size / 3, size / 3, size / 3);
-            g.setColor(new Color(0xFFFFFF));
-            g.fillRect(x + size / 4, y + size / 5, Math.max(2, size / 6), Math.max(2, size / 6));
-        } else {
-            g.setColor(projectile.getColor());
-            g.fillRect(x + size / 4, y, size / 2, size);
-            g.fillRect(x, y + size / 4, size, size / 2);
-            g.setColor(Color.WHITE);
-            g.fillRect(x + size / 3, y + size / 3, size / 3, size / 3);
-        }
     }
 
     private void drawVineWhip(Graphics2D g, Fighter attacker, AttackDefinition definition,
@@ -733,6 +728,8 @@ public class FightingRenderer {
         for (var ultimate : combat.getUltimateVisuals()) {
             if (ultimate.owner() == fighter) { ownedUltimate = ultimate; break; }
         }
+        // Empuje al recibir un golpe (solo visual)
+        shakeX += fx.knockOffsetX(fighter);
         if (profile != null && drawSpriteAnimation(g, fighter, profile,
                 fighter.isEvolutionAnimating() ? null : visual, centerX + shakeX, ownedUltimate)) {
             if (fighter.isEvolutionAnimating()) drawEvolutionFlash(g, centerX,
@@ -820,6 +817,13 @@ public class FightingRenderer {
                     (float) Math.max(0.15, 1 - fade)));
         }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
+        float flash = fx.whiteFlash(fighter);
+        if (flash > 0) {
+            // Destello blanco al recibir el golpe
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, flash));
+            g.drawImage(whiteFrames.computeIfAbsent(image, FightingRenderer::whiteSilhouette),
+                    x, y, image.getWidth() * scale, image.getHeight() * scale, null);
+        }
         g.setComposite(oldComposite);
         return true;
     }
@@ -1022,6 +1026,17 @@ public class FightingRenderer {
             case "TACKLE", "QUICK_ATTACK" -> 1.0 - 0.06 * Math.sin(Math.PI * visual.activeProgress());
             default -> 1;
         };
+    }
+
+    private static BufferedImage whiteSilhouette(BufferedImage frame) {
+        BufferedImage white = new BufferedImage(frame.getWidth(), frame.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        for (int py = 0; py < frame.getHeight(); py++) {
+            for (int px = 0; px < frame.getWidth(); px++) {
+                int alpha = frame.getRGB(px, py) >>> 24;
+                if (alpha > 0) white.setRGB(px, py, (alpha << 24) | 0xFFFFFF);
+            }
+        }
+        return white;
     }
 
     private void drawEvolutionFlash(Graphics2D g, int centerX, int centerY,
