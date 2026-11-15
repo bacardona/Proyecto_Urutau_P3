@@ -13,6 +13,7 @@ import com.pokemon.battle.ui.PokedexPanel;
 import com.pokemon.battle.ui.PveBattleFlow;
 import com.pokemon.battle.ui.PvpBattleFlow;
 import com.pokemon.battle.ui.TeamSelectScreen;
+import com.pokemon.battle.fighting.FightingTeam;
 import com.pokemon.battle.ui.TrainerHubScreen;
 import com.pokemon.battle.ui.TrainerSelectPanel;
 import com.pokemon.battle.fighting.FightingGamePanel;
@@ -144,7 +145,7 @@ public class MainGUI {
                         window.showScreen("freeStage");
                     }
                 },
-                () -> window.showScreen("freeHub2"));
+                () -> window.showScreen("freeHub2"), FightingTeam.SIZE);
 
         TrainerHubScreen freeHub2 = new TrainerHubScreen("COMBATE LIBRE",
                 "ENTRENADOR 2: SELECCIONA O CREA UN ENTRENADOR", controller,
@@ -160,7 +161,7 @@ public class MainGUI {
                     freeFightSetup.setPlayerOne(freeFightSetup.getPlayerOne(), team);
                     openHub(window, controller, freeHub2, "freeHub2", freeFightSetup.getPlayerOne());
                 },
-                () -> window.showScreen("freeHub1"));
+                () -> window.showScreen("freeHub1"), FightingTeam.SIZE);
 
         TrainerHubScreen freeHub1 = new TrainerHubScreen("COMBATE LIBRE",
                 "ENTRENADOR 1: SELECCIONA O CREA UN ENTRENADOR", controller,

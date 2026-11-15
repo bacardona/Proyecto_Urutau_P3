@@ -47,6 +47,7 @@ public final class FreeFightSetup {
 
     public boolean isComplete() {
         return playerOne != null && playerTwo != null
-                && teamOne.size() == 3 && teamTwo.size() == 3;
+                && teamOne.size() >= FightingTeam.MIN_SIZE && teamOne.size() <= FightingTeam.MAX_SIZE
+                && teamTwo.size() == teamOne.size();
     }
 }

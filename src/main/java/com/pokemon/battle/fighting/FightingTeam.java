@@ -8,14 +8,19 @@ import java.util.Objects;
 /** Ordered three-member free-fight team; member zero starts as the active fighter. */
 public final class FightingTeam {
 
+    /** Pokemon por equipo en Combate Libre (2 para que la pelea no sea tan larga). */
+    public static final int SIZE = 2;
+    static final int MIN_SIZE = 2;
+    static final int MAX_SIZE = 3;
+
     private final String trainerName;
     private final List<Fighter> members;
     private int activeIndex;
 
     public FightingTeam(String trainerName, List<Pokemon> pokemon, double startX,
                         double groundY, boolean facingLeft) {
-        if (pokemon == null || pokemon.size() != 3) {
-            throw new IllegalArgumentException("El equipo libre debe tener tres Pokemon");
+        if (pokemon == null || pokemon.size() < MIN_SIZE || pokemon.size() > MAX_SIZE) {
+            throw new IllegalArgumentException("El equipo libre debe tener 2 o 3 Pokemon");
         }
         this.trainerName = Objects.requireNonNull(trainerName);
         this.members = pokemon.stream()
@@ -32,7 +37,9 @@ public final class FightingTeam {
     }
 
     private FightingTeam(String trainerName, List<Fighter> members, boolean prototype) {
-        if (members.size() != 3) throw new IllegalArgumentException("El equipo debe tener tres miembros");
+        if (members.size() < MIN_SIZE || members.size() > MAX_SIZE) {
+            throw new IllegalArgumentException("El equipo debe tener 2 o 3 miembros");
+        }
         this.trainerName = trainerName;
         this.members = List.copyOf(members);
     }

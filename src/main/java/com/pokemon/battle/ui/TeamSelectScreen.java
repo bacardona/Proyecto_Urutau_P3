@@ -43,6 +43,7 @@ public class TeamSelectScreen extends RetroScreen {
     private static final int SLOT_H = 28;
     private static final int SLOTS_TOP = TEAM_BOX.y + 42;
     private static final int MAX_STAT = 200;
+    private final int teamSize;
     private static final int SPRITE_TARGET = 172;
 
     private final Consumer<List<Pokemon>> onDone;
@@ -63,7 +64,15 @@ public class TeamSelectScreen extends RetroScreen {
      * @param onBack que hacer al salir sin confirmar
      */
     public TeamSelectScreen(Consumer<List<Pokemon>> onDone, Runnable onBack) {
+        this(onDone, onBack, Team.SIZE);
+    }
+
+    /**
+     * @param teamSize cuantos Pokemon hay que elegir (3 en el modo normal, 2 en Combate Libre)
+     */
+    public TeamSelectScreen(Consumer<List<Pokemon>> onDone, Runnable onBack, int teamSize) {
         super("ARMAR EQUIPO");
+        this.teamSize = teamSize;
         this.onDone = onDone;
         this.onBack = onBack;
 
@@ -137,7 +146,7 @@ public class TeamSelectScreen extends RetroScreen {
         if (catalog.isEmpty()) {
             return;
         }
-        if (chosen.size() >= Team.SIZE) {
+        if (chosen.size() >= teamSize) {
             confirm();
         } else {
             addSelected();
@@ -149,7 +158,7 @@ public class TeamSelectScreen extends RetroScreen {
             return;
         }
         Pokemon p = catalog.get(selected);
-        if (chosen.size() >= Team.SIZE) {
+        if (chosen.size() >= teamSize) {
             message = "EQUIPO COMPLETO";
         } else if (chosen.contains(p)) {
             message = "YA ESTA EN EL EQUIPO";
@@ -177,8 +186,8 @@ public class TeamSelectScreen extends RetroScreen {
     }
 
     private void confirm() {
-        if (chosen.size() != Team.SIZE) {
-            message = "ELIGE " + Team.SIZE + " POKEMON";
+        if (chosen.size() != teamSize) {
+            message = "ELIGE " + teamSize + " POKEMON";
             repaint();
             return;
         }
@@ -215,7 +224,7 @@ public class TeamSelectScreen extends RetroScreen {
             return;
         }
         if (x >= TEAM_BOX.x && x < TEAM_BOX.x + TEAM_BOX.width
-                && y >= SLOTS_TOP && y < SLOTS_TOP + Team.SIZE * SLOT_H) {
+                && y >= SLOTS_TOP && y < SLOTS_TOP + teamSize * SLOT_H) {
             removeAt((y - SLOTS_TOP) / SLOT_H);
         }
     }
@@ -231,12 +240,12 @@ public class TeamSelectScreen extends RetroScreen {
     protected void paintFooterButtons(Graphics2D g) {
         super.paintFooterButtons(g);
         RetroStyle.drawArrowKeyButton(g, true, "MOVER", 214, 598, 150, 36);
-        String enter = chosen.size() >= Team.SIZE ? "ENTER  LISTO" : "ENTER  AGREGAR";
+        String enter = chosen.size() >= teamSize ? "ENTER  LISTO" : "ENTER  AGREGAR";
         RetroStyle.drawKeyButton(g, enter, ADD_BUTTON.x, ADD_BUTTON.y, ADD_BUTTON.width, ADD_BUTTON.height);
         RetroStyle.drawKeyButton(g, "BORRAR  QUITAR", REMOVE_BUTTON.x, REMOVE_BUTTON.y,
                 REMOVE_BUTTON.width, REMOVE_BUTTON.height);
         RetroStyle.drawKeyButton(g, "LISTO", DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height);
-        if (chosen.size() < Team.SIZE) {
+        if (chosen.size() < teamSize) {
             // LISTO se ve apagado hasta que haya 3 Pokemon
             g.setColor(new Color(214, 214, 214, 170));
             g.fillRoundRect(DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height, 10, 10);
@@ -306,7 +315,7 @@ public class TeamSelectScreen extends RetroScreen {
                 hasMessage ? RetroStyle.RED_DARK : RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
 
         g.setFont(RetroStyle.font(22));
-        for (int i = 0; i < Team.SIZE; i++) {
+        for (int i = 0; i < teamSize; i++) {
             int y = SLOTS_TOP + i * SLOT_H;
             g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
             g.fillRect(TEAM_BOX.x + 10, y, TEAM_BOX.width - 20, SLOT_H);
