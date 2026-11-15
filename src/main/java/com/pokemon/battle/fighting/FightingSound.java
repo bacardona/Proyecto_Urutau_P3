@@ -22,7 +22,8 @@ public final class FightingSound {
     public enum Sfx {
         HIT_LIGHT, HIT_HEAVY, WHOOSH, JUMP, LAND, BLOCK,
         FIRE_SHOT, FIRE_HIT, WATER_SHOT, WATER_HIT, ELECTRIC_SHOT, ELECTRIC_HIT,
-        POWDER, VINE, BITE, GROWL, BUFF, KO, ULTI_CHARGE, ULTI_RELEASE
+        POWDER, VINE, BITE, GROWL, BUFF, KO, ULTI_CHARGE, ULTI_RELEASE,
+        VS, COUNT, GO, CUT_IN
     }
 
     private static final int RATE = 22050;
@@ -45,7 +46,47 @@ public final class FightingSound {
         }
     }
 
+    // Musica de fondo (se repite sola) y su volumen
+    private static final float MUSIC_VOLUME = 0.32f;
+    private volatile float[] music;
+    private volatile boolean musicPlaying;
+    private int musicPosition;
+    private float[] battleTheme;
+    private float[] fanfare;
+
     private FightingSound() {
+    }
+
+    /** Starts the 8-bit battle loop (generated once, the first time). */
+    public void startBattleMusic() {
+        if (!available) return;
+        synchronized (this) {
+            if (battleTheme == null) battleTheme = MusicTheme.battle(RATE);
+        }
+        if (music != battleTheme) musicPosition = 0;
+        music = battleTheme;
+        musicPlaying = true;
+        ensureStarted();
+    }
+
+    public void stopMusic() {
+        musicPlaying = false;
+    }
+
+    public boolean isMusicPlaying() {
+        return musicPlaying;
+    }
+
+    /** Short victory fanfare. */
+    public void playFanfare() {
+        if (muted || !available) return;
+        synchronized (this) {
+            if (fanfare == null) fanfare = MusicTheme.fanfare(RATE);
+        }
+        ensureStarted();
+        synchronized (voices) {
+            voices.add(new Voice(fanfare, 0.9f));
+        }
     }
 
     public static FightingSound get() {
@@ -109,6 +150,13 @@ public final class FightingSound {
                         if (voice.position >= voice.data.length) voices.remove(v);
                     }
                 }
+                float[] track = music;
+                if (musicPlaying && !muted && track != null && track.length > 0) {
+                    for (int i = 0; i < chunk; i++) {
+                        mix[i] += track[musicPosition] * MUSIC_VOLUME;
+                        musicPosition = (musicPosition + 1) % track.length;
+                    }
+                }
                 for (int i = 0; i < chunk; i++) {
                     // Limitador suave para que varios sonidos juntos no se rompan
                     float value = (float) Math.tanh(mix[i] * 0.9);
@@ -155,6 +203,10 @@ public final class FightingSound {
             case ULTI_CHARGE -> mixAll(saw(0.9, 90, 360, 0.30, 14), noise(random, 0.9, 0.15, 0.6, 0));
             case ULTI_RELEASE -> crush(mixAll(explosion(random, 1.1, 1.0), thump(0.6, 90, 25, 1.0),
                     zap(random, 0.6, 0.3)), 4);
+            case VS -> crush(mixAll(explosion(random, 0.7, 0.8), thump(0.45, 140, 40, 1.0)), 5);
+            case COUNT -> square(0.18, 660, 660, 0.35, 0.5);
+            case GO -> arpeggio(new double[]{523, 784, 1047, 1568}, 0.06, 0.4);
+            case CUT_IN -> mixAll(sweepNoise(random, 0.35, 0.1, 0.9, 0.5), square(0.25, 880, 1320, 0.25, 0.5));
         };
     }
 
