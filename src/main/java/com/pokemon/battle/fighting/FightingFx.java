@@ -111,6 +111,8 @@ public final class FightingFx {
     private final UltimateController.Phase[] lastUltimatePhase = new UltimateController.Phase[2];
 
     private final List<Decal> decals = new ArrayList<>();
+    // Efectos dibujados a mano (Pixel FX Pack, CC0)
+    private final PixelFxSheets sheets = new PixelFxSheets();
     private double groundY = 677;
     // Zoom de camara en los golpes fuertes
     private double zoom;
@@ -139,6 +141,7 @@ public final class FightingFx {
 
     /** Forget everything (new match or rematch). */
     public void clear() {
+        sheets.clear();
         particles.clear();
         bolts.clear();
         popups.clear();
@@ -178,6 +181,7 @@ public final class FightingFx {
     }
 
     private void tick(double dt) {
+        sheets.tick(dt);
         for (Iterator<Particle> it = particles.iterator(); it.hasNext(); ) {
             Particle p = it.next();
             if (p.delay > 0) {
@@ -501,7 +505,34 @@ public final class FightingFx {
             case "SLEEP_POWDER" -> powderPuff(x, y);
             default -> physicalHit(e.moveId(), x, y, dir, damage, target);
         }
+        sheetHit(e.moveId(), x, y, dir, damage);
         damagePopup(x, y - 30, damage);
+    }
+
+    /** Animacion pixel art encima del golpe, segun el tipo de ataque. */
+    private void sheetHit(String moveId, double x, double y, double dir, int damage) {
+        boolean flip = dir < 0;
+        double big = damage >= 12 ? 1.35 : 1.0;
+        switch (moveId) {
+            case "EMBER" -> {
+                sheets.play(PixelFxSheets.Sheet.BURST, x, y - 10, 3 * big, 0.55, flip);
+                sheets.play(PixelFxSheets.Sheet.FIRE_RING, x, y, 3 * big, 0.45, flip);
+            }
+            case "WATER_GUN" -> {
+                sheets.play(PixelFxSheets.Sheet.SPLASH, x, y - 30, 4 * big, 0.5, flip);
+                sheets.play(PixelFxSheets.Sheet.DROPS, x, y, 3, 0.45, flip);
+            }
+            case "THUNDER_SHOCK" -> {
+                sheets.play(PixelFxSheets.Sheet.SPARK, x, y, 4 * big, 0.45, flip);
+                sheets.play(PixelFxSheets.Sheet.SHOCKWAVE, x, y, 3, 0.35, flip);
+            }
+            case "SLEEP_POWDER" -> sheets.play(PixelFxSheets.Sheet.TWIRL, x, y - 20, 3, 0.7, flip);
+            case "VINE_WHIP", "GROWTH" -> sheets.play(PixelFxSheets.Sheet.RING, x, y, 3, 0.4, flip);
+            default -> {
+                sheets.play(PixelFxSheets.Sheet.SPARK, x, y, 3 * big, 0.35, flip);
+                sheets.play(PixelFxSheets.Sheet.SHOCKWAVE, x, y, 2.5 * big, 0.3, flip);
+            }
+        }
     }
 
     private void fireExplosion(double x, double y, double dir, int damage) {
@@ -683,6 +714,7 @@ public final class FightingFx {
 
     private void block(double x, double y, double dir) {
         sound.play(FightingSound.Sfx.BLOCK);
+        sheets.play(PixelFxSheets.Sheet.TWINKLE, x, y, 3, 0.35, dir < 0);
         ring(x, y, 14, 90, 0.2, new Color(0xA7E8FF), 0, 5);
         glow(x, y, 70, 0.15, new Color(0x8FDFFF), false);
         sparks(x, y, 10, 320, Color.WHITE, new Color(0x6CCBFF));
@@ -699,6 +731,8 @@ public final class FightingFx {
         double x = f.getX();
         double y = f.getY() - f.getRenderHeight() * 0.5;
         sound.play(FightingSound.Sfx.KO);
+        sheets.play(PixelFxSheets.Sheet.BURST, x, y, 6, 0.8, false);
+        sheets.play(PixelFxSheets.Sheet.SHOCKWAVE, x, y, 5, 0.6, false);
         glow(x, y, 220, 0.35, Color.WHITE, false);
         for (int i = 0; i < 3; i++) ring(x, y, 10, 420, 0.5, Color.WHITE, i * 0.1, 6);
         sparks(x, y, 40, 700, Color.WHITE, new Color(0xFFE36E));
@@ -1210,6 +1244,7 @@ public final class FightingFx {
                     (float) Math.min(1, b.life / b.maxLife * 1.5));
         }
         g.setComposite(old);
+        sheets.draw(g);
     }
 
     /** Damage numbers and "K.O.!". */
