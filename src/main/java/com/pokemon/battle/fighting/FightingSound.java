@@ -34,6 +34,12 @@ public final class FightingSound {
     private volatile boolean muted;
     private volatile boolean started;
     private volatile boolean available = true;
+    // Vigilante del mezclador: si el hilo de audio se muere o se queda trabado
+    // (por ejemplo, Windows cambia de parlantes), se abre uno nuevo.
+    private volatile long lastWriteNanos;
+    private volatile int generation;
+    private volatile boolean everOpened;
+    private static final long STALL_NANOS = 1_500_000_000L;
 
     private static final class Voice {
         private final float[] data;
@@ -120,24 +126,38 @@ public final class FightingSound {
 
     // ------------------------------------------------------------------ mezclador
 
+    /** Called every frame: restarts the audio thread if it died or got stuck. */
+    public void keepAlive() {
+        if (available && started && System.nanoTime() - lastWriteNanos > STALL_NANOS) {
+            synchronized (this) {
+                started = false;
+            }
+            ensureStarted();
+        }
+    }
+
     private synchronized void ensureStarted() {
-        if (started) return;
+        if (started && System.nanoTime() - lastWriteNanos <= STALL_NANOS) return;
         started = true;
-        Thread thread = new Thread(this::mixLoop, "fighting-sound");
+        lastWriteNanos = System.nanoTime();
+        int myGeneration = ++generation;
+        Thread thread = new Thread(() -> mixLoop(myGeneration), "fighting-sound-" + myGeneration);
         thread.setDaemon(true);
         thread.start();
     }
 
-    private void mixLoop() {
+    private void mixLoop(int myGeneration) {
+        SourceDataLine line = null;
         try {
             AudioFormat format = new AudioFormat(RATE, 16, 1, true, false);
-            SourceDataLine line = AudioSystem.getSourceDataLine(format);
-            line.open(format, 2048 * 2);
+            line = AudioSystem.getSourceDataLine(format);
+            line.open(format, 2048 * 4);
             line.start();
+            everOpened = true;
             int chunk = 256;
             byte[] out = new byte[chunk * 2];
             float[] mix = new float[chunk];
-            while (true) {
+            while (myGeneration == generation) {
                 java.util.Arrays.fill(mix, 0f);
                 synchronized (voices) {
                     for (int v = voices.size() - 1; v >= 0; v--) {
@@ -159,16 +179,33 @@ public final class FightingSound {
                 }
                 for (int i = 0; i < chunk; i++) {
                     // Limitador suave para que varios sonidos juntos no se rompan
-                    float value = (float) Math.tanh(mix[i] * 0.9);
+                    float raw = Float.isFinite(mix[i]) ? mix[i] : 0f;
+                    float value = (float) Math.tanh(raw * 0.9);
                     int pcm = (int) (value * 30000);
                     out[i * 2] = (byte) pcm;
                     out[i * 2 + 1] = (byte) (pcm >> 8);
                 }
                 line.write(out, 0, out.length);
+                lastWriteNanos = System.nanoTime();
             }
-        } catch (Exception | LinkageError e) {
-            // Sin tarjeta de sonido (o sin permisos): el juego sigue en silencio
-            available = false;
+        } catch (Throwable e) {
+            if (!everOpened) {
+                // Sin tarjeta de sonido (o sin permisos): el juego sigue en silencio
+                available = false;
+            } else {
+                System.err.println("[FightingSound] audio thread stopped, restarting: " + e);
+                synchronized (this) {
+                    if (myGeneration == generation) started = false;
+                }
+            }
+        } finally {
+            if (line != null) {
+                try {
+                    line.close();
+                } catch (Throwable ignored) {
+                    // la linea ya estaba rota
+                }
+            }
         }
     }
 
