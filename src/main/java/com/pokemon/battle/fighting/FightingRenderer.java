@@ -80,6 +80,7 @@ public class FightingRenderer {
         if (selectedStage == FightingStage.TEMPLO && TempleStage.available()) TempleStage.drawBack(g, fx.time());
         else if (selectedStage == FightingStage.VOLCAN && VolcanoStage.available()) VolcanoStage.drawBack(g, fx.time());
         else stage.draw(g, session);
+        StageWeather.drawBack(g, selectedStage, fx.time(), session.getWidth(), session.getHeight(), session.getGroundY());
         // Los efectos se dibujan a un tercio de resolucion y se agrandan sin suavizar,
         // asi quedan con pixeles grandes como los sprites y el escenario
         pixelLayer(g, session, lg -> {
@@ -99,6 +100,8 @@ public class FightingRenderer {
             fx.drawFront(lg, session);
         });
         fx.drawBig(g);
+        StageWeather.drawFront(g, session.getStage(), fx.time(), session.getWidth(), session.getHeight(),
+                session.getGroundY());
         if (session.getStage() == FightingStage.TEMPLO) TempleStage.drawFront(g, fx.time());
         else if (session.getStage() == FightingStage.VOLCAN) VolcanoStage.drawFront(g, fx.time());
         drawFighterStatusIndicators(g, session);
