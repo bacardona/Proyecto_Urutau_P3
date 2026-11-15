@@ -98,6 +98,7 @@ public class FightingRenderer {
             drawUltimateEffects(lg, session, frameIndex);
             fx.drawFront(lg, session);
         });
+        fx.drawBig(g);
         if (session.getStage() == FightingStage.TEMPLO) TempleStage.drawFront(g, fx.time());
         else if (session.getStage() == FightingStage.VOLCAN) VolcanoStage.drawFront(g, fx.time());
         drawFighterStatusIndicators(g, session);

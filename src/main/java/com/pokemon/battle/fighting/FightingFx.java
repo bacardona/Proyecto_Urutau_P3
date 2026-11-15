@@ -115,6 +115,8 @@ public final class FightingFx {
     private final PixelFxSheets sheets = new PixelFxSheets();
     // Intro VS, cuenta 3-2-1, cinematica de la ulti, K.O. en camara lenta y ganador
     private final FightingDirector director = new FightingDirector();
+    // Efectos grandes de PVFX Foundry (CC0): llamas, geiseres, rayos, explosiones
+    private final PvfxEffects big = new PvfxEffects();
     private double groundY = 677;
     // Zoom de camara en los golpes fuertes
     private double zoom;
@@ -144,6 +146,7 @@ public final class FightingFx {
     /** Forget everything (new match or rematch). */
     public void clear() {
         director.reset();
+        big.clear();
         sheets.clear();
         particles.clear();
         bolts.clear();
@@ -197,6 +200,7 @@ public final class FightingFx {
 
     private void tick(double dt) {
         sheets.tick(dt);
+        big.tick(dt);
         for (Iterator<Particle> it = particles.iterator(); it.hasNext(); ) {
             Particle p = it.next();
             if (p.delay > 0) {
@@ -294,9 +298,13 @@ public final class FightingFx {
             }
         }
         // Dano sin evento (por ejemplo los pulsos de la ulti)
+        List<UltimateController.Visual> ultimateVisuals = session.getCombatSystem().getUltimateVisuals();
         for (Map.Entry<Fighter, Integer> entry : damaged.entrySet()) {
             Fighter f = entry.getKey();
             genericHit(f, entry.getValue());
+            for (UltimateController.Visual v : ultimateVisuals) {
+                if (v.target() == f && v.phase() == UltimateController.Phase.RELEASING) ultimatePulse(v.definition(), f);
+            }
         }
         for (Fighter f : all) {
             boolean wasDefeated = lastDefeated.getOrDefault(f, false);
@@ -532,7 +540,26 @@ public final class FightingFx {
             default -> physicalHit(e.moveId(), x, y, dir, damage, target);
         }
         sheetHit(e.moveId(), x, y, dir, damage);
+        bigHit(e.moveId(), x, y, target == null ? y + 60 : target.getY(), dir, damage);
         damagePopup(x, y - 30, damage);
+    }
+
+    /** Efecto grande de PVFX segun el ataque: es lo que mas se ve en el golpe. */
+    private void bigHit(String moveId, double x, double y, double feetY, double dir, int damage) {
+        boolean flip = dir < 0;
+        boolean heavy = damage >= 12;
+        switch (moveId) {
+            case "EMBER" -> {
+                big.play(PvfxEffects.Effect.FIRE_FIREBALL_IMPACT, x + dir * 30, y, 2, flip);
+                if (heavy) big.play(PvfxEffects.Effect.EXPLOSIONS_SMALL_EXPLOSION, x, feetY, 2, flip);
+            }
+            case "WATER_GUN" -> big.play(PvfxEffects.Effect.WATER_WATER_SPLASH, x, feetY, 2, flip);
+            case "THUNDER_SHOCK" -> big.play(PvfxEffects.Effect.LIGHTNING_LIGHTNING_STRIKE, x, feetY, 2, flip);
+            case "VINE_WHIP" -> big.play(PvfxEffects.Effect.NATURE_VINE_SNARE, x, feetY, 2, flip);
+            case "SLEEP_POWDER" -> big.play(PvfxEffects.Effect.NATURE_SPORE_BURST, x, feetY, 2, flip);
+            default -> big.play(heavy ? PvfxEffects.Effect.IMPACTS_CRIT_HIT : PvfxEffects.Effect.IMPACTS_PUNCH_HIT,
+                    x, y, heavy ? 2 : 3, flip);
+        }
     }
 
     /** Animacion pixel art encima del golpe, segun el tipo de ataque. */
@@ -741,6 +768,7 @@ public final class FightingFx {
     private void block(double x, double y, double dir) {
         sound.play(FightingSound.Sfx.BLOCK);
         sheets.play(PixelFxSheets.Sheet.TWINKLE, x, y, 3, 0.35, dir < 0);
+        big.play(PvfxEffects.Effect.IMPACTS_PARRY, x, y, 2, dir < 0);
         ring(x, y, 14, 90, 0.2, new Color(0xA7E8FF), 0, 5);
         glow(x, y, 70, 0.15, new Color(0x8FDFFF), false);
         sparks(x, y, 10, 320, Color.WHITE, new Color(0x6CCBFF));
@@ -757,8 +785,8 @@ public final class FightingFx {
         double x = f.getX();
         double y = f.getY() - f.getRenderHeight() * 0.5;
         sound.play(FightingSound.Sfx.KO);
-        sheets.play(PixelFxSheets.Sheet.BURST, x, y, 6, 0.8, false);
         sheets.play(PixelFxSheets.Sheet.SHOCKWAVE, x, y, 5, 0.6, false);
+        big.play(PvfxEffects.Effect.EXPLOSIONS_BIG_EXPLOSION, x, f.getY() + 10, 3, false);
         glow(x, y, 220, 0.35, Color.WHITE, false);
         for (int i = 0; i < 3; i++) ring(x, y, 10, 420, 0.5, Color.WHITE, i * 0.1, 6);
         sparks(x, y, 40, 700, Color.WHITE, new Color(0xFFE36E));
@@ -771,15 +799,7 @@ public final class FightingFx {
         shake(14, 0.5);
         hitStop(0.22);
         screenFlash(Color.WHITE, 0.16, 0.55f);
-        Popup p = new Popup();
-        p.text = "K.O.!";
-        p.x = x;
-        p.y = y - f.getRenderHeight() * 0.6;
-        p.life = 1.2;
-        p.maxLife = 1.2;
-        p.size = 54;
-        p.color = new Color(0xFFE36E);
-        popups.add(p);
+        // El texto grande de K.O. lo dibuja FightingDirector
     }
 
     // ------------------------------------------------------------------ efectos continuos
@@ -792,6 +812,7 @@ public final class FightingFx {
             sound.play(FightingSound.Sfx.JUMP, 0.45f);
         } else if (!wasOnGround && f.isOnGround() && lastVy > 350) {
             dust(f.getX(), f.getY(), 0, lastVy > 700 ? 12 : 7, lastVy > 700 ? 1.4 : 0.9);
+            big.play(PvfxEffects.Effect.SMOKE_DUST_PUFF, f.getX(), f.getY() + 4, 2, false);
             sound.play(FightingSound.Sfx.LAND, 0.6f);
             if (lastVy > 700) shake(4, 0.12);
         }
@@ -955,7 +976,11 @@ public final class FightingFx {
                     sound.play(FightingSound.Sfx.ULTI_CHARGE);
                     // Franja con el pokemon y el nombre del ataque antes de soltarlo
                     director.startCutIn(i, byOwner[i].owner(), byOwner[i].definition());
+                    Fighter o = byOwner[i].owner();
+                    big.play(PvfxEffects.Effect.STATUS_POWER_UP_AURA, o.getX(), o.getY() + 6, 3, false,
+                            0, byOwner[i].definition().chargeSeconds() + 0.3);
                 } else if (now[i] == UltimateController.Phase.RELEASING) {
+                    ultimateRelease(byOwner[i]);
                     sound.play(FightingSound.Sfx.ULTI_RELEASE);
                     shake(12, 0.5);
                     screenFlash(Color.WHITE, 0.14, 0.5f);
@@ -964,6 +989,76 @@ public final class FightingFx {
             }
             lastUltimatePhase[i] = now[i];
         }
+    }
+
+    /** Lo grande de cada ulti al soltarla: llamarada, ola, tormenta de hojas o tornado. */
+    private void ultimateRelease(UltimateController.Visual v) {
+        if (v == null) return;
+        Fighter owner = v.owner();
+        Fighter target = v.target();
+        UltimateDefinition d = v.definition();
+        double dir = target.getX() >= owner.getX() ? 1 : -1;
+        boolean flip = dir < 0;
+        double seconds = d.pulseCount() * d.pulseIntervalSeconds() + 0.4;
+        double startX = owner.getX() + dir * owner.getBodyHalfWidth() * 0.8;
+        double mouthY = owner.getY() - owner.getRenderHeight() * 0.45;
+        double distance = Math.max(80, Math.abs(target.getX() - startX));
+        switch (d.moveId()) {
+            case "FIRE_BLAST" -> {
+                double step = 128 * 3 * 0.8;
+                for (int k = 0; k * step < distance; k++) {
+                    big.play(PvfxEffects.Effect.FIRE_FLAMETHROWER, startX + dir * k * step, mouthY, 3, flip,
+                            k * 0.05, seconds);
+                }
+            }
+            case "HYDRO_PUMP" -> {
+                double step = 96 * 3 * 0.7;
+                for (int k = 0; k * step < distance; k++) {
+                    big.play(PvfxEffects.Effect.WATER_TIDAL_WAVE, startX + dir * (k * step + 140), owner.getY() + 6,
+                            3, flip, k * 0.08, seconds);
+                }
+            }
+            case "LEAF_STORM" -> {
+                double step = 80 * 3 * 0.8;
+                for (int k = 0; k * step < distance; k++) {
+                    big.play(PvfxEffects.Effect.NATURE_LEAF_STORM, startX + dir * k * step, mouthY, 3, flip,
+                            k * 0.06, seconds);
+                }
+            }
+            case "INFERNO_BURST" -> big.play(PvfxEffects.Effect.FIRE_FIRE_TORNADO, owner.getX(), owner.getY() + 6,
+                    4, false, 0, seconds);
+            default -> { }
+        }
+    }
+
+    /** Cada golpe de la ulti en el rival. */
+    private void ultimatePulse(UltimateDefinition d, Fighter target) {
+        double x = target.getX();
+        double feet = target.getY() + 6;
+        switch (d.moveId()) {
+            case "FIRE_BLAST" -> {
+                big.play(PvfxEffects.Effect.FIRE_FIRE_PILLAR, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.EXPLOSIONS_FIRE_NOVA, x, feet - 10, 3, false);
+            }
+            case "HYDRO_PUMP" -> {
+                big.play(PvfxEffects.Effect.WATER_WATER_GEYSER, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.WATER_WATER_SPLASH, x, feet, 3, false);
+            }
+            case "LEAF_STORM" -> {
+                big.play(PvfxEffects.Effect.HOLY_HOLY_SMITE, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.NATURE_SPORE_BURST, x, feet, 3, false);
+            }
+            case "INFERNO_BURST" -> {
+                big.play(PvfxEffects.Effect.EXPLOSIONS_FIRE_NOVA, x, feet - 10, 3, false);
+                big.play(PvfxEffects.Effect.FIRE_LAVA_BURST, x, feet, 3, false);
+            }
+            default -> big.play(PvfxEffects.Effect.IMPACTS_CRIT_HIT, x, target.getY() - target.getRenderHeight() * 0.5, 2, false);
+        }
+    }
+
+    /** Draws the PVFX effects at full resolution (outside the posterized layer). */
+    public void drawBig(Graphics2D g) {
+        big.draw(g);
     }
 
     // ------------------------------------------------------------------ ayudantes para crear efectos
