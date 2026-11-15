@@ -22,6 +22,7 @@ public class FightingRenderer {
 
     private final SpriteLoader spriteLoader;
     private final FightingMotionSpriteCache motionSprites;
+    private final FightingStageRenderer stage = new FightingStageRenderer();
 
     public FightingRenderer(SpriteLoader spriteLoader) {
         this.spriteLoader = spriteLoader;
@@ -29,7 +30,7 @@ public class FightingRenderer {
     }
 
     public void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
-        drawArena(g, session, frameIndex);
+        stage.draw(g, session);
         drawAttackEffects(g, session);
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         java.util.List<UltimateController.Visual> ultimateVisuals =
@@ -87,33 +88,6 @@ public class FightingRenderer {
 
         drawCentered(g, "FLECHAS + ENTER / CLIC", centerX,
                 panelY + panelHeight - 14, 17, RetroStyle.DARK);
-    }
-
-    private void drawArena(Graphics2D g, FightingGameSession session, int frameIndex) {
-        g.setColor(new Color(0x98C9EF));
-        g.fillRect(0, 0, session.getWidth(), session.getHeight());
-        int cloudOffset = (frameIndex * 2) % (session.getWidth() + 250);
-        int cloud1X = cloudOffset - 200;
-        int cloud2X = (cloudOffset + 600) % (session.getWidth() + 250) - 200;
-        g.setColor(new Color(0xE5F6FF));
-        g.fillRoundRect(cloud1X, 235, 150, 35, 30, 30);
-        g.fillRoundRect(cloud2X, 285, 160, 35, 30, 30);
-        for (Platform platform : session.getPlatforms()) {
-            drawPlatform(g, platform);
-        }
-    }
-
-    private void drawPlatform(Graphics2D g, Platform platform) {
-        int x = platform.getX();
-        int y = platform.getTop();
-        int width = platform.getWidth();
-        int height = platform.getHeight();
-        g.setColor(new Color(0x416C50));
-        g.fillRect(x, y, width, height);
-        g.setColor(new Color(0x7DCC82));
-        g.fillRect(x, y, width, Math.min(7, height));
-        g.setColor(new Color(0x335C3F));
-        g.fillRect(x, y + height - 5, width, Math.min(5, height));
     }
 
     private void drawBars(Graphics2D g, FightingGameSession session) {
@@ -344,7 +318,7 @@ public class FightingRenderer {
         int y1 = (int) Math.round(owner.getY() - owner.getRenderHeight() * 0.58);
         FightingSpriteProfile profile = FightingSpriteProfile.forFighter(owner);
         if (profile != null && profile.isEvolution()) {
-            var mouth = profile.mouthOrigin(owner, "Shoot");
+            var mouth = profile.mouthOrigin(owner, spriteFrame(owner, profile, null, visual));
             x1 = (int) Math.round(mouth.x());
             y1 = (int) Math.round(mouth.y());
         }
@@ -652,11 +626,15 @@ public class FightingRenderer {
         double time = fighter.getShieldAnimationSeconds();
         double activation = Math.max(0, 1 - time / 0.12);
         double pulse = 1 + 0.012 * Math.sin(time * 4);
-        int rx = (int) Math.round((Math.max(fighter.getBodyHalfWidth() + 16,
-                fighter.getRenderHeight() * 0.5) + activation * 5) * pulse);
-        int ry = (int) Math.round((fighter.getRenderHeight() * 0.5 + 9 + activation * 4) * pulse);
-        int cx = (int) Math.round(fighter.getX());
-        int cy = (int) Math.round(fighter.getY()) - ry - 2;
+        var profile = FightingSpriteProfile.forFighter(fighter);
+        var envelope = profile == null
+                ? new FightingSpriteProfile.ShieldEnvelope(0, -fighter.getRenderHeight() * 0.5,
+                    fighter.getBodyHalfWidth() + 16, fighter.getRenderHeight() * 0.5 + 12)
+                : profile.shieldEnvelope(fighter.isFacingLeft());
+        int rx = (int) Math.round((envelope.radiusX() + activation * 5) * pulse);
+        int ry = (int) Math.round((envelope.radiusY() + activation * 4) * pulse);
+        int cx = (int) Math.round(fighter.getX() + envelope.centerX());
+        int cy = (int) Math.round(fighter.getY() + envelope.centerY());
         double flash = 0;
         for (var effect : combat.getImpactEffects()) {
             if (effect.isBlocked() && Math.abs(effect.getX() - cx) < rx + 24
@@ -672,7 +650,7 @@ public class FightingRenderer {
         }
         Graphics2D shield = (Graphics2D) g.create();
         shield.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        shield.clipRect(0, 125, 1280, Math.max(0, (int) fighter.getY() - 126));
+        shield.clipRect(0, 125, 1280, 595);
         if (!front) {
             shield.setColor(new Color(95, 200, 255, (int) ((26 + flash * 18) * opacity)));
             shield.fillPolygon(bubble);
@@ -841,7 +819,7 @@ public class FightingRenderer {
         int y = (int) Math.round(fighter.getY() - frame.shadowY() * scale);
         // Hop already contains vertical travel. Anchor its body to the physics trajectory
         // so the sheet's jump and the game's jump do not add together.
-        boolean physicalJump = !fighter.isOnGround() && !fighter.isDefeated()
+        boolean physicalJump = !fighter.isOnGround() && ultimate == null && !fighter.isDefeated()
                 && !fighter.isShowingDamage() && !fighter.isHitStunned() && !fighter.isUltimateStunned()
                 && (visual == null || "FLY".equals(visual.definition().moveId()));
         boolean squirtleBodyAnchor = "SQUIRTLE".equals(profile.species) && !fighter.isDefeated()
@@ -913,11 +891,6 @@ public class FightingRenderer {
                 if ("FLY".equals(move) && !fighter.isOnGround()) {
                     return animation.frameAtProgress(jumpProgress(fighter), left);
                 }
-                // Growl/Growth retain their long gameplay cooldown, while their pose
-                // finishes at the package's pace and returns to breathing normally.
-                if (isStatusRecovery(visual) && recoveryProgress(animation, visual) >= 1) {
-                    return sprites.get("Idle").frameAtTime(attackElapsed(visual), left, true);
-                }
                 return attackFrame(animation, visual, left);
             }
         }
@@ -944,7 +917,7 @@ public class FightingRenderer {
     private SpriteCollabAnimationSet.Frame attackFrame(SpriteCollabAnimationSet.Animation animation,
                                                        FightingCombatSystem.AttackVisual visual,
                                                        boolean left) {
-        return attackFrame(animation, visual, left, recoveryProgress(animation, visual));
+        return attackFrame(animation, visual, left, visual.progress());
     }
 
     private SpriteCollabAnimationSet.Frame attackFrame(SpriteCollabAnimationSet.Animation animation,
@@ -969,19 +942,6 @@ public class FightingRenderer {
         };
     }
 
-    private boolean isStatusRecovery(FightingCombatSystem.AttackVisual visual) {
-        return "RECOVERY".equals(visual.phase())
-                && (visual.definition().kind() == AttackDefinition.Kind.SELF_BUFF
-                    || visual.definition().kind() == AttackDefinition.Kind.GRUNT);
-    }
-
-    private double recoveryProgress(SpriteCollabAnimationSet.Animation animation,
-                                    FightingCombatSystem.AttackVisual visual) {
-        if (!isStatusRecovery(visual)) return visual.progress();
-        return visual.progress() * visual.definition().recoverySeconds()
-                * (visual.hitConfirmed() ? 0.65 : 1.0) / animation.durationSeconds();
-    }
-
     private double attackElapsed(FightingCombatSystem.AttackVisual visual) {
         AttackDefinition definition = visual.definition();
         return switch (visual.phase()) {
@@ -989,7 +949,7 @@ public class FightingRenderer {
             case "ACTIVE" -> definition.startupSeconds()
                     + visual.activeProgress() * definition.activeSeconds();
             case "RECOVERY" -> definition.startupSeconds() + definition.activeSeconds()
-                    + visual.progress() * definition.recoverySeconds()
+                    + visual.progress() * definition.actionRecoverySeconds()
                     * (visual.hitConfirmed() ? 0.65 : 1.0);
             default -> 0;
         };

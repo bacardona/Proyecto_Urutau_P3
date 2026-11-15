@@ -146,7 +146,8 @@ public final class FreeFightGameplayCheck {
             int minX=1280,maxX=0,minY=720,maxY=0;
             for(int y=0;y<720;y++)for(int x=0;x<1280;x++)if(onlyShield.getRGB(x,y)>>>24!=0){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
             check(minX<f.getX()-f.getBodyHalfWidth() && maxX>f.getX()+f.getBodyHalfWidth(),"Shield does not surround body");
-            check(minY<f.getY()-f.getRenderHeight() && maxY<f.getY(),"Shield misses body/paints floor");
+            var envelope=FightingSpriteProfile.forFighter(f).shieldEnvelope(f.isFacingLeft());
+            check(minY<f.getY()+envelope.centerY() && maxY>f.getY(),"Shield misses upper body/feet");
             f.setX(112+column*225);f.setY(240);
             draw.invoke(renderer,pg,f,s.getCombatSystem(),false);
             spriteDraw.invoke(renderer,pg,f,FightingSpriteProfile.forFighter(f),null,f.getX());

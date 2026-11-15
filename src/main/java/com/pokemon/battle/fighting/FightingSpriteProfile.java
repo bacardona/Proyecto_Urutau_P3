@@ -1,5 +1,8 @@
 package com.pokemon.battle.fighting;
 
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /** Species choices and fixed geometry, independent of transparent sheet dimensions. */
@@ -32,6 +35,7 @@ final class FightingSpriteProfile {
     final String packageDirectory;
     final Map<String, String> attacks;
     private SpriteCollabAnimationSet sprites;
+    private ShieldEnvelope[] shields;
 
     private FightingSpriteProfile(String species, int scale, int bodyHeight, double bodyHalfWidth,
                                   String blockAnimation, Map<String, String> attacks) {
@@ -70,6 +74,75 @@ final class FightingSpriteProfile {
     synchronized SpriteCollabAnimationSet sprites() {
         if (sprites == null) sprites = new SpriteCollabAnimationSet(resourceSpecies, packageDirectory);
         return sprites;
+    }
+
+    /** Stable screen-pixel geometry relative to the fighter's center X and support Y. */
+    record ShieldEnvelope(double centerX, double centerY, double radiusX, double radiusY) { }
+
+    synchronized ShieldEnvelope shieldEnvelope(boolean left) {
+        if (shields == null) {
+            var right = measureShield(false);
+            var west = measureShield(true);
+            // A turn may move the tail's center, but must not resize the bubble.
+            double rx = Math.max(right.radiusX(), west.radiusX());
+            double ry = Math.max(right.radiusY(), west.radiusY());
+            shields = new ShieldEnvelope[]{
+                    new ShieldEnvelope(right.centerX(), right.centerY(), rx, ry),
+                    new ShieldEnvelope(west.centerX(), west.centerY(), rx, ry)};
+        }
+        return shields[left ? 1 : 0];
+    }
+
+    private ShieldEnvelope measureShield(boolean left) {
+        var idle = sprites().get("Idle");
+        var guard = sprites().get(blockAnimation);
+        var idleAnchor = idle.frame(left, 0);
+        List<Point2D.Double> edges = new ArrayList<>();
+        // Include every guard/neutral pose, including activation and release. Transparent
+        // sheet padding is ignored; no per-frame measurements happen while drawing.
+        for (var animation : guard == idle ? List.of(idle) : List.of(idle, guard)) {
+            for (int i = 0; i < animation.frameCount(); i++) {
+                var frame = animation.frame(left, i);
+                double anchorY = "SQUIRTLE".equals(species)
+                        ? frame.bodyY() + idleAnchor.shadowY() - idleAnchor.bodyY() : frame.shadowY();
+                var image = frame.image();
+                double margin = 8; // Two original pixels at the current 4x scale.
+                for (int y = 0; y < image.getHeight(); y++) {
+                    int first = image.getWidth(), last = -1;
+                    for (int x = 0; x < image.getWidth(); x++) {
+                        if ((image.getRGB(x, y) >>> 24) != 0) {
+                            first = Math.min(first, x);
+                            last = x;
+                        }
+                    }
+                    if (last < 0) continue;
+                    double x1 = (first - frame.bodyX()) * scale - margin;
+                    double x2 = (last + 1 - frame.bodyX()) * scale + margin;
+                    double y1 = (y - anchorY) * scale - margin;
+                    double y2 = (y + 1 - anchorY) * scale + margin;
+                    edges.add(new Point2D.Double(x1, y1));
+                    edges.add(new Point2D.Double(x2, y1));
+                    edges.add(new Point2D.Double(x1, y2));
+                    edges.add(new Point2D.Double(x2, y2));
+                }
+            }
+        }
+        if (edges.isEmpty()) return new ShieldEnvelope(0, -bodyHeight * 0.5,
+                bodyHalfWidth + 12, bodyHeight * 0.5 + 12);
+        double minX = Double.POSITIVE_INFINITY, minY = minX;
+        double maxX = Double.NEGATIVE_INFINITY, maxY = maxX;
+        for (var p : edges) {
+            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        }
+        double cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5;
+        double rx = (maxX - minX) * 0.5, ry = (maxY - minY) * 0.5;
+        double expansion = 1;
+        // A bounding rectangle's corners need not fit its inscribed ellipse. Expand
+        // until all visible row edges AND their margin are inside the oval.
+        for (var p : edges) expansion = Math.max(expansion,
+                Math.hypot((p.x - cx) / rx, (p.y - cy) / ry));
+        return new ShieldEnvelope(cx, cy, rx * expansion, ry * expansion);
     }
 
     double faintDuration() {
@@ -142,9 +215,13 @@ final class FightingSpriteProfile {
     }
 
     Origin mouthOrigin(Fighter fighter, String animationName) {
-        double direction = fighter.isFacingLeft() ? -1 : 1;
         var animation = sprites().get(animationName);
         var frame = animation.frame(fighter.isFacingLeft(), Math.max(0, animation.hitFrame()));
+        return mouthOrigin(fighter, frame);
+    }
+
+    Origin mouthOrigin(Fighter fighter, SpriteCollabAnimationSet.Frame frame) {
+        double direction = fighter.isFacingLeft() ? -1 : 1;
         return new Origin(fighter.getX() + (frame.headX() - frame.bodyX()) * scale + direction * 8,
                 fighter.getY() + (frame.headY() - frame.shadowY()) * scale);
     }

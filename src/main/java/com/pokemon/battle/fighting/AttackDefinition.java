@@ -22,6 +22,19 @@ public record AttackDefinition(
 
     public enum Kind { HITBOX, DASH, LUNGE, PROJECTILE, STATUS, SELF_BUFF, GRUNT, FLY }
 
+    /** Reuse delay keeps the original tuning, independently of the action lock. */
+    public double cooldownSeconds() {
+        return startupSeconds + activeSeconds + recoverySeconds;
+    }
+
+    /** Status moves used recoverySeconds to space out casts, not to keep the caster busy. */
+    public double actionRecoverySeconds() {
+        return switch (moveId) {
+            case "GROWTH", "GROWL", "SLEEP_POWDER" -> Math.min(recoverySeconds, 0.20);
+            default -> recoverySeconds;
+        };
+    }
+
     public AttackDefinition(String moveId, Kind kind, int damage,
                             double startupSeconds, double activeSeconds, double recoverySeconds,
                             double hitboxWidth, double hitboxHeight, double dashSpeed,

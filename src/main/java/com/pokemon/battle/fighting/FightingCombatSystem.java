@@ -317,9 +317,7 @@ public class FightingCombatSystem {
         if (cooldown > 0 || (!ready && !cancel)) return;
         if (cancel) resetAttackState(state);
         if (startRequestedAttack(state, requested, attacker, fighters.get(1 - player))) {
-            double actionDuration = requested.startupSeconds() + requested.activeSeconds()
-                    + requested.recoverySeconds();
-            moveCooldowns.get(player).put(requested.moveId(), actionDuration);
+            moveCooldowns.get(player).put(requested.moveId(), requested.cooldownSeconds());
             bufferedAttack[player] = -1;
             bufferedAttackRemaining[player] = 0;
         }
@@ -483,7 +481,7 @@ public class FightingCombatSystem {
 
             if (state.remaining <= 0) {
                 state.phase = Phase.RECOVERY;
-                state.remaining += state.definition.recoverySeconds()
+                state.remaining += state.definition.actionRecoverySeconds()
                         * (state.hitConfirmed ? HIT_RECOVERY_MULTIPLIER : 1.0);
             }
         } else if (state.phase == Phase.RECOVERY) {
@@ -877,7 +875,7 @@ public class FightingCombatSystem {
         } else if (state.phase == Phase.ACTIVE) {
             progress = state.activeElapsed / state.definition.activeSeconds();
         } else {
-            double recovery = state.definition.recoverySeconds()
+            double recovery = state.definition.actionRecoverySeconds()
                     * (state.hitConfirmed ? HIT_RECOVERY_MULTIPLIER : 1.0);
             progress = recovery <= 0 ? 1 : 1 - state.remaining / recovery;
         }
