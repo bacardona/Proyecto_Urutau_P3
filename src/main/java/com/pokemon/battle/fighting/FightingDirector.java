@@ -192,7 +192,7 @@ final class FightingDirector {
             drawCountdown(g, w, h, introTime - VS_SECONDS);
         }
         if (sound.isMuted() && introTime >= INTRO_SECONDS) {
-            outlined(g, "SONIDO APAGADO (M)", w / 2, 108, 22, new Color(0xFF8A80), OUTLINE, 2);
+            outlined(g, "SONIDO APAGADO (F1)", w / 2, 108, 22, new Color(0xFF8A80), OUTLINE, 2);
         }
         if (session.getState() == FightingGameSession.State.FINISHED) return;
         if (evolutionTime >= 0) drawEvolution(g, w, h);

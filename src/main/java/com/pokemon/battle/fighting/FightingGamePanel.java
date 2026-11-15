@@ -162,7 +162,8 @@ public class FightingGamePanel extends JPanel {
         bindKeyRelease("DOWN", input::setPlayerTwoBlock);
         bindKey("ENTER", this::activateSelected);
         // M: silenciar o activar los sonidos del combate
-        bindKey("M", () -> FightingSound.get().setMuted(!FightingSound.get().isMuted()));
+        // Silenciar con F1 (lejos de las teclas de ataque, para no tocarla sin querer)
+        bindKey("F1", () -> FightingSound.get().setMuted(!FightingSound.get().isMuted()));
         if (DEBUG_KO_ENABLED) {
             bindKey("F6", () -> debugDefeat(0));
             bindKey("F7", () -> debugDefeat(1));
@@ -785,7 +786,7 @@ public class FightingGamePanel extends JPanel {
             drawCentered(g, playerTwoAttacks[0], centerX, panelY + 282, 15, RetroStyle.DARK);
             drawCentered(g, playerTwoAttacks[1], centerX, panelY + 304, 15, RetroStyle.DARK);
 
-            drawCentered(g, "ESC O ENTER PARA VOLVER  |  M SONIDO", centerX,
+            drawCentered(g, "ESC O ENTER PARA VOLVER  |  F1 SONIDO", centerX,
                     panelY + 348, 16, RetroStyle.DARK);
         }
 
