@@ -93,7 +93,8 @@ public class FightingGamePanel extends JPanel {
         this.session = createSession();
         this.onBack = Objects.requireNonNull(onBack);
 
-        setBackground(new Color(0x98C9EF));
+        // Franjas de arriba y abajo cuando la ventana es 960x640 (el combate es 16:9)
+        setBackground(new Color(0x1A1F2B));
         setFocusable(true);
 
         // Temporizador de las animaciones.

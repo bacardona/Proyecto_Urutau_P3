@@ -131,7 +131,7 @@ public class MainGUI {
         StageSelectScreen freeStageScreen = new StageSelectScreen(
                 stage -> {
                     freeFightSetup.setStage(stage);
-                    window.setGameSize(1280, 720);
+                    // Misma ventana que el resto del juego (960x640); el combate se escala adentro
                     window.showScreen("fighting");
                 },
                 () -> window.showScreen("freeTeam2"));
