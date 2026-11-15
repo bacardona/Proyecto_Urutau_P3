@@ -46,6 +46,25 @@ public class FreeFightSwitchKnockbackCheck {
         }
         check(session.trySwitchActiveFighter(0), "Switch works again after the cooldown");
         check(session.getFighters().get(0) == first, "The first Pokemon comes back with its health");
+        // Combos: del tercer golpe en adelante pegan mas
+        check(FightingCombatSystem.comboDamageMultiplier(2) == 1.0
+                && FightingCombatSystem.comboDamageMultiplier(3) > 1.0
+                && FightingCombatSystem.comboDamageMultiplier(5) > FightingCombatSystem.comboDamageMultiplier(3),
+                "Combo damage bonus");
+
+        // Parry: apretar el escudo seguido (spam) no da parry
+        Fighter guard = new FightingGameSession(setup()).getFighters().get(1);
+        guard.setBlocking(true);
+        check(guard.isInParryWindow(), "Fresh block opens the parry window");
+        guard.updateStatusEffects(0.2);
+        check(!guard.isInParryWindow(), "Parry window closes");
+        guard.setBlocking(false);
+        guard.setBlocking(true);
+        check(!guard.isInParryWindow(), "Spamming the block gives no parry");
+        guard.setBlocking(false);
+        guard.updateStatusEffects(0.5);
+        guard.setBlocking(true);
+        check(guard.isInParryWindow(), "Parry works again after waiting");
         System.out.println("PASS switch/knockback");
     }
 

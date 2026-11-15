@@ -196,10 +196,23 @@ public final class FreeFightSpriteCheck {
             b.setX(600 + (left ? -1 : 1) * (a.getBodyHalfWidth() + b.getBodyHalfWidth() + 12));
             b.setFacingLeft(!left);
             var blockInput = new FightingInput(); blockInput.setPlayerTwoBlock(true);
-            blocked.update(blockInput, DT);
+            // escudo ya puesto (pasada la ventana de parry)
+            for (int i = 0; i < 12; i++) blocked.update(blockInput, DT);
             blockInput.setPlayerOneAttackOne(true);
             for (int i = 0; i < 15; i++) blocked.update(blockInput, DT);
             check(b.getHealth() == 198 && a.isHitStunned(), species + " shield must let 20% of Placaje through");
+
+            // parry: cubrirse justo cuando llega el golpe -> sin dano y el atacante queda aturdido
+            var parried = session(species);
+            var pa = parried.getFighters().get(0); var pb = parried.getFighters().get(1);
+            pa.setX(600); pa.setFacingLeft(left);
+            pb.setX(600 + (left ? -1 : 1) * (pa.getBodyHalfWidth() + pb.getBodyHalfWidth() + 12));
+            pb.setFacingLeft(!left);
+            var parryInput = new FightingInput();
+            parryInput.setPlayerOneAttackOne(true);
+            parryInput.setPlayerTwoBlock(true);              // se cubre justo al mismo tiempo
+            for (int i = 0; i < 20 && !pa.isHitStunned(); i++) parried.update(parryInput, DT);
+            check(pb.getHealth() == 200 && pa.isHitStunned(), species + " parry must stop all damage and stun the attacker");
         }
         System.out.println("OK combat, hit/miss, both sides, combo and blocking: " + species);
     }

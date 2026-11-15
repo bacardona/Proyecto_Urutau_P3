@@ -621,9 +621,7 @@ public class FightingRenderer {
 
             FightingCombatSystem.ComboInfo combo = session.getCombatSystem().getComboInfo(player);
             if (combo.hits() >= 2 && combo.remainingSeconds() > 0) {
-                int centerX = player == 0 ? 225 : session.getWidth() - 225;
-                drawCentered(g, combo.hits() + " HITS COMBO", centerX, 244, 17,
-                        player == 0 ? new Color(0xFFF07A) : new Color(0x8FE7FF));
+                drawComboCounter(g, player, combo.hits(), combo.remainingSeconds(), session.getWidth());
             }
         }
     }
@@ -1046,6 +1044,45 @@ public class FightingRenderer {
             default -> true;
         };
         return fighter.isFacingLeft() != sourceFacesLeft;
+    }
+
+    /** "3 HITS" grande que rebota con cada golpe y se desvanece al cortarse el combo. */
+    private void drawComboCounter(Graphics2D g, int player, int hits, double remaining, int width) {
+        double sinceHit = 0.90 - remaining;              // el combo dura 0.90 s desde el ultimo golpe
+        double bounce = sinceHit < 0.12 ? 1.0 + 0.6 * (1 - sinceHit / 0.12) : 1.0;
+        float alpha = (float) Math.min(1, remaining / 0.25);
+        int centerX = player == 0 ? 230 : width - 230;
+        Color main = hits >= 4 ? new Color(0xFF6A3D) : hits == 3 ? new Color(0xFFB83D)
+                : player == 0 ? new Color(0xFFF07A) : new Color(0x8FE7FF);
+        Graphics2D c = (Graphics2D) g.create();
+        c.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha));
+        c.translate(centerX, 250);
+        c.scale(bounce, bounce);
+        c.rotate(player == 0 ? -0.06 : 0.06);
+        String number = String.valueOf(hits);
+        c.setFont(RetroStyle.font(84));
+        FontMetrics big = c.getFontMetrics();
+        c.setFont(RetroStyle.font(32));
+        FontMetrics small = c.getFontMetrics();
+        int total = big.stringWidth(number) + 8 + small.stringWidth("HITS");
+        int x0 = -total / 2;
+        c.setFont(RetroStyle.font(84));
+        c.setColor(new Color(0, 0, 0, 170));
+        c.drawString(number, x0 + 3, 3);
+        c.setColor(main);
+        c.drawString(number, x0, 0);
+        c.setFont(RetroStyle.font(32));
+        c.setColor(new Color(0, 0, 0, 170));
+        c.drawString("HITS", x0 + big.stringWidth(number) + 10, 2);
+        c.setColor(Color.WHITE);
+        c.drawString("HITS", x0 + big.stringWidth(number) + 8, 0);
+        if (hits >= 3) {
+            String bonus = hits >= 4 ? "DANO +25%" : "DANO +15%";
+            c.setFont(RetroStyle.font(20));
+            c.setColor(main);
+            c.drawString(bonus, -c.getFontMetrics().stringWidth(bonus) / 2, 28);
+        }
+        c.dispose();
     }
 
     private void drawCentered(Graphics2D g, String text, int centerX, int baseline, int size, Color color) {

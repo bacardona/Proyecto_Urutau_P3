@@ -50,6 +50,12 @@ public class Fighter {
     private double shieldOpacity;
     private double shieldAnimationSeconds;
     private boolean shieldWasBlocking;
+    // Parry: cubrirse justo antes del golpe
+    static final double PARRY_WINDOW_SECONDS = 0.15;
+    static final double PARRY_REARM_SECONDS = 0.45;
+    private double blockHeldSeconds;
+    private double parryRearmSeconds;
+    private boolean parryArmed;
 
     public Fighter(String pokemonId, double x, double y, boolean facingLeft) {
         this.pokemon = null;
@@ -187,6 +193,13 @@ public class Fighter {
         blockStunSeconds = Math.max(0, blockStunSeconds - deltaSeconds);
         comboStunResetSeconds = Math.max(0, comboStunResetSeconds - deltaSeconds);
         if (comboStunResetSeconds == 0) comboStunHitCount = 0;
+        if (blocking) blockHeldSeconds += deltaSeconds;
+        else parryRearmSeconds = Math.max(0, parryRearmSeconds - deltaSeconds);
+    }
+
+    /** True during the first instants of a block (only if the player did not spam the key). */
+    boolean isInParryWindow() {
+        return blocking && parryArmed && blockHeldSeconds <= PARRY_WINDOW_SECONDS;
     }
 
     boolean canEvolve() {
@@ -231,8 +244,16 @@ public class Fighter {
     }
 
     void setBlocking(boolean requested) {
+        boolean was = blocking;
         blocking = requested && onGround && !defeated && !isAsleep()
                 && !isHitStunned() && !isUltimateStunned();
+        if (blocking && !was) {
+            // Apretar y soltar muy seguido no da parry: hay que esperar un poquito
+            blockHeldSeconds = 0;
+            parryArmed = parryRearmSeconds <= 0;
+        } else if (!blocking && was) {
+            parryRearmSeconds = PARRY_REARM_SECONDS;
+        }
     }
 
     int recordNormalComboHit(double resetAfterSeconds) {
@@ -293,6 +314,9 @@ public class Fighter {
         returningToBase = false;
         ultimateStunCount = 0;
         blocking = false;
+        blockHeldSeconds = 0;
+        parryRearmSeconds = 0;
+        parryArmed = false;
         normalHitStunSeconds = 0;
         blockStunSeconds = 0;
         comboStunResetSeconds = 0;

@@ -308,6 +308,7 @@ public final class FightingFx {
                     block(e.x(), e.y(), e.direction());
                     chipPopup(e.x(), e.y() - 40, e.damage());
                 }
+                case PARRY -> parry(e.x(), e.y(), e.direction());
                 case FIZZLE -> fizzle(e.x(), e.y());
                 default -> { }
             }
@@ -828,6 +829,29 @@ public final class FightingFx {
         sparks(x, y, 10, 320, Color.WHITE, new Color(0x6CCBFF));
         shake(3, 0.1);
         hitStop(0.04);
+    }
+
+    /** Parry: destello blanco, congelado un instante y texto grande. */
+    private void parry(double x, double y, double dir) {
+        sound.play(FightingSound.Sfx.BLOCK, 1f);
+        sound.play(FightingSound.Sfx.CUT_IN, 0.7f);
+        big.play(PvfxEffects.Effect.IMPACTS_PARRY, x, y, 3, dir < 0);
+        ring(x, y, 20, 170, 0.28, Color.WHITE, 0, 6);
+        ring(x, y, 10, 110, 0.22, new Color(0xFFE45A), 0, 4);
+        glow(x, y, 120, 0.2, new Color(0xFFF6C8), false);
+        sparks(x, y, 22, 520, Color.WHITE, new Color(0xFFE45A));
+        screenFlash(Color.WHITE, 0.12, 0.45f);
+        shake(6, 0.15);
+        hitStop(0.16);
+        Popup p = new Popup();
+        p.text = "¡PARRY!";
+        p.x = Math.max(110, Math.min(1170, x));
+        p.y = y - 60;
+        p.life = 0.9;
+        p.maxLife = 0.9;
+        p.size = 38;
+        p.color = new Color(0xFFE45A);
+        popups.add(p);
     }
 
     private void fizzle(double x, double y) {

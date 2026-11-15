@@ -26,6 +26,8 @@ public record CombatEvent(Type type, String moveId, int attackerIndex,
         HIT,
         /** The defender blocks a physical move. */
         BLOCK,
+        /** The defender blocked right on time (parry): no damage and the attacker is stunned. */
+        PARRY,
         /** A projectile disappears without hitting anyone (for example against a platform). */
         FIZZLE
     }

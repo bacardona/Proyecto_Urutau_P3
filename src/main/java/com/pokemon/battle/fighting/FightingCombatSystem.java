@@ -756,7 +756,8 @@ public class FightingCombatSystem {
         if (attacker.isDefeated() || target.isDefeated()) return;
         int damage = Math.max(1, (int) Math.round(definition.damage()
                 * attacker.getOutgoingDamageMultiplier()
-                * target.getIncomingDamageMultiplier()));
+                * target.getIncomingDamageMultiplier()
+                * comboDamageMultiplier(nextComboHits(attackerIndex, target))));
         target.receiveDamage(damage);
         target.applyKnockback(target.getX() >= attacker.getX() ? 1 : -1, knockbackFor(definition.kind(), damage));
         emit(CombatEvent.Type.HIT, definition.moveId(), attackerIndex,
@@ -792,6 +793,10 @@ public class FightingCombatSystem {
             applyHit(attackerIndex, attacker, target, definition);
             return;
         }
+        if (target.isInParryWindow() && isAttackerInFront(target, attacker)) {
+            parry(attackerIndex, attacker, target, definition, arenaWidth);
+            return;
+        }
         if (target.isBlocking() && isAttackerInFront(target, attacker)) {
             // El escudo para casi todo el golpe, pero algo pasa (ver ShieldRules)
             int chip = blockedDamage(attacker, target, definition.damage(), definition.moveId());
@@ -820,6 +825,38 @@ public class FightingCombatSystem {
             return;
         }
         applyHit(attackerIndex, attacker, target, definition);
+    }
+
+    // ---- Parry: cubrirse justo a tiempo
+    static final double PARRY_STUN_SECONDS = 0.65;
+    static final double PARRY_PUSH = 420;
+
+    private void parry(int attackerIndex, Fighter attacker, Fighter target,
+                       AttackDefinition definition, int arenaWidth) {
+        double dir = attacker.getX() >= target.getX() ? 1 : -1;
+        emit(CombatEvent.Type.PARRY, definition.moveId(), attackerIndex,
+                (attacker.getX() + target.getX()) / 2.0,
+                target.getY() - target.getRenderHeight() * 0.55, dir, 0);
+        AttackState state = states[attackerIndex];
+        state.hasHit = true;
+        state.phase = Phase.RECOVERY;
+        state.remaining = Math.max(definition.recoverySeconds(), PARRY_STUN_SECONDS);
+        attacker.applyBlockStun(PARRY_STUN_SECONDS);
+        attacker.applyKnockback(dir, PARRY_PUSH);
+        double safeGap = PhysicsSystem.halfWidthFor(attacker) + PhysicsSystem.halfWidthFor(target) + 1;
+        double half = PhysicsSystem.halfWidthFor(attacker);
+        attacker.setX(Math.max(half, Math.min(arenaWidth - half, target.getX() + dir * safeGap)));
+        target.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+    }
+
+    // ---- Combos: del tercer golpe seguido en adelante pegan mas
+    static double comboDamageMultiplier(int comboHits) {
+        return comboHits >= 4 ? 1.25 : comboHits == 3 ? 1.15 : 1.0;
+    }
+
+    private int nextComboHits(int owner, Fighter target) {
+        ComboState combo = combos[owner];
+        return combo.target == target && combo.remainingSeconds > 0 ? combo.hits + 1 : 1;
     }
 
     // Cuanto retrocede el que recibe el golpe (pixeles por segundo al inicio)
@@ -893,6 +930,12 @@ public class FightingCombatSystem {
                     if (!wasAsleep && !target.isDefeated()) target.applySleep(SLEEP_DURATION);
                     impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
                 } else if (!attacker.isDefeated() && projectile.getDamage() > 0
+                        && target.isInParryWindow() && ShieldRules.blocks(target, attacker)) {
+                    // Parry contra un proyectil: lo deshace sin dano
+                    emit(CombatEvent.Type.PARRY, projectile.getMoveId(), projectile.getOwnerIndex(),
+                            projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), 0);
+                    target.addEvolutionEnergy(EVOLUTION_ENERGY_PER_HIT);
+                } else if (!attacker.isDefeated() && projectile.getDamage() > 0
                         && ShieldRules.blocks(target, attacker)) {
                     // Proyectil contra el escudo: solo pasa una parte del dano
                     int chip = blockedDamage(attacker, target, projectile.getDamage(), projectile.getMoveId());
@@ -904,7 +947,8 @@ public class FightingCombatSystem {
                 } else if (!attacker.isDefeated() && projectile.getDamage() > 0) {
                     int damage = Math.max(1, (int) Math.round(projectile.getDamage()
                             * attacker.getOutgoingDamageMultiplier()
-                            * target.getIncomingDamageMultiplier()));
+                            * target.getIncomingDamageMultiplier()
+                            * comboDamageMultiplier(nextComboHits(projectile.getOwnerIndex(), target))));
                     target.receiveDamage(damage);
                     target.applyKnockback(Math.signum(projectile.getVelocityX()),
                             knockbackFor(AttackDefinition.Kind.PROJECTILE, damage));
