@@ -86,6 +86,13 @@ public class BattleController {
         return all;
     }
 
+    /** Pokemon for Combate Libre: also the ones that are not in the normal mode. */
+    public List<Pokemon> listPokemonWithFreeFight() {
+        List<Pokemon> all = pokemonCatalog.listAllWithFreeFight();
+        TeamValidator.validateCatalogSize(all);
+        return all;
+    }
+
     /**
      * Starts a battle between a player and a machine. The machine takes a random
      * team from the catalog.

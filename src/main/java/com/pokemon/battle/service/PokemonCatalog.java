@@ -15,6 +15,14 @@ public interface PokemonCatalog {
     List<Pokemon> listAll();
 
     /**
+     * Every Pokemon in the database, including the ones that are only for Combate Libre.
+     * By default it is the same list as {@link #listAll()}.
+     */
+    default List<Pokemon> listAllWithFreeFight() {
+        return listAll();
+    }
+
+    /**
      * Finds a Pokemon by name, ignoring case.
      *
      * @param name name to search

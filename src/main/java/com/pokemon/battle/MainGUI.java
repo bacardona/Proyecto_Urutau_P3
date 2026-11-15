@@ -34,7 +34,9 @@ public class MainGUI {
 
     // IDs de las especies base confirmadas para la primera selección de Combate Libre.
     // La colección se puede ampliar cuando se aprueben más especies.
-    private static final Set<Integer> FREE_FIGHT_POKEMON_IDS = Set.of(1, 4, 7, 133);
+    // Pokemon que se pueden elegir en Combate Libre (por nombre, asi no importa el ID de la base)
+    private static final Set<String> FREE_FIGHT_POKEMON = Set.of(
+            "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE");
 
     private static final String PROJECT_TITLE = "POKKEN BATTLE";
 
@@ -159,7 +161,7 @@ public class MainGUI {
         TeamSelectScreen freeTeamScreen1 = new TeamSelectScreen(
                 team -> {
                     freeFightSetup.setPlayerOne(freeFightSetup.getPlayerOne(), team);
-                    openHub(window, controller, freeHub2, "freeHub2", freeFightSetup.getPlayerOne());
+                    openHub(window, controller, freeHub2, "freeHub2", freeFightSetup.getPlayerOne(), true);
                 },
                 () -> window.showScreen("freeHub1"), FightingTeam.SIZE);
 
@@ -189,7 +191,7 @@ public class MainGUI {
                         () -> openHub(window, controller, pvpHub1, "pvpHub1", null),
                         () -> {
                             freeFightSetup.clear();
-                            openHub(window, controller, freeHub1, "freeHub1", null);
+                            openHub(window, controller, freeHub1, "freeHub1", null, true);
                         },
                         backToMenu
                 },
@@ -234,8 +236,15 @@ public class MainGUI {
     // Lee entrenadores y Pokemon en segundo plano y abre la pantalla de entrenador
     private static void openHub(GameWindow window, BattleController controller,
                                 TrainerHubScreen hub, String screenName, Player excluded) {
+        openHub(window, controller, hub, screenName, excluded, false);
+    }
+
+    // freeFight = true: tambien trae los Pokemon que son solo de Combate Libre
+    private static void openHub(GameWindow window, BattleController controller,
+                                TrainerHubScreen hub, String screenName, Player excluded, boolean freeFight) {
         window.runWithLoading("CARGANDO ENTRENADORES",
-                () -> new HubData(controller.listPlayers(), controller.listPokemon()),
+                () -> new HubData(controller.listPlayers(),
+                        freeFight ? controller.listPokemonWithFreeFight() : controller.listPokemon()),
                 data -> {
                     hub.prepare(data.players, data.pokemon, excluded);
                     window.showScreen(screenName);
@@ -244,11 +253,8 @@ public class MainGUI {
     }
 
     private static List<Pokemon> filterFreeFightCatalog(List<Pokemon> catalog) {
-        if (FREE_FIGHT_POKEMON_IDS.isEmpty()) {
-            return new java.util.ArrayList<>(catalog);
-        }
         return catalog.stream()
-                .filter(pokemon -> FREE_FIGHT_POKEMON_IDS.contains(pokemon.getId()))
+                .filter(pokemon -> FREE_FIGHT_POKEMON.contains(pokemon.getName().trim().toUpperCase()))
                 .toList();
     }
 
