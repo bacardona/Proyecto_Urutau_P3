@@ -46,6 +46,31 @@ public class FreeFightSwitchKnockbackCheck {
         }
         check(session.trySwitchActiveFighter(0), "Switch works again after the cooldown");
         check(session.getFighters().get(0) == first, "The first Pokemon comes back with its health");
+        // Entrada: el que entra sale saltando hacia el centro y al caer empuja al rival cercano
+        Fighter back = session.getFighters().get(0);
+        check(!back.isOnGround() && back.getVelocityY() < 0, "Incoming Pokemon enters with a jump");
+        Fighter rival = session.getFighters().get(1);
+        rival.setX(back.getX() + 90);
+        boolean landed = false;
+        double rivalBefore = rival.getX();
+        for (int i = 0; i < 120 && !landed; i++) {
+            session.update(input, 1 / 60.0);
+            landed = session.consumeEntranceLanding(0);
+        }
+        check(landed, "Entrance landing must be reported once");
+        check(!session.consumeEntranceLanding(0), "Entrance landing is reported only once");
+        for (int i = 0; i < 30; i++) session.update(input, 1 / 60.0);
+        check(rival.getX() > rivalBefore, "Landing pushes the nearby rival");
+
+        // Cambio en el aire pegado a la pared
+        FightingGameSession air = new FightingGameSession(setup());
+        Fighter jumper = air.getFighters().get(0);
+        jumper.setX(PhysicsSystem.halfWidthFor(jumper));
+        jumper.setOnGround(false);
+        jumper.setY(air.getGroundY() - 120);
+        check(air.trySwitchActiveFighter(0), "Switch in the air at the wall must work");
+        check(air.getFighters().get(0).getY() < air.getGroundY() - 100, "Incoming keeps the height of the jump");
+
         // Combos: del tercer golpe en adelante pegan mas
         check(FightingCombatSystem.comboDamageMultiplier(2) == 1.0
                 && FightingCombatSystem.comboDamageMultiplier(3) > 1.0

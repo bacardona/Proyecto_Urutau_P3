@@ -155,6 +155,7 @@ public class FightingGameSession {
         replaceDefeatedFighters();
         boolean playerOneSwitch = input.consumePlayerOneSwitch();
         boolean playerTwoSwitch = input.consumePlayerTwoSwitch();
+        updateEntrances();
         if (playerOneSwitch) trySwitchActiveFighter(0);
         if (playerTwoSwitch) trySwitchActiveFighter(1);
         if (switchCooldown[0] > 0) switchCooldown[0] -= deltaSeconds;
@@ -208,14 +209,15 @@ public class FightingGameSession {
     }
 
     /**
-     * Switches the active Pokemon for the other one of the team. Only against the wall,
-     * on the ground, when the player is free (not attacking, stunned, asleep or in an
+     * Switches the active Pokemon for the other one of the team. Only against the wall (ground or air),
+     * when the player is free (not attacking, stunned, asleep or in an
      * ultimate) and not more than once every few seconds. Each Pokemon keeps its health.
      */
     boolean trySwitchActiveFighter(int playerIndex) {
         Fighter current = fighters.get(playerIndex);
         FightingTeam team = playerIndex == 0 ? playerOneTeam : playerTwoTeam;
-        if (switchCooldown[playerIndex] > 0 || !current.isOnGround() || current.isHitStunned()
+        // Vale en el suelo o en el aire, siempre que este pegado a la pared
+        if (switchCooldown[playerIndex] > 0 || current.isHitStunned()
                 || current.isEvolutionAnimating() || !isTouchingWall(current)
                 || !combatSystem.canEvolve(playerIndex, fighters)
                 || java.util.Set.of("CHARGING", "RELEASING", "FINISHING", "RECOVERY")
@@ -226,13 +228,50 @@ public class FightingGameSession {
         Fighter incoming = team.getActive();
         current.setBlocking(false);
         combatSystem.clearPlayerState(playerIndex);
+        // Entrada: el nuevo sale de la pared con un salto hacia el centro y cae con una onda
+        boolean leftWall = current.getX() < width / 2.0;
         incoming.setX(current.getX());
-        incoming.setY(groundY);
-        incoming.setVelocityY(0);
-        incoming.setOnGround(true);
-        incoming.setFacingLeft(current.isFacingLeft());
+        incoming.setY(Math.min(groundY, current.getY()));
+        incoming.setVelocityY(ENTRANCE_JUMP_VELOCITY);
+        incoming.setOnGround(false);
+        incoming.setFacingLeft(!leftWall);
+        incoming.applyKnockback(leftWall ? 1 : -1, ENTRANCE_PUSH_SPEED);
+        current.setOnGround(true);
+        current.setY(groundY);
+        current.setVelocityY(0);
         fighters.set(playerIndex, incoming);
         switchCooldown[playerIndex] = SWITCH_COOLDOWN_SECONDS;
+        entranceAirborne[playerIndex] = true;
+        return true;
+    }
+
+    static final double ENTRANCE_JUMP_VELOCITY = -560;
+    static final double ENTRANCE_PUSH_SPEED = 330;
+    static final double ENTRANCE_SHOVE_RANGE = 150;
+    static final double ENTRANCE_SHOVE_SPEED = 360;
+    private final boolean[] entranceAirborne = new boolean[2];
+    private final boolean[] entranceLanded = new boolean[2];
+
+    /** When the incoming Pokemon lands, a shockwave pushes a nearby rival away (no damage). */
+    private void updateEntrances() {
+        for (int i = 0; i < 2; i++) {
+            if (!entranceAirborne[i]) continue;
+            Fighter f = fighters.get(i);
+            if (!f.isOnGround()) continue;
+            entranceAirborne[i] = false;
+            entranceLanded[i] = true;
+            Fighter rival = fighters.get(1 - i);
+            double dx = rival.getX() - f.getX();
+            if (!rival.isDefeated() && rival.isOnGround() && Math.abs(dx) < ENTRANCE_SHOVE_RANGE) {
+                rival.applyKnockback(dx >= 0 ? 1 : -1, ENTRANCE_SHOVE_SPEED);
+            }
+        }
+    }
+
+    /** True once right after the incoming Pokemon lands (for the effects). */
+    public boolean consumeEntranceLanding(int playerIndex) {
+        if (playerIndex < 0 || playerIndex > 1 || !entranceLanded[playerIndex]) return false;
+        entranceLanded[playerIndex] = false;
         return true;
     }
 

@@ -278,6 +278,7 @@ public final class FightingFx {
                 switchEffect(now);
             }
             lastActive[i] = now;
+            if (session.consumeEntranceLanding(i)) entranceLanding(now);
         }
 
         // Quien perdio vida en este paso (puede que ya lo hayan cambiado por otro del equipo)
@@ -852,6 +853,17 @@ public final class FightingFx {
         p.size = 38;
         p.color = new Color(0xFFE45A);
         popups.add(p);
+    }
+
+    /** El Pokemon que entra cae al suelo: onda de choque y polvo. */
+    private void entranceLanding(Fighter f) {
+        sound.play(FightingSound.Sfx.LAND, 1f);
+        sound.play(FightingSound.Sfx.HIT_HEAVY, 0.5f);
+        big.play(PvfxEffects.Effect.IMPACTS_GROUND_SLAM, f.getX(), f.getY() + 4, 2, f.isFacingLeft());
+        ring(f.getX(), f.getY(), 10, 140, 0.25, new Color(0xFFF2C2), 0, 4);
+        smoke(f.getX() - 30, f.getY(), 4, new Color(220, 205, 180));
+        smoke(f.getX() + 30, f.getY(), 4, new Color(220, 205, 180));
+        shake(5, 0.18);
     }
 
     private void fizzle(double x, double y) {
