@@ -14,6 +14,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Base of every retro screen of the game (Pokedex, trainer selection, combat
@@ -31,7 +33,7 @@ public abstract class RetroScreen extends JPanel {
     protected static final Rectangle BACK_BUTTON = new Rectangle(24, 598, 170, 36);
 
     private final String title;
-
+    private final Map<String, Runnable> keyActions = new HashMap<>();
     /**
      * @param title text of the blue bar, for example "POKEDEX"
      */
@@ -84,6 +86,7 @@ public abstract class RetroScreen extends JPanel {
      * @param action what to do
      */
     protected final void bindKey(String key, Runnable action) {
+        keyActions.put(key, action);   // <-- línea nueva
         String id = getClass().getSimpleName() + "-" + key;
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key), id);
         getActionMap().put(id, new AbstractAction() {
@@ -92,6 +95,14 @@ public abstract class RetroScreen extends JPanel {
                 action.run();
             }
         });
+    }
+
+    /** Simula que se pulsó esa tecla (la usa el mando). Devuelve false si la pantalla no la usa. */
+    public final boolean pressKey(String key) {
+        Runnable action = keyActions.get(key);
+        if (action == null) return false;
+        action.run();
+        return true;
     }
 
     /**
