@@ -26,6 +26,8 @@ public class Fighter {
     private int health = MAX_HEALTH;
     private double evolutionEnergy;
     private boolean onGround = true;
+    /** True mientras sube por un salto del jugador (se puede cortar al soltar la tecla). */
+    private boolean playerJumpRising;
     private boolean defeated;
     private double sleepSeconds;
     private double attackBoostSeconds;
@@ -347,6 +349,8 @@ public class Fighter {
     void setY(double y) { this.y = y; }
     void setVelocityY(double velocityY) { this.velocityY = velocityY; }
     void setOnGround(boolean onGround) { this.onGround = onGround; }
+    boolean isPlayerJumpRising() { return playerJumpRising; }
+    void setPlayerJumpRising(boolean rising) { this.playerJumpRising = rising; }
 
     void receiveDamage(int damage) {
         int actualDamage = Math.max(0, damage);

@@ -7,12 +7,33 @@ public class PhysicsSystem {
 
     static final double GRAVITY = 1400.0;
     private static final double JUMP_VELOCITY = -650.0;
+    /** Al soltar la tecla mientras sube, la velocidad baja a esto: toque corto = salto pequeno. */
+    private static final double JUMP_CUT_VELOCITY = -330.0;
 
     public void update(Fighter fighter, List<Platform> platforms,
                        double halfWidth, boolean jumpRequested, double deltaSeconds) {
-        if (jumpRequested && fighter.isOnGround()) {
+        // sin informacion de la tecla: salto completo, como antes
+        update(fighter, platforms, halfWidth, jumpRequested, true, deltaSeconds);
+    }
+
+    /**
+     * Salto variable: mantener la tecla da el salto completo (el mismo de antes); un toque corto
+     * da uno pequeno. Si la tecla sigue presionada al caer al suelo, vuelve a saltar solo.
+     */
+    public void update(Fighter fighter, List<Platform> platforms, double halfWidth,
+                       boolean startJump, boolean jumpHeld, double deltaSeconds) {
+        if (startJump && fighter.isOnGround()) {
             fighter.setVelocityY(JUMP_VELOCITY);
             fighter.setOnGround(false);
+            fighter.setPlayerJumpRising(true);
+        }
+        if (fighter.isPlayerJumpRising()) {
+            if (fighter.getVelocityY() >= 0) {
+                fighter.setPlayerJumpRising(false);
+            } else if (!jumpHeld) {
+                fighter.setVelocityY(Math.max(fighter.getVelocityY(), JUMP_CUT_VELOCITY));
+                fighter.setPlayerJumpRising(false);
+            }
         }
 
         double previousFeetY = fighter.getY();
@@ -25,6 +46,7 @@ public class PhysicsSystem {
             fighter.setY(landing.getTop());
             fighter.setVelocityY(0);
             fighter.setOnGround(true);
+            fighter.setPlayerJumpRising(false);
         } else {
             fighter.setY(nextFeetY);
             fighter.setVelocityY(nextVelocityY);

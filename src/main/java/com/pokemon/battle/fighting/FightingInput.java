@@ -127,6 +127,11 @@ public class FightingInput {
         return (playerTwoRight ? 1 : 0) - (playerTwoLeft ? 1 : 0);
     }
 
+    /** La tecla de salto sigue presionada (salto mas alto y rebote automatico). */
+    public boolean isPlayerOneJumpHeld() { return playerOneJumpHeld; }
+
+    public boolean isPlayerTwoJumpHeld() { return playerTwoJumpHeld; }
+
     public boolean consumePlayerOneJump() {
         boolean requested = playerOneJumpRequested;
         playerOneJumpRequested = false;

@@ -118,8 +118,10 @@ public class FightingGameSession {
         combatSystem.beginUltimateRequests(fighters, playerOneUltimate, playerTwoUltimate);
         var beforeOne = PhysicsSystem.positionOf(playerOne);
         var beforeTwo = PhysicsSystem.positionOf(playerTwo);
-        boolean walkingOne = updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump, deltaSeconds);
-        boolean walkingTwo = updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump, deltaSeconds);
+        boolean walkingOne = updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump,
+                input.isPlayerOneJumpHeld(), deltaSeconds);
+        boolean walkingTwo = updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump,
+                input.isPlayerTwoJumpHeld(), deltaSeconds);
         PhysicsSystem.resolveBodies(playerOne, playerTwo, beforeOne, beforeTwo, width);
         updateMotion(playerOne, walkingOne && Math.abs(playerOne.getX() - beforeOne.x()) > 0.01, deltaSeconds);
         updateMotion(playerTwo, walkingTwo && Math.abs(playerTwo.getX() - beforeTwo.x()) > 0.01, deltaSeconds);
@@ -247,7 +249,7 @@ public class FightingGameSession {
     }
 
     private boolean updateFighter(Fighter fighter, int playerIndex, double direction,
-                               boolean jumpRequested,
+                               boolean jumpRequested, boolean jumpHeld,
                                double deltaSeconds) {
         double halfWidth = PhysicsSystem.halfWidthFor(fighter);
         double forcedDelta = combatSystem.getForcedHorizontalDelta(
@@ -268,7 +270,7 @@ public class FightingGameSession {
         fighter.setX(Math.max(minX, Math.min(maxX, fighter.getX())));
         walkingFromInput &= Math.abs(fighter.getX() - beforeInputX) > 0.01;
         physicsSystem.update(fighter, platforms, halfWidth,
-                jumpRequested && !inputLocked, deltaSeconds);
+                (jumpRequested || jumpHeld) && !inputLocked, jumpHeld, deltaSeconds);
         return walkingFromInput;
     }
 
