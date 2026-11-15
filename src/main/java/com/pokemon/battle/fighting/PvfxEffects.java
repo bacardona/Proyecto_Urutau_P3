@@ -47,7 +47,16 @@ final class PvfxEffects {
         SMOKE_DUST_PUFF("smoke-dust-puff", 72, 40, 14, 70, 36, 33, false),
         STATUS_POWER_UP_AURA("status-power-up-aura", 56, 56, 14, 70, 28, 50, true),
         UI_LEVEL_UP("ui-level-up", 64, 96, 20, 70, 32, 88, false),
-        UI_TREASURE_GLINT("ui-treasure-glint", 48, 48, 16, 75, 24, 24, true);
+        UI_TREASURE_GLINT("ui-treasure-glint", 48, 48, 16, 75, 24, 24, true),
+        SHADOW_SHADOW_BOLT("shadow-shadow-bolt", 112, 56, 19, 70, 86, 30, false),
+        SHADOW_VOID_IMPLOSION("shadow-void-implosion", 96, 96, 21, 70, 48, 48, false),
+        ARCANE_ARCANE_BEAM("arcane-arcane-beam", 168, 64, 8, 75, 18, 32, true),
+        EXPLOSIONS_IMPLOSION("explosions-implosion", 96, 96, 28, 70, 48, 48, false),
+        IMPACTS_GROUND_SLAM("impacts-ground-slam", 128, 64, 19, 70, 64, 44, false),
+        IMPACTS_ROCK_SHATTER("impacts-rock-shatter", 64, 56, 18, 60, 30, 44, false),
+        NATURE_EARTH_SPIKE("nature-earth-spike", 128, 64, 22, 70, 62, 54, false),
+        ARCANE_MAGIC_CIRCLE("arcane-magic-circle", 96, 64, 20, 80, 48, 47, false),
+        EXPLOSIONS_ARCANE_BURST("explosions-arcane-burst", 72, 72, 20, 65, 36, 38, false);
 
         final String file;
         final int width;

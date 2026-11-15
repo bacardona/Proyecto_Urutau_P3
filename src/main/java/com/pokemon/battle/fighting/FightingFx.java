@@ -348,7 +348,8 @@ public final class FightingFx {
         if ("FLY".equals(moveId)) return;   // Vuelo ya se mueve de verdad
         Hop hop = new Hop();
         hop.ranged = switch (moveId) {
-            case "EMBER", "WATER_GUN", "THUNDER_SHOCK", "SLEEP_POWDER", "GROWL", "GROWTH", "THUNDER_WAVE" -> true;
+            case "EMBER", "WATER_GUN", "THUNDER_SHOCK", "SLEEP_POWDER", "GROWL", "GROWTH", "THUNDER_WAVE",
+                 "ROCK_SLIDE", "SHADOW_BALL", "PSYCHIC" -> true;
             default -> false;
         };
         hops.put(attacker, hop);
@@ -426,7 +427,8 @@ public final class FightingFx {
         double feetY = attacker.getY();
         double backX = attacker.getX() - dir * attacker.getBodyHalfWidth() * 0.6;
         switch (e.moveId()) {
-            case "TACKLE", "QUICK_ATTACK", "TAIL_WHIP", "BITE" -> {
+            case "TACKLE", "QUICK_ATTACK", "TAIL_WHIP", "BITE", "FIRE_FANG", "DIG", "LICK",
+                 "CLOSE_COMBAT", "BODY_SLAM", "ZEN_HEADBUTT", "TELEPORT" -> {
                 sound.play(FightingSound.Sfx.WHOOSH, 0.8f);
                 dust(backX, feetY, -dir, 7, 1.0);
             }
@@ -537,6 +539,18 @@ public final class FightingFx {
                 }
                 glow(x, y, 50, 0.3, new Color(0xD7A6FF), false);
             }
+            case "ROCK_SLIDE" -> {
+                sound.play(FightingSound.Sfx.HIT_HEAVY, 0.6f);
+                debris(x, y, 6, 0.8, new Color(0x9C7B55));
+            }
+            case "SHADOW_BALL" -> {
+                sound.play(FightingSound.Sfx.ELECTRIC_SHOT, 0.7f);
+                glow(x, y, 60, 0.18, new Color(0x9D6BE8), false);
+            }
+            case "PSYCHIC" -> {
+                sound.play(FightingSound.Sfx.ELECTRIC_SHOT, 0.7f);
+                glow(x, y, 60, 0.18, new Color(0xFF9AD8), false);
+            }
             default -> glow(x, y, 40, 0.12, Color.WHITE, false);
         }
     }
@@ -577,6 +591,15 @@ public final class FightingFx {
             case "THUNDER_SHOCK" -> big.play(PvfxEffects.Effect.LIGHTNING_LIGHTNING_STRIKE, x, feetY, 2, flip);
             case "VINE_WHIP" -> big.play(PvfxEffects.Effect.NATURE_VINE_SNARE, x, feetY, 2, flip);
             case "SLEEP_POWDER" -> big.play(PvfxEffects.Effect.NATURE_SPORE_BURST, x, feetY, 2, flip);
+            case "FIRE_FANG" -> big.play(PvfxEffects.Effect.FIRE_FIREBALL_IMPACT, x + dir * 30, y, 2, flip);
+            case "DIG" -> {
+                big.play(PvfxEffects.Effect.IMPACTS_GROUND_SLAM, x, feetY, 2, flip);
+                big.play(PvfxEffects.Effect.IMPACTS_ROCK_SHATTER, x, y + 20, 2, flip);
+            }
+            case "ROCK_SLIDE" -> big.play(PvfxEffects.Effect.IMPACTS_ROCK_SHATTER, x, y + 20, 3, flip);
+            case "LICK", "SHADOW_BALL" -> big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, x, y, 2, flip);
+            case "PSYCHIC", "ZEN_HEADBUTT" -> big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, y, 2, flip);
+            case "CLOSE_COMBAT", "BODY_SLAM" -> big.play(PvfxEffects.Effect.IMPACTS_CRIT_HIT, x, y, 2, flip);
             default -> big.play(heavy ? PvfxEffects.Effect.IMPACTS_CRIT_HIT : PvfxEffects.Effect.IMPACTS_PUNCH_HIT,
                     x, y, heavy ? 2 : 3, flip);
         }
@@ -1049,6 +1072,27 @@ public final class FightingFx {
                     4, false, 0, seconds);
             case "THUNDER" -> big.play(PvfxEffects.Effect.STATUS_ELECTRIFIED, owner.getX(), owner.getY() + 6,
                     4, false, 0, seconds);
+            case "FLAMETHROWER" -> {
+                double step = 128 * 3 * 0.8;
+                for (int k = 0; k * step < distance; k++) {
+                    big.play(PvfxEffects.Effect.FIRE_FLAMETHROWER, startX + dir * k * step, mouthY, 3, flip,
+                            k * 0.05, seconds);
+                }
+            }
+            case "EARTHQUAKE" -> big.play(PvfxEffects.Effect.IMPACTS_GROUND_SLAM, owner.getX(), owner.getY() + 6,
+                    3, false);
+            case "SHADOW_STORM" -> big.play(PvfxEffects.Effect.SHADOW_SHADOW_BOLT, startX + dir * 120, mouthY, 3, flip,
+                    0, seconds);
+            case "DYNAMIC_PUNCH" -> big.play(PvfxEffects.Effect.STATUS_POWER_UP_AURA, owner.getX(), owner.getY() + 6,
+                    3, false, 0, seconds);
+            case "PSYSTRIKE" -> {
+                big.play(PvfxEffects.Effect.ARCANE_MAGIC_CIRCLE, owner.getX(), owner.getY() + 6, 3, false);
+                double step = 168 * 3 * 0.85;
+                for (int k = 0; k * step < distance; k++) {
+                    big.play(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, startX + dir * k * step, mouthY, 3, flip,
+                            k * 0.05, seconds);
+                }
+            }
             default -> { }
         }
     }
@@ -1069,6 +1113,26 @@ public final class FightingFx {
             case "LEAF_STORM" -> {
                 big.play(PvfxEffects.Effect.HOLY_HOLY_SMITE, x, feet, 3, false);
                 big.play(PvfxEffects.Effect.NATURE_SPORE_BURST, x, feet, 3, false);
+            }
+            case "FLAMETHROWER" -> {
+                big.play(PvfxEffects.Effect.FIRE_FIRE_PILLAR, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.FIRE_LAVA_BURST, x, feet, 3, false);
+            }
+            case "EARTHQUAKE" -> {
+                big.play(PvfxEffects.Effect.NATURE_EARTH_SPIKE, x, feet, 3, false);
+                big.play(PvfxEffects.Effect.IMPACTS_ROCK_SHATTER, x, feet - 20, 3, false);
+                shake(10, 0.25);
+            }
+            case "SHADOW_STORM" -> {
+                big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, x, target.getY() - target.getRenderHeight() * 0.5, 3, false);
+            }
+            case "DYNAMIC_PUNCH" -> {
+                big.play(PvfxEffects.Effect.IMPACTS_CRIT_HIT, x, target.getY() - target.getRenderHeight() * 0.5, 3, false);
+                big.play(PvfxEffects.Effect.EXPLOSIONS_BIG_EXPLOSION, x, feet, 2, false);
+            }
+            case "PSYSTRIKE" -> {
+                big.play(PvfxEffects.Effect.EXPLOSIONS_IMPLOSION, x, target.getY() - target.getRenderHeight() * 0.5, 3, false);
+                big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, target.getY() - target.getRenderHeight() * 0.5, 3, false);
             }
             case "THUNDER" -> {
                 big.play(PvfxEffects.Effect.LIGHTNING_LIGHTNING_STRIKE, x, feet, 3, false);

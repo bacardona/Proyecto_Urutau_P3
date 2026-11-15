@@ -25,6 +25,26 @@ final class FightingSpriteProfile {
                     "TACKLE", "Attack", "WATER_GUN", "Shoot", "TAIL_WHIP", "Swing"))),
             Map.entry("FLAREON", new FightingSpriteProfile("FLAREON", "EEVEE", 4, 92, 36, "Idle", "Faint", Map.of(
                     "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip"))),
+            Map.entry("VULPIX", new FightingSpriteProfile("VULPIX", 4, 72, 30, "Idle", Map.of(
+                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+            Map.entry("NINETALES", new FightingSpriteProfile("NINETALES", "VULPIX", 4, 96, 38, "Idle", "Faint", Map.of(
+                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+            Map.entry("SANDSHREW", new FightingSpriteProfile("SANDSHREW", 4, 72, 30, "Idle", Map.of(
+                    "TACKLE", "Attack", "DIG", "Strike", "TAIL_WHIP", "Swing", "ROCK_SLIDE", "Shoot"))),
+            Map.entry("SANDSLASH", new FightingSpriteProfile("SANDSLASH", "SANDSHREW", 4, 92, 36, "Idle", "Faint", Map.of(
+                    "TACKLE", "Attack", "DIG", "Strike", "TAIL_WHIP", "Swing", "ROCK_SLIDE", "Shoot"))),
+            Map.entry("GASTLY", new FightingSpriteProfile("GASTLY", "GASTLY", "Sprites_nuevos", 4, 92, 36, "Idle", "Hurt",
+                    Map.of("LICK", "Attack", "SHADOW_BALL", "Shoot", "SLEEP_POWDER", "Charge", "GROWL", "Swing"))),
+            Map.entry("HAUNTER", new FightingSpriteProfile("HAUNTER", "GASTLY", 4, 106, 38, "Idle", "Hurt", Map.of(
+                    "LICK", "Attack", "SHADOW_BALL", "Shoot", "SLEEP_POWDER", "Charge", "GROWL", "Swing"))),
+            Map.entry("MACHOP", new FightingSpriteProfile("MACHOP", 4, 80, 30, "Idle", Map.of(
+                    "TACKLE", "Attack", "CLOSE_COMBAT", "Strike", "GROWL", "Charge", "BODY_SLAM", "Swing"))),
+            Map.entry("MACHOKE", new FightingSpriteProfile("MACHOKE", "MACHOP", 4, 104, 38, "Idle", "Hurt", Map.of(
+                    "TACKLE", "Attack", "CLOSE_COMBAT", "Attack", "GROWL", "Charge", "BODY_SLAM", "Swing"))),
+            Map.entry("ABRA", new FightingSpriteProfile("ABRA", 4, 80, 30, "Idle", Map.of(
+                    "ZEN_HEADBUTT", "Attack", "PSYCHIC", "Shoot", "GROWTH", "Charge", "TELEPORT", "Strike"))),
+            Map.entry("KADABRA", new FightingSpriteProfile("KADABRA", "ABRA", 4, 106, 38, "Idle", "Hurt", Map.of(
+                    "ZEN_HEADBUTT", "Attack", "PSYCHIC", "Shoot", "GROWTH", "Charge", "TELEPORT", "Strike"))),
             Map.entry("PIKACHU", new FightingSpriteProfile("PIKACHU", 4, 78, 30, "Idle", Map.of(
                     "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
             Map.entry("RAICHU", new FightingSpriteProfile("RAICHU", "PIKACHU", 4, 96, 34, "Idle", "Faint", Map.of(

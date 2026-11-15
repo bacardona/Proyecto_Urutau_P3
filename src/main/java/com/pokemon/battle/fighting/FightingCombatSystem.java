@@ -76,6 +76,38 @@ public class FightingCombatSystem {
             0.12, GRUNT_LOCK_SECONDS, 3.60, 0, 0, 0, 0, 0, 0,
             new Color(0xFFE45A));
 
+    // Ataques de los Pokemon nuevos (los que usan mecanicas propias reutilizan Somnifero, Desarrollo y Grunido)
+    private static final AttackDefinition FIRE_FANG = new AttackDefinition(
+            "FIRE_FANG", 80, AttackDefinition.Kind.HITBOX, 11,
+            0.10, 0.10, 0.56, 50, 54, 0, 0, 0, 0, new Color(0xFF8A3D));
+    private static final AttackDefinition DIG = new AttackDefinition(
+            "DIG", 33, AttackDefinition.Kind.DASH, 12,
+            0.14, 0.24, 0.70, 60, 70, 400, 0, 0, 0, new Color(0xB48A52));
+    private static final AttackDefinition ROCK_SLIDE = new AttackDefinition(
+            "ROCK_SLIDE", 112, AttackDefinition.Kind.PROJECTILE, 10,
+            0.16, 0.06, 0.66, 0, 0, 0, 420, 1.8, 22, new Color(0x9C7B55));
+    private static final AttackDefinition LICK = new AttackDefinition(
+            "LICK", 65, AttackDefinition.Kind.HITBOX, 9,
+            0.08, 0.10, 0.48, 48, 50, 0, 0, 0, 0, new Color(0xB57BE0));
+    private static final AttackDefinition SHADOW_BALL = new AttackDefinition(
+            "SHADOW_BALL", 59, AttackDefinition.Kind.PROJECTILE, 11,
+            0.16, 0.06, 0.64, 0, 0, 0, 430, 1.8, 24, new Color(0x7B4FC4));
+    private static final AttackDefinition CLOSE_COMBAT = new AttackDefinition(
+            "CLOSE_COMBAT", 105, AttackDefinition.Kind.HITBOX, 13,
+            0.12, 0.12, 0.70, 52, 58, 0, 0, 0, 0, new Color(0xE8664A));
+    private static final AttackDefinition BODY_SLAM = new AttackDefinition(
+            "BODY_SLAM", 69, AttackDefinition.Kind.DASH, 11,
+            0.10, 0.20, 0.62, 58, 74, 360, 0, 0, 0, new Color(0xF2C28B));
+    private static final AttackDefinition ZEN_HEADBUTT = new AttackDefinition(
+            "ZEN_HEADBUTT", 63, AttackDefinition.Kind.HITBOX, 10,
+            0.10, 0.10, 0.54, 50, 56, 0, 0, 0, 0, new Color(0xF27FC2));
+    private static final AttackDefinition PSYCHIC = new AttackDefinition(
+            "PSYCHIC", 60, AttackDefinition.Kind.PROJECTILE, 11,
+            0.16, 0.06, 0.62, 0, 0, 0, 470, 1.7, 24, new Color(0xF27FC2));
+    private static final AttackDefinition TELEPORT = new AttackDefinition(
+            "TELEPORT", 109, AttackDefinition.Kind.DASH, 8,
+            0.06, 0.18, 0.60, 56, 70, 520, 0, 0, 0, new Color(0xE6B8FF));
+
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
             "TACKLE", 18, AttackDefinition.Kind.DASH, 12,
             0.08, 0.16, 0.40, 64, 82, 360, 0, 0, 0, new Color(0xF2C28B));
@@ -169,7 +201,8 @@ public class FightingCombatSystem {
 
     public boolean hasAttackProfile(String pokemonId) {
         return switch (pokemonId) {
-            case "PIKACHU", "CHARIZARD", "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE" -> true;
+            case "PIKACHU", "CHARIZARD", "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE",
+                 "VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA" -> true;
             default -> false;
         };
     }
@@ -344,6 +377,15 @@ public class FightingCombatSystem {
 
     private AttackDefinition attackFor(String pokemonId, int requestedAttack) {
         if (requestedAttack < 0) return null;
+        AttackDefinition[] newMoves = switch (pokemonId) {
+            case "VULPIX" -> new AttackDefinition[]{TACKLE, EMBER, GROWL, FIRE_FANG};
+            case "SANDSHREW" -> new AttackDefinition[]{TACKLE, DIG, TAIL_WHIP, ROCK_SLIDE};
+            case "GASTLY" -> new AttackDefinition[]{LICK, SHADOW_BALL, SLEEP_POWDER, GROWL};
+            case "MACHOP" -> new AttackDefinition[]{TACKLE, CLOSE_COMBAT, GROWL, BODY_SLAM};
+            case "ABRA" -> new AttackDefinition[]{ZEN_HEADBUTT, PSYCHIC, GROWTH, TELEPORT};
+            default -> null;
+        };
+        if (newMoves != null) return requestedAttack < newMoves.length ? newMoves[requestedAttack] : null;
         if ("PIKACHU".equals(pokemonId)) {
             return switch (requestedAttack) {
                 case 0 -> QUICK_ATTACK;
@@ -393,7 +435,9 @@ public class FightingCombatSystem {
     private boolean isSelectableFreeFightPokemon(String pokemonId) {
         return "BULBASAUR".equals(pokemonId) || "CHARMANDER".equals(pokemonId)
                 || "SQUIRTLE".equals(pokemonId) || "EEVEE".equals(pokemonId)
-                || "PIKACHU".equals(pokemonId);
+                || "PIKACHU".equals(pokemonId) || "VULPIX".equals(pokemonId)
+                || "SANDSHREW".equals(pokemonId) || "GASTLY".equals(pokemonId)
+                || "MACHOP".equals(pokemonId) || "ABRA".equals(pokemonId);
     }
 
     private boolean startRequestedAttack(AttackState state, AttackDefinition requested,

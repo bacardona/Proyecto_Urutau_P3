@@ -856,6 +856,11 @@ public class FightingGamePanel extends JPanel {
             case "CHARMANDER" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "VUELO"; }
             case "SQUIRTLE" -> { moveOne = "PLACAJE"; moveTwo = "PISTOLA AGUA"; moveThree = "LATIGO"; moveFour = "MORDISCO"; }
             case "EEVEE" -> { moveOne = "PLACAJE"; moveTwo = "RAPIDO"; moveThree = "GRUNIDO"; moveFour = "LATIGO"; }
+            case "VULPIX" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "COLMILLO IGNEO"; }
+            case "SANDSHREW" -> { moveOne = "PLACAJE"; moveTwo = "EXCAVAR"; moveThree = "LATIGO"; moveFour = "AVALANCHA"; }
+            case "GASTLY" -> { moveOne = "LENGUETAZO"; moveTwo = "BOLA SOMBRA"; moveThree = "HIPNOSIS"; moveFour = "CARA SUSTO"; }
+            case "MACHOP" -> { moveOne = "PLACAJE"; moveTwo = "A BOCAJARRO"; moveThree = "GRUNIDO"; moveFour = "GOLPE CUERPO"; }
+            case "ABRA" -> { moveOne = "CABEZAZO ZEN"; moveTwo = "PSIQUICO"; moveThree = "AMNESIA"; moveFour = "TELETRANSPORTE"; }
             case "PIKACHU" -> { moveOne = "RAPIDO"; moveTwo = "IMPACTRUENO"; moveThree = "LATIGO"; moveFour = "ONDA TRUENO"; }
             default -> { return new String[]{"ATAQUES NO DISPONIBLES", ""}; }
         }
