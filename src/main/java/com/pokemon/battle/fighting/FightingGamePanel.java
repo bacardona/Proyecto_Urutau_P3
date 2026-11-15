@@ -188,6 +188,17 @@ public class FightingGamePanel extends JPanel {
         bindHeldKey("P", input::setPlayerTwoEvolution);
         bindHeldKey("O", input::setPlayerTwoUltimate);
 
+        // Resaltar el boton de pausa al pasar el raton
+        addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                boolean hover = session.getState() == FightingGameSession.State.RUNNING && isOnPauseButton(e);
+                renderer.setPauseHover(hover);
+                setCursor(java.awt.Cursor.getPredefinedCursor(
+                        hover ? java.awt.Cursor.HAND_CURSOR : java.awt.Cursor.DEFAULT_CURSOR));
+            }
+        });
+
         // Control mediante raton.
         addMouseListener(new MouseAdapter() {
 
@@ -196,6 +207,11 @@ public class FightingGamePanel extends JPanel {
 
                 if (session.getState() == FightingGameSession.State.FINISHED) {
                     handleResultClick(e);
+                    return;
+                }
+                // Boton de pausa entre las dos barras de vida
+                if (session.getState() == FightingGameSession.State.RUNNING) {
+                    if (isOnPauseButton(e)) handleEscape();
                     return;
                 }
                 if (session.getState() != FightingGameSession.State.PAUSED
@@ -453,6 +469,14 @@ public class FightingGamePanel extends JPanel {
             onBack.run();
         }
         repaint();
+    }
+
+    private boolean isOnPauseButton(MouseEvent event) {
+        double scale = boardScale();
+        if (scale <= 0) return false;
+        int x = (int) ((event.getX() - boardOffsetX(scale)) / scale);
+        int y = (int) ((event.getY() - boardOffsetY(scale)) / scale);
+        return FightingHud.isOnPauseButton(x, y);
     }
 
     private void handleResultClick(MouseEvent event) {

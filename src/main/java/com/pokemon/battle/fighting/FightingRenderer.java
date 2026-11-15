@@ -34,6 +34,11 @@ public class FightingRenderer {
         this.hud = new FightingHud(spriteLoader);
     }
 
+    /** Resalta el boton de pausa cuando el raton esta encima. */
+    public void setPauseHover(boolean hover) {
+        hud.setPauseHover(hover);
+    }
+
     public FightingFx fx() {
         return fx;
     }
@@ -68,22 +73,78 @@ public class FightingRenderer {
         // Templo de la selva si esta la imagen; si no, el escenario de Angel
         if (TempleStage.available()) TempleStage.drawBack(g, fx.time());
         else stage.draw(g, session);
-        fx.drawDecals(g);
-        fx.drawBehind(g);
-        drawAttackEffects(g, session);
+        // Los efectos se dibujan a un tercio de resolucion y se agrandan sin suavizar,
+        // asi quedan con pixeles grandes como los sprites y el escenario
+        pixelLayer(g, session, lg -> {
+            fx.drawDecals(lg);
+            fx.drawBehind(lg);
+            drawAttackEffects(lg, session);
+        });
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         for (Fighter fighter : session.getFighters()) {
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
                     session.getGroundY(), session.getCombatSystem(), session.getFighters());
         }
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
-        drawPhysicalImpacts(g, session.getCombatSystem());
-        drawUltimateEffects(g, session, frameIndex);
-        fx.drawFront(g, session);
+        pixelLayer(g, session, lg -> {
+            drawPhysicalImpacts(lg, session.getCombatSystem());
+            drawUltimateEffects(lg, session, frameIndex);
+            fx.drawFront(lg, session);
+        });
         TempleStage.drawFront(g, fx.time());
         drawFighterStatusIndicators(g, session);
         fx.drawPopups(g);
         fx.drawOverlay(g, session.getWidth(), session.getHeight());
+    }
+
+    /** Tamano del pixel de los efectos (3 = cada pixel del efecto ocupa 3x3 en pantalla). */
+    private static final int FX_PIXEL = 3;
+    private BufferedImage fxLayer;
+
+    private void pixelLayer(Graphics2D target, FightingGameSession session,
+                            java.util.function.Consumer<Graphics2D> painter) {
+        int w = (session.getWidth() + FX_PIXEL - 1) / FX_PIXEL;
+        int h = (session.getHeight() + FX_PIXEL - 1) / FX_PIXEL;
+        if (fxLayer == null || fxLayer.getWidth() != w || fxLayer.getHeight() != h) {
+            fxLayer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        }
+        Graphics2D lg = fxLayer.createGraphics();
+        lg.setComposite(AlphaComposite.Clear);
+        lg.fillRect(0, 0, w, h);
+        lg.setComposite(AlphaComposite.SrcOver);
+        lg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        lg.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        lg.scale(1.0 / FX_PIXEL, 1.0 / FX_PIXEL);
+        painter.accept(lg);
+        lg.dispose();
+        posterize(fxLayer);
+        Object old = target.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        target.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        target.drawImage(fxLayer, 0, 0, w * FX_PIXEL, h * FX_PIXEL, null);
+        if (old != null) target.setRenderingHint(RenderingHints.KEY_INTERPOLATION, old);
+    }
+
+    /**
+     * Transparencia en pocos escalones (como el pixel art de verdad, sin degradados suaves)
+     * y colores un poco mas saturados.
+     */
+    private static void posterize(BufferedImage image) {
+        int[] px = ((java.awt.image.DataBufferInt) image.getRaster().getDataBuffer()).getData();
+        for (int i = 0; i < px.length; i++) {
+            int argb = px[i];
+            int a = argb >>> 24;
+            if (a == 0) continue;
+            if (a < 64) { px[i] = 0; continue; }
+            int qa = a < 128 ? 104 : a < 200 ? 176 : 255;
+            int r = (argb >> 16) & 0xFF;
+            int g = (argb >> 8) & 0xFF;
+            int b = argb & 0xFF;
+            r = Math.min(255, (r + 12) / 24 * 24);
+            g = Math.min(255, (g + 12) / 24 * 24);
+            b = Math.min(255, (b + 12) / 24 * 24);
+            px[i] = (qa << 24) | (r << 16) | (g << 8) | b;
+        }
     }
 
     public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption) {
