@@ -38,7 +38,6 @@ public class FightingRenderer {
     public void setPauseHover(boolean hover) {
         hud.setPauseHover(hover);
     }
-
     public FightingFx fx() {
         return fx;
     }
@@ -70,8 +69,10 @@ public class FightingRenderer {
     }
 
     private void drawScene(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint) {
-        // Templo de la selva si esta la imagen; si no, el escenario de Angel
-        if (TempleStage.available()) TempleStage.drawBack(g, fx.time());
+        // Mapa elegido; si falta su imagen, el escenario de Angel (bosque)
+        FightingStage selectedStage = session.getStage();
+        if (selectedStage == FightingStage.TEMPLO && TempleStage.available()) TempleStage.drawBack(g, fx.time());
+        else if (selectedStage == FightingStage.VOLCAN && VolcanoStage.available()) VolcanoStage.drawBack(g, fx.time());
         else stage.draw(g, session);
         // Los efectos se dibujan a un tercio de resolucion y se agrandan sin suavizar,
         // asi quedan con pixeles grandes como los sprites y el escenario
@@ -91,7 +92,8 @@ public class FightingRenderer {
             drawUltimateEffects(lg, session, frameIndex);
             fx.drawFront(lg, session);
         });
-        TempleStage.drawFront(g, fx.time());
+        if (session.getStage() == FightingStage.TEMPLO) TempleStage.drawFront(g, fx.time());
+        else if (session.getStage() == FightingStage.VOLCAN) VolcanoStage.drawFront(g, fx.time());
         drawFighterStatusIndicators(g, session);
         fx.drawPopups(g);
         fx.drawOverlay(g, session.getWidth(), session.getHeight());

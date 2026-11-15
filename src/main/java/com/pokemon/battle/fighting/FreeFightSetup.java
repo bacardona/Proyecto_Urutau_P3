@@ -13,13 +13,22 @@ public final class FreeFightSetup {
     private List<Pokemon> teamOne = List.of();
     private Player playerTwo;
     private List<Pokemon> teamTwo = List.of();
+    private FightingStage stage = FightingStage.BOSQUE;
 
     public void clear() {
         playerOne = null;
         teamOne = List.of();
         playerTwo = null;
         teamTwo = List.of();
+        stage = FightingStage.BOSQUE;
     }
+
+    /** Mapa elegido para el combate. */
+    public void setStage(FightingStage stage) {
+        this.stage = Objects.requireNonNull(stage);
+    }
+
+    public FightingStage getStage() { return stage; }
 
     public void setPlayerOne(Player player, List<Pokemon> team) {
         playerOne = Objects.requireNonNull(player);

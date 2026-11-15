@@ -237,6 +237,8 @@ public final class FreeFightSpriteCheck {
         input.clear(); input.setPlayerOneJump(true);
         double feet = f.getY(); session.update(input, DT);
         check(f.getY() < feet, "Jump failed");
+        // Soltar la tecla: si se mantiene, vuelve a saltar solo al tocar el suelo
+        input.setPlayerOneJump(false);
         for (int i = 0; i < 150; i++) session.update(input, DT);
         check(f.isOnGround(), "Platform landing failed");
         check(f.getBodyHalfWidth() == half && f.getRenderHeight() == height, "Body box varies by action");

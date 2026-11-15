@@ -17,6 +17,7 @@ import com.pokemon.battle.ui.TrainerHubScreen;
 import com.pokemon.battle.ui.TrainerSelectPanel;
 import com.pokemon.battle.fighting.FightingGamePanel;
 import com.pokemon.battle.fighting.FreeFightSetup;
+import com.pokemon.battle.fighting.StageSelectScreen;
 
 import javax.swing.SwingUtilities;
 import java.util.List;
@@ -126,12 +127,21 @@ public class MainGUI {
                 },
                 () -> window.showScreen("combatMenu"));
 
+        // Eleccion del mapa (despues del equipo 2)
+        StageSelectScreen freeStageScreen = new StageSelectScreen(
+                stage -> {
+                    freeFightSetup.setStage(stage);
+                    window.setGameSize(1280, 720);
+                    window.showScreen("fighting");
+                },
+                () -> window.showScreen("freeTeam2"));
+
         TeamSelectScreen freeTeamScreen2 = new TeamSelectScreen(
                 team -> {
                     freeFightSetup.setPlayerTwo(freeFightSetup.getPlayerTwo(), team);
                     if (freeFightSetup.isComplete()) {
-                        window.setGameSize(1280, 720);
-                        window.showScreen("fighting");
+                        freeStageScreen.prepare(freeFightSetup.getStage());
+                        window.showScreen("freeStage");
                     }
                 },
                 () -> window.showScreen("freeHub2"));
@@ -204,6 +214,7 @@ public class MainGUI {
         window.addScreen("freeTeam1", freeTeamScreen1);
         window.addScreen("freeHub2", freeHub2);
         window.addScreen("freeTeam2", freeTeamScreen2);
+        window.addScreen("freeStage", freeStageScreen);
         window.addScreen("pveHub", pveHub);
         window.addScreen("pveTeam", pveTeamScreen);
         window.addScreen("pvpHub1", pvpHub1);

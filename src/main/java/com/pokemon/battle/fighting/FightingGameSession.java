@@ -19,6 +19,7 @@ public class FightingGameSession {
     private final FightingTeam playerOneTeam;
     private final FightingTeam playerTwoTeam;
     private final List<Platform> platforms;
+    private final FightingStage stage;
     private final PhysicsSystem physicsSystem = new PhysicsSystem();
     private final FightingCombatSystem combatSystem = new FightingCombatSystem();
     private final boolean[] defeatCleanupDone = new boolean[2];
@@ -26,12 +27,17 @@ public class FightingGameSession {
     private Outcome outcome;
 
     public FightingGameSession() {
-        this("JUGADOR 1", List.of(), "JUGADOR 2", List.of(), true);
+        this(FightingStage.BOSQUE);
+    }
+
+    /** Combate de prueba en el mapa indicado. */
+    FightingGameSession(FightingStage stage) {
+        this("JUGADOR 1", List.of(), "JUGADOR 2", List.of(), true, stage);
     }
 
     public FightingGameSession(FreeFightSetup setup) {
         this(setup.getPlayerOne().getName(), setup.getTeamOne(),
-                setup.getPlayerTwo().getName(), setup.getTeamTwo(), false);
+                setup.getPlayerTwo().getName(), setup.getTeamTwo(), false, setup.getStage());
         if (!setup.isComplete()) {
             throw new IllegalArgumentException("La selección de Combate Libre está incompleta");
         }
@@ -40,13 +46,27 @@ public class FightingGameSession {
     private FightingGameSession(String playerOneName, List<Pokemon> teamOne,
                                 String playerTwoName, List<Pokemon> teamTwo,
                                 boolean usePrototypeTeams) {
+        this(playerOneName, teamOne, playerTwoName, teamTwo, usePrototypeTeams, FightingStage.BOSQUE);
+    }
+
+    private FightingGameSession(String playerOneName, List<Pokemon> teamOne,
+                                String playerTwoName, List<Pokemon> teamTwo,
+                                boolean usePrototypeTeams, FightingStage stage) {
         this.width = 1280;
         this.height = 720;
         this.groundY = 677;
-        // Solo el piso: sin plataformas flotantes, pelea cara a cara
-        this.platforms = List.of(
-                new Platform(0, groundY, width, 24)
-        );
+        this.stage = stage == null ? FightingStage.BOSQUE : stage;
+        // El bosque tiene las plataformas de Angel; el templo y el volcan solo el piso
+        this.platforms = this.stage == FightingStage.BOSQUE
+                ? List.of(
+                        new Platform(100, 570, 180, 24),
+                        new Platform(320, 475, 160, 24),
+                        new Platform(510, 375, 155, 24),
+                        new Platform(700, 425, 145, 24),
+                        new Platform(870, 475, 160, 24),
+                        new Platform(1060, 570, 170, 24),
+                        new Platform(0, groundY, width, 24))
+                : List.of(new Platform(0, groundY, width, 24));
         List<Pokemon> firstTeam = usePrototypeTeams ? List.of() : teamOne;
         List<Pokemon> secondTeam = usePrototypeTeams ? List.of() : teamTwo;
         this.playerOneTeam = usePrototypeTeams
@@ -63,6 +83,7 @@ public class FightingGameSession {
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public int getGroundY() { return groundY; }
+    public FightingStage getStage() { return stage; }
     public List<Fighter> getFighters() { return List.copyOf(fighters); }
     public FightingTeam getPlayerOneTeam() { return playerOneTeam; }
     public FightingTeam getPlayerTwoTeam() { return playerTwoTeam; }
