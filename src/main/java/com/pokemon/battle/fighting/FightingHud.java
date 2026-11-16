@@ -191,7 +191,7 @@ final class FightingHud {
         }
 
         // Barra de evolucion / ulti
-        String label = energyLabel(f, left ? "R" : "P");
+        String label = energyLabel(f, left ? 0 : 1);
         int evoW = 66 * P;
         int evoH = 5 * P;
         int evoX = left ? barX : barX + barW - evoW;
@@ -319,11 +319,22 @@ final class FightingHud {
         return img.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
-    private static String energyLabel(Fighter fighter, String evolutionKey) {
+    // Con mando conectado, los avisos muestran sus botones (LT / RT) en vez de las teclas
+    private final boolean[] padConnected = new boolean[2];
+
+    /** Lo avisa la pantalla de combate cada vez que lee los mandos. */
+    void setPadConnected(int player, boolean connected) {
+        if (player == 0 || player == 1) padConnected[player] = connected;
+    }
+
+    private String energyLabel(Fighter fighter, int player) {
+        boolean pad = padConnected[player];
+        String evolveKey = pad ? "LT" : player == 0 ? "R" : "P";
+        String ultimateKey = pad ? "RT" : player == 0 ? "T" : "O";
         if (fighter.isEvolved()) {
-            return fighter.isUltimateReady() ? "ULTI LISTA (" + (evolutionKey.equals("R") ? "T" : "O") + ")" : "ULTI";
+            return fighter.isUltimateReady() ? "ULTI LISTA (" + ultimateKey + ")" : "ULTI";
         }
-        return fighter.isEvolutionReady() ? "EVOLUCIONA (" + evolutionKey + ")" : "EVO";
+        return fighter.isEvolutionReady() ? "EVOLUCIONA (" + evolveKey + ")" : "EVO";
     }
 
     private static Color brighten(Color c, int amount) {

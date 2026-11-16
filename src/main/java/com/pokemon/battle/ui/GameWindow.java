@@ -43,7 +43,14 @@ public class GameWindow extends JFrame {
             Map.entry("pvpHub2", InputProfile.LISTA),
             Map.entry("pveTeam", InputProfile.EQUIPO),
             Map.entry("pvpTeam1", InputProfile.EQUIPO),
-            Map.entry("pvpTeam2", InputProfile.EQUIPO));
+            Map.entry("pvpTeam2", InputProfile.EQUIPO),
+            // Combate libre: menus como los de PvP; en la pelea la pantalla lee el mando sola
+            Map.entry("freeHub1", InputProfile.LISTA),
+            Map.entry("freeHub2", InputProfile.LISTA),
+            Map.entry("freeTeam1", InputProfile.EQUIPO),
+            Map.entry("freeTeam2", InputProfile.EQUIPO),
+            Map.entry("freeStage", InputProfile.MENU),
+            Map.entry("fighting", InputProfile.LIBRE));
 
     public GameWindow() {
         setTitle("Pokken Battle");
@@ -60,6 +67,11 @@ public class GameWindow extends JFrame {
         pack();
         setLocationRelativeTo(null);
     }
+    /** El mando, para las pantallas que lo leen solas (combate libre). */
+    public GamepadInput getGamepad() {
+        return gamepad;
+    }
+
     public void setGameSize(int width, int height) {
 
         container.setPreferredSize(
@@ -100,7 +112,8 @@ public class GameWindow extends JFrame {
             case RIGHT -> "RIGHT";
             case CONFIRM, ANY_BUTTON -> "ENTER";
             case BACK -> "ESCAPE";
-            default -> null;   // REMOVE_LAST, PAGE_PREV, PAGE_NEXT: pendientes
+            case REMOVE_LAST -> "BACK_SPACE";   // X en armar equipo: quita el ultimo
+            default -> null;   // PAGE_PREV, PAGE_NEXT: pendientes
         };
         if (key != null) retro.pressKey(key);
     }

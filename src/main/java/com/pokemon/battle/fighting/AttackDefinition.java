@@ -30,7 +30,7 @@ public record AttackDefinition(
     /** Status moves used recoverySeconds to space out casts, not to keep the caster busy. */
     public double actionRecoverySeconds() {
         return switch (moveId) {
-            case "GROWTH", "GROWL", "SLEEP_POWDER" -> Math.min(recoverySeconds, 0.20);
+            case "GROWTH", "GROWL", "SLEEP_POWDER", "THUNDER_WAVE" -> Math.min(recoverySeconds, 0.20);
             default -> recoverySeconds;
         };
     }

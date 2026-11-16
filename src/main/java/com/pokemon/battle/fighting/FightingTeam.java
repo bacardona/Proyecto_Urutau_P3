@@ -65,7 +65,10 @@ public final class FightingTeam {
 
     public boolean advanceAfterDefeat() {
         if (!getActive().isDefeated()) return false;
-        for (int i = activeIndex + 1; i < members.size(); i++) {
+        // Busca desde el siguiente y da la vuelta: tras un cambio en la pared
+        // el que cae puede ser el ultimo de la lista y el vivo estar antes
+        for (int step = 1; step < members.size(); step++) {
+            int i = (activeIndex + step) % members.size();
             if (!members.get(i).isDefeated()) {
                 activeIndex = i;
                 return true;

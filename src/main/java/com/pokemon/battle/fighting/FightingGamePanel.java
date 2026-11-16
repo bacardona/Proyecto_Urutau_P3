@@ -1,6 +1,7 @@
 
 package com.pokemon.battle.fighting;
 
+import com.pokemon.battle.gamepad.PadSnapshot;
 import com.pokemon.battle.ui.GifAnimation;
 import com.pokemon.battle.ui.RetroStyle;
 import com.pokemon.battle.ui.SpriteLoader;
@@ -22,6 +23,7 @@ import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Objects;
+import java.util.function.IntFunction;
 
 public class FightingGamePanel extends JPanel {
 
@@ -71,6 +73,11 @@ public class FightingGamePanel extends JPanel {
     private final Runnable onBack;
     private final Timer animationTimer;
     private final Timer simulationTimer;
+    // Mando: se lee aparte de la simulacion para que tambien funcione en pausa y resultados
+    private final Timer gamepadTimer;
+    private final GamepadFightControls gamepadControls = new GamepadFightControls();
+    private IntFunction<PadSnapshot> gamepadSource;
+    private final boolean[] padConnected = new boolean[2];
 
     private int frameIndex = 0;
     private long lastSimulationNanos;
@@ -109,6 +116,7 @@ public class FightingGamePanel extends JPanel {
         );
 
         simulationTimer = new Timer(8, e -> updateSimulation());
+        gamepadTimer = new Timer(16, e -> readGamepads());
 
         // Iniciar o detener las animaciones
         // cuando se muestra u oculta la pantalla.
@@ -130,11 +138,15 @@ public class FightingGamePanel extends JPanel {
                     simulationAccumulatorNanos = 0;
                     lastSimulationNanos = System.nanoTime();
                     simulationTimer.start();
+                    gamepadControls.reset();
+                    gamepadTimer.start();
 
                 } else {
 
                     animationTimer.stop();
                     simulationTimer.stop();
+                    gamepadTimer.stop();
+                    gamepadControls.reset();
                     input.clear();
                     FightingSound.get().stopMusic();
                 }
@@ -324,6 +336,50 @@ public class FightingGamePanel extends JPanel {
                 setter.accept(false);
             }
         });
+    }
+
+    /** De donde sale la foto de cada mando (la ventana la conecta al iniciar el juego). */
+    public void setGamepadSource(IntFunction<PadSnapshot> source) {
+        this.gamepadSource = source;
+    }
+
+    /**
+     * Lee los dos mandos. En la pelea van a FightingInput (ver GamepadFightControls);
+     * en pausa y en resultados mueven el menu: cruceta, A elige, B o START vuelve.
+     */
+    private void readGamepads() {
+        if (gamepadSource == null) return;
+        for (int player = 0; player < 2; player++) {
+            PadSnapshot pad = gamepadSource.apply(player);
+            if (pad == null) pad = PadSnapshot.NONE;
+            if (padConnected[player] != pad.connected()) {
+                padConnected[player] = pad.connected();
+                renderer.setPadConnected(player, pad.connected());
+                repaint();
+            }
+            FightingGameSession.State state = session.getState();
+            if (state == FightingGameSession.State.RUNNING) {
+                boolean pause = gamepadControls.justPressed(player, pad, PadSnapshot::start);
+                gamepadControls.apply(player, pad, input);
+                if (pause) handleEscape();
+                continue;
+            }
+            boolean up = gamepadControls.justPressed(player, pad, PadSnapshot::up);
+            boolean down = gamepadControls.justPressed(player, pad, PadSnapshot::down);
+            boolean confirm = gamepadControls.justPressed(player, pad, PadSnapshot::a);
+            boolean back = gamepadControls.justPressed(player, pad, p -> p.b() || p.start());
+            gamepadControls.remember(player, pad);
+            if (state == FightingGameSession.State.PAUSED) {
+                if (up) moveSelection(-1);
+                if (down) moveSelection(1);
+                if (confirm) activateSelected();
+                else if (back) handleEscape();
+            } else if (state == FightingGameSession.State.FINISHED) {
+                if (up) moveResultSelection(-1);
+                if (down) moveResultSelection(1);
+                if (confirm) activateSelected();
+            }
+        }
     }
 
     private void updateSimulation() {
@@ -789,6 +845,8 @@ public class FightingGamePanel extends JPanel {
             drawCentered(g, playerTwoAttacks[0], centerX, panelY + 282, 15, RetroStyle.DARK);
             drawCentered(g, playerTwoAttacks[1], centerX, panelY + 304, 15, RetroStyle.DARK);
 
+            drawCentered(g, "MANDO: A SALTO  X Y B RB ATAQUES  LB ESCUDO  LT EVO  RT ULTI  SELECT CAMBIO",
+                    centerX, panelY + 328, 14, RetroStyle.DARK);
             drawCentered(g, "ESC O ENTER PARA VOLVER  |  F1 SONIDO", centerX,
                     panelY + 348, 16, RetroStyle.DARK);
         }
@@ -845,10 +903,11 @@ public class FightingGamePanel extends JPanel {
     }
 
     private String[] attackSummary(Fighter fighter, boolean playerOne) {
-        String keyOne = playerOne ? "F" : "I";
-        String keyTwo = playerOne ? "G" : "J";
-        String keyThree = playerOne ? "H" : "K";
-        String keyFour = playerOne ? "V" : "L";
+        boolean pad = padConnected[playerOne ? 0 : 1];
+        String keyOne = pad ? "X" : playerOne ? "F" : "I";
+        String keyTwo = pad ? "Y" : playerOne ? "G" : "J";
+        String keyThree = pad ? "B" : playerOne ? "H" : "K";
+        String keyFour = pad ? "RB" : playerOne ? "V" : "L";
         String moveOne;
         String moveTwo;
         String moveThree;

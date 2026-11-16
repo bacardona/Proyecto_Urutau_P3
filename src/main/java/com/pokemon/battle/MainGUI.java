@@ -184,6 +184,8 @@ public class MainGUI {
                 }
         );
 
+        fightingPanel.setGamepadSource(window.getGamepad()::snapshot);
+
         // Submenu de combate
         MenuScreen combatMenu = new MenuScreen("COMBATE",
                 new String[]{"PVE", "PVP", "COMBATE LIBRE", "VOLVER"},
