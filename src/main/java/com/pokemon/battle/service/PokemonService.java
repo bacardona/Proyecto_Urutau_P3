@@ -26,26 +26,12 @@ public class PokemonService implements PokemonCatalog {
      */
     @Override
     public List<Pokemon> listAll() {
-        // El modo normal no muestra los Pokemon que son solo de Combate Libre
-        return reader.loadAll().stream()
-                .filter(pokemon -> !isFreeFightOnly(pokemon.getName()))
-                .collect(java.util.stream.Collectors.toList());
+        return reader.loadAll();
     }
 
     @Override
     public List<Pokemon> listAllWithFreeFight() {
         return reader.loadAll();
-    }
-
-    /**
-     * Pokemon added to the database only for Combate Libre (they have no front/back GIF
-     * for the normal mode). To show one in the normal mode too, remove it from this list.
-     */
-    public static final java.util.Set<String> FREE_FIGHT_ONLY =
-            java.util.Set.of("VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA");
-
-    public static boolean isFreeFightOnly(String name) {
-        return name != null && FREE_FIGHT_ONLY.contains(name.trim().toUpperCase());
     }
 
     /**
