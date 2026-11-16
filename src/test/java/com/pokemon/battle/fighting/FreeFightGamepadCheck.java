@@ -63,6 +63,13 @@ public class FreeFightGamepadCheck {
         live.apply(0, pad().build(), liveInput);
         for (int i = 0; i < 60; i++) session.update(liveInput, DT);
 
+        // Solo A salta: palanca o cruceta hacia arriba no
+        live.apply(0, new PadSnapshot(true, false, false, true, false,
+                false, false, false, false, false, false, false, false, false, false), liveInput);
+        session.update(liveInput, DT);
+        check(a.isOnGround(), "Up on the stick or D-pad must not jump");
+        live.apply(0, pad().build(), liveInput);
+        session.update(liveInput, DT);
         live.apply(0, pad().a(true).build(), liveInput);
         session.update(liveInput, DT);
         check(!a.isOnGround(), "A must jump");
