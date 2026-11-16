@@ -3,82 +3,157 @@ package com.pokemon.battle.gamepad;
 import com.studiohartman.jamepad.ControllerManager;
 import com.studiohartman.jamepad.ControllerState;
 
-import javax.swing.Timer;
+import javax.swing.SwingUtilities;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.function.Consumer;
 
+/**
+ * Lee el mando en un hilo propio (SDL se inicia y se usa SIEMPRE desde ese hilo)
+ * y entrega las acciones al hilo de Swing con invokeLater.
+ */
 public class GamepadInput {
 
+    // ---- Ajustes en un solo lugar
     private static final double DEADZONE = 0.6;
-    private static final long REPEAT_DELAY_NS = 350_000_000L; // antes del 1er repeat
-    private static final long REPEAT_RATE_NS  = 120_000_000L; // entre repeats
+    private static final boolean INVERT_STICK_Y = true;  // tu palanca daba arriba/abajo al reves
+    private static final boolean SWAP_AB = false;        // ponlo en true si A y B salen cruzados
+    private static final long REPEAT_DELAY_NS = 350_000_000L;
+    private static final long REPEAT_RATE_NS  = 120_000_000L;
+    private static final long POLL_CONNECTED_MS = 16;    // ~60 Hz con mando
+    private static final long POLL_IDLE_MS = 250;        // sin mando, casi no gasta nada
 
+    // ---- Que acciones vale en cada perfil
+    private static final EnumMap<InputProfile, EnumSet<GameAction>> ALLOWED =
+            new EnumMap<>(InputProfile.class);
+    static {
+        EnumSet<GameAction> menu = EnumSet.of(GameAction.UP, GameAction.DOWN,
+                GameAction.LEFT, GameAction.RIGHT, GameAction.CONFIRM, GameAction.BACK);
+        EnumSet<GameAction> lista = EnumSet.copyOf(menu);
+        lista.add(GameAction.PAGE_PREV);
+        lista.add(GameAction.PAGE_NEXT);
+        EnumSet<GameAction> equipo = EnumSet.copyOf(lista);
+        equipo.add(GameAction.REMOVE_LAST);
+
+        ALLOWED.put(InputProfile.CUALQUIER_BOTON, EnumSet.of(GameAction.ANY_BUTTON));
+        ALLOWED.put(InputProfile.MENU, menu);
+        ALLOWED.put(InputProfile.LISTA, lista);
+        ALLOWED.put(InputProfile.EQUIPO, equipo);
+        ALLOWED.put(InputProfile.LIBRE, EnumSet.noneOf(GameAction.class)); // la pantalla lee raw()
+    }
+
+    // ---- Compartido entre hilos
+    private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
+    private volatile Consumer<GameAction> listener = a -> {};
+    private volatile ControllerState lastState;   // para el modo LIBRE
+    private volatile boolean running;
+
+    // ---- Solo los toca el hilo del mando
+    private Thread thread;
     private ControllerManager controllers;
-    private Timer timer;
-    private InputProfile profile = InputProfile.CUALQUIER_BOTON;
-    private Consumer<GameAction> listener = a -> {};
-    private ControllerState lastState; // para el modo LIBRE
+    private InputProfile seenProfile;
+    private GameAction heldDir;
+    private long nextRepeat;
 
-    private GameAction heldDir = null;
-    private long nextRepeat = 0;
-
-    public boolean start() {
-        try {
-            controllers = new ControllerManager();
-            controllers.initSDLGamepad();
-        } catch (Throwable t) {
-            t.printStackTrace();
-            return false; // el juego sigue con teclado
-        }
-        timer = new Timer(16, e -> poll(System.nanoTime())); // ~60 veces por segundo, en el EDT
-        timer.start();
-        return true;
+    /** Arranca el hilo del mando. Vuelve al instante: no bloquea la ventana. */
+    public void start() {
+        if (thread != null) return;
+        running = true;
+        thread = new Thread(this::run, "gamepad-poll");
+        thread.setDaemon(true);
+        thread.start();
     }
 
+    /** Detiene el hilo; el propio hilo cierra SDL. */
     public void stop() {
-        if (timer != null) timer.stop();
-        if (controllers != null) controllers.quitSDLGamepad();
+        running = false;
+        if (thread != null) {
+            thread.interrupt();
+            try {
+                thread.join(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
-    public void setProfile(InputProfile p) {
-        this.profile = p;
-        this.heldDir = null; // evita que una dirección sostenida "pase" a la nueva pantalla
-    }
+    public void setProfile(InputProfile p) { this.profile = p; }
 
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
-    /** Para el modo LIBRE: estado crudo del mando en este frame (puede ser null). */
+    /** Para el modo LIBRE: ultimo estado crudo del mando (puede ser null). */
     public ControllerState raw() { return lastState; }
 
-    private void poll(long now) {
-        ControllerState s = controllers.getState(0);
-        lastState = s;
-        if (!s.isConnected) return;
+    // ------------------------------------------------------------------ hilo del mando
 
-        switch (profile) {
-            case CUALQUIER_BOTON -> {
-                if (anyButton(s)) listener.accept(GameAction.ANY_BUTTON);
+    private void run() {
+        try {
+            long t0 = System.nanoTime();
+            controllers = new ControllerManager();
+            controllers.initSDLGamepad();
+            System.out.println("Init mando: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+        } catch (Throwable t) {
+            t.printStackTrace();   // el juego sigue con teclado y mouse
+            return;
+        }
+        try {
+            while (running) {
+                ControllerState s = controllers.getState(0);
+                lastState = s;
+                if (!s.isConnected) {
+                    Thread.sleep(POLL_IDLE_MS);
+                    continue;
+                }
+                poll(s, System.nanoTime());
+                Thread.sleep(POLL_CONNECTED_MS);
             }
-            case MENU -> {
-                directions(s, now);
-                if (s.aJustPressed) listener.accept(GameAction.CONFIRM);
-                if (s.bJustPressed) listener.accept(GameAction.BACK);
-            }
-            case LISTA -> {
-                directions(s, now);
-                if (s.aJustPressed) listener.accept(GameAction.CONFIRM);
-                if (s.bJustPressed) listener.accept(GameAction.BACK);
-                if (s.lbJustPressed) listener.accept(GameAction.PAGE_PREV);
-                if (s.rbJustPressed) listener.accept(GameAction.PAGE_NEXT);
-            }
-            case EQUIPO -> {
-                directions(s, now);
-                if (s.aJustPressed) listener.accept(GameAction.CONFIRM);
-                if (s.bJustPressed) listener.accept(GameAction.BACK);
-                if (s.xJustPressed) listener.accept(GameAction.REMOVE_LAST);
-                if (s.lbJustPressed) listener.accept(GameAction.PAGE_PREV);
-                if (s.rbJustPressed) listener.accept(GameAction.PAGE_NEXT);
-            }
-            case LIBRE -> { /* no emite acciones: la pantalla lee raw() cada frame */ }
+        } catch (InterruptedException ignored) {
+            // stop() pidio cerrar
+        } catch (Throwable t) {
+            t.printStackTrace();
+        } finally {
+            controllers.quitSDLGamepad();
+        }
+    }
+
+    private void poll(ControllerState s, long now) {
+        InputProfile p = profile;
+        if (p != seenProfile) {          // cambio de pantalla: olvidar direccion sostenida
+            seenProfile = p;
+            heldDir = null;
+        }
+        EnumSet<GameAction> allowed = ALLOWED.get(p);
+        if (allowed.isEmpty()) return;
+
+        if (allowed.contains(GameAction.ANY_BUTTON)) {
+            if (anyButton(s)) emit(GameAction.ANY_BUTTON);
+            return;
+        }
+
+        directions(s, now);
+        if (SWAP_AB ? s.bJustPressed : s.aJustPressed) emit(GameAction.CONFIRM);
+        if (SWAP_AB ? s.aJustPressed : s.bJustPressed) emit(GameAction.BACK);
+        if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
+        if (allowed.contains(GameAction.PAGE_NEXT) && s.rbJustPressed) emit(GameAction.PAGE_NEXT);
+        if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
+    }
+
+    private void directions(ControllerState s, long now) {
+        double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
+        GameAction dir = null;
+        if (s.dpadUp    || stickY > DEADZONE)          dir = GameAction.UP;
+        else if (s.dpadDown  || stickY < -DEADZONE)    dir = GameAction.DOWN;
+        else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
+        else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
+
+        if (dir == null) { heldDir = null; return; }
+        if (dir != heldDir) {
+            heldDir = dir;
+            nextRepeat = now + REPEAT_DELAY_NS;
+            emit(dir);
+        } else if (now >= nextRepeat) {
+            nextRepeat = now + REPEAT_RATE_NS;
+            emit(dir);
         }
     }
 
@@ -89,21 +164,9 @@ public class GamepadInput {
                 || s.dpadLeftJustPressed || s.dpadRightJustPressed;
     }
 
-    private void directions(ControllerState s, long now) {
-        GameAction dir = null;
-        if (s.dpadUp    || s.leftStickY < -DEADZONE) dir = GameAction.UP;
-        else if (s.dpadDown  || s.leftStickY >  DEADZONE) dir = GameAction.DOWN;
-        else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
-        else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
-
-        if (dir == null) { heldDir = null; return; }
-        if (dir != heldDir) {
-            heldDir = dir;
-            nextRepeat = now + REPEAT_DELAY_NS;
-            listener.accept(dir);
-        } else if (now >= nextRepeat) {
-            nextRepeat = now + REPEAT_RATE_NS;
-            listener.accept(dir);
-        }
+    /** Entrega la accion en el hilo de Swing, para que las pantallas se toquen solo desde ahi. */
+    private void emit(GameAction action) {
+        Consumer<GameAction> l = listener;
+        SwingUtilities.invokeLater(() -> l.accept(action));
     }
 }
