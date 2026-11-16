@@ -165,7 +165,13 @@ public class HistoryPanel extends RetroScreen {
         Rectangle r = NAME_PLATE;
         RetroStyle.drawRedFrame(g, r.x, r.y, r.width, r.height);
         g.setFont(RetroStyle.font(34));
-        RetroStyle.shadowText(g, player.getName().toUpperCase(), r.x + 24, r.y + 43, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        String name = player.getName().toUpperCase();
+        RetroStyle.shadowText(g, name, r.x + 24, r.y + 43, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+        // Winrate al lado del nombre (funcion func_winrate_entrendaor de la BD)
+        int nameW = g.getFontMetrics().stringWidth(name);
+        g.setFont(RetroStyle.font(24));
+        RetroStyle.shadowText(g, "WINRATE: " + formatWinRate(player.getWinRate()), r.x + 24 + nameW + 24, r.y + 41,
+                new Color(0x2E9E4A), RetroStyle.SHADOW_LIGHT);
 
         int won = player.getBattlesWon();
         int lost = player.getBattlesLost();
@@ -174,7 +180,19 @@ public class HistoryPanel extends RetroScreen {
         g.setFont(RetroStyle.font(22));
         int x = r.x + r.width - 24;
         x = drawChip(g, "DERROTAS " + lost, x, r.y + 16, new Color(0xE0603A), new Color(0xA8361A));
-        drawChip(g, "VICTORIAS " + won, x - 10, r.y + 16, new Color(0x3DAE5A), new Color(0x23793A));
+        x = drawChip(g, "VICTORIAS " + won, x - 10, r.y + 16, new Color(0x3DAE5A), new Color(0x23793A));
+        // Total de partidas (funcion func_partidas_jugadas_jugador de la BD)
+        String played = player.getGamesPlayed() >= 0 ? String.valueOf(player.getGamesPlayed()) : "--";
+        drawChip(g, "PARTIDAS: " + played, x - 10, r.y + 16, new Color(0x4A78C8), new Color(0x2B4F95));
+    }
+
+    // 66.6667 -> "66.7%", 50 -> "50%", sin dato -> "--%"
+    private static String formatWinRate(double rate) {
+        if (rate < 0) {
+            return "--%";
+        }
+        double rounded = Math.round(rate * 10) / 10.0;
+        return (rounded == Math.rint(rounded) ? String.valueOf((long) rounded) : String.valueOf(rounded)) + "%";
     }
 
     // Dibuja una etiqueta de color terminando en rightX y devuelve donde empieza
