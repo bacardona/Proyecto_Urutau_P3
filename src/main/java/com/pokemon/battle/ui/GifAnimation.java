@@ -72,6 +72,22 @@ public final class GifAnimation {
      * @return the animation, or null when the file can not be read
      */
     public static GifAnimation read(URL url) {
+        return read(url, true);
+    }
+
+    /**
+     * Reads a GIF keeping its whole canvas, without cutting the empty border.
+     * Used for the attack effects: where each drawing sits inside the canvas
+     * matters (for example, the powder that falls from the top).
+     *
+     * @param url where the GIF is
+     * @return the animation, or null when it cannot be read
+     */
+    public static GifAnimation readFull(URL url) {
+        return read(url, false);
+    }
+
+    private static GifAnimation read(URL url, boolean crop) {
         try (InputStream in = url.openStream();
              ImageInputStream stream = ImageIO.createImageInputStream(in)) {
             Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
@@ -82,7 +98,10 @@ public final class GifAnimation {
             try {
                 reader.setInput(stream, false);
                 List<BufferedImage> full = composeFrames(reader);
-                return full.isEmpty() ? null : new GifAnimation(cropToContent(full));
+                if (full.isEmpty()) {
+                    return null;
+                }
+                return new GifAnimation(crop ? cropToContent(full) : full.toArray(new BufferedImage[0]));
             } finally {
                 reader.dispose();
             }

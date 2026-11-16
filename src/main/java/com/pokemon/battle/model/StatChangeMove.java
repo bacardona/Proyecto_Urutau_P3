@@ -51,6 +51,13 @@ public class StatChangeMove extends Move {
     /**
      * {@inheritDoc}
      */
+    /**
+     * @return true when the move changes a stat of the user and not of the rival
+     */
+    public boolean isTargetsSelf() {
+        return targetsSelf;
+    }
+
     @Override
     public String getDescription() {
         String owner = targetsSelf ? "propio" : "del rival";

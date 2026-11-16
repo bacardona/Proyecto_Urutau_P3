@@ -5,7 +5,11 @@ import com.pokemon.battle.model.BattleLog;
 import com.pokemon.battle.model.Combatant;
 import com.pokemon.battle.model.Move;
 import com.pokemon.battle.model.RandomProvider;
+import com.pokemon.battle.model.StatChangeMove;
 import com.pokemon.battle.model.TypeEffectiveness;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Rules of a battle round: who moves first, residual damage and turn execution.
@@ -31,6 +35,7 @@ public class BattleService implements BattleEngine {
     public RoundResult playRound(Combatant c1, Combatant c2, Move m1, Move m2) {
         BattleLog log = new BattleLog();
         BattleContext context = new BattleContext(random, effectiveness, log);
+        List<MoveEvent> events = new ArrayList<>();
 
         boolean c1First = goesFirst(m1, m2, c1, c2);
         Combatant first = c1First ? c1 : c2;
@@ -43,18 +48,18 @@ public class BattleService implements BattleEngine {
         second.getStatus().onCycleStart(second, context);
         if (first.isFainted() || second.isFainted()) {
             Combatant fainted = first.isFainted() ? first : second;
-            return new RoundResult(log.getMessages(), fainted);
+            return new RoundResult(log.getMessages(), fainted, events);
         }
 
         context.log("");
-        if (executeTurn(first, second, firstMove, context)) {
-            return new RoundResult(log.getMessages(), second);
+        if (executeTurn(first, second, firstMove, context, log, events)) {
+            return new RoundResult(log.getMessages(), second, events);
         }
         context.log("");
-        if (executeTurn(second, first, secondMove, context)) {
-            return new RoundResult(log.getMessages(), first);
+        if (executeTurn(second, first, secondMove, context, log, events)) {
+            return new RoundResult(log.getMessages(), first, events);
         }
-        return new RoundResult(log.getMessages(), null);
+        return new RoundResult(log.getMessages(), null, events);
     }
 
     /**
@@ -64,27 +69,59 @@ public class BattleService implements BattleEngine {
     public RoundResult playSingleAttack(Combatant attacker, Combatant target, Move move) {
         BattleLog log = new BattleLog();
         BattleContext context = new BattleContext(random, effectiveness, log);
+        List<MoveEvent> events = new ArrayList<>();
 
         // Daño residual de veneno y quemadura al inicio del ciclo
         attacker.getStatus().onCycleStart(attacker, context);
         target.getStatus().onCycleStart(target, context);
         if (attacker.isFainted() || target.isFainted()) {
             Combatant fainted = attacker.isFainted() ? attacker : target;
-            return new RoundResult(log.getMessages(), fainted);
+            return new RoundResult(log.getMessages(), fainted, events);
         }
 
         context.log("");
-        executeTurn(attacker, target, move, context);
-        return new RoundResult(log.getMessages(), target.isFainted() ? target : null);
+        executeTurn(attacker, target, move, context, log, events);
+        return new RoundResult(log.getMessages(), target.isFainted() ? target : null, events);
     }
     
-    private boolean executeTurn(Combatant attacker, Combatant defender, Move move, BattleContext context) {
+    // Ademas de ejecutar el ataque, guarda un MoveEvent para que la pantalla lo anime
+    private boolean executeTurn(Combatant attacker, Combatant defender, Move move, BattleContext context,
+                                BattleLog log, List<MoveEvent> events) {
         if (canAct(attacker, context)) {
+            boolean wasCharging = attacker.isCharging();
+            int firstMessage = log.getMessages().size();
+            int attackerBefore = attacker.getHitPoints().getCurrent();
+            int defenderBefore = defender.getHitPoints().getCurrent();
+
             move.execute(attacker, defender, context);
+
+            MoveEvent.Kind kind = MoveEvent.Kind.NORMAL;
+            if (!wasCharging && attacker.isCharging()) {
+                kind = MoveEvent.Kind.CHARGE;
+            } else if (wasCharging && !attacker.isCharging()) {
+                kind = MoveEvent.Kind.RELEASE;
+            }
+            List<String> newMessages = log.getMessages().subList(firstMessage, log.getMessages().size());
+            boolean selfTarget = move instanceof StatChangeMove && ((StatChangeMove) move).isTargetsSelf();
+            events.add(new MoveEvent(attacker, defender, move, kind, attacker.isInvulnerable(),
+                    missed(newMessages), selfTarget, firstMessage,
+                    attackerBefore, attacker.getHitPoints().getCurrent(),
+                    defenderBefore, defender.getHitPoints().getCurrent()));
         } else {
             attacker.cancelCharge();
         }
         return defender.isFainted();
+    }
+
+    // El ataque fallo, no alcanzo al rival (vuela o esta bajo tierra) o no tuvo efecto
+    private boolean missed(List<String> messages) {
+        for (String message : messages) {
+            String m = message.toLowerCase();
+            if (m.contains("ha fallado") || m.contains("no ha alcanzado") || m.contains("no ha surtido efecto")) {
+                return true;
+            }
+        }
+        return false;
     }
     
     // Se evalua justo antes de mover: un estado contraido en este mismo ciclo ya cuenta

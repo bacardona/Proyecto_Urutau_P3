@@ -11,7 +11,7 @@ import java.util.List;
 public class Pokemon {
 
     // Nivel que usan todos los Pokemon de este juego
-    private static final int DEFAULT_LEVEL = 5;
+    private static final int DEFAULT_LEVEL = 50;
 
     private final int id;
     private final String name;
