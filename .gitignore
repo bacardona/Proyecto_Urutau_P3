@@ -27,3 +27,4 @@ replay_pid*
 /pokken-battle-p3/target/
 .idea/
 target/
+/dependency-reduced-pom.xml

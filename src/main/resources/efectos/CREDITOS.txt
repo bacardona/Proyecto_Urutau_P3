@@ -1,0 +1,5 @@
+Efectos pixel art del combate libre
+
+fx1.png ... fx10.png: "Pixel FX Pack" de CodeManu
+https://opengameart.org/node/86071
+Licencia: CC0 (dominio publico, se pueden usar sin dar credito).

@@ -43,6 +43,17 @@ public class GameWindow extends JFrame {
         pack();
         setLocationRelativeTo(null);
     }
+    public void setGameSize(int width, int height) {
+
+        container.setPreferredSize(
+                new Dimension(width, height)
+        );
+
+        pack();
+
+        // Centrar la ventana nuevamente
+        setLocationRelativeTo(null);
+    }
 
 
     // Si ya existia una pantalla con ese nombre, la reemplaza
