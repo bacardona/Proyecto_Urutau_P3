@@ -26,7 +26,24 @@ public class GameWindow extends JFrame {
     private final JPanel container = new JPanel(cards);
     private final Map<String, JComponent> screens = new HashMap<>();
     private final LoadingScreen loading = new LoadingScreen();
+    private final GamepadInput gamepad = new GamepadInput();
+    private String currentScreen;
 
+    // Perfil del mando por pantalla (las que no estén aquí usan MENU)
+    private static final Map<String, InputProfile> PROFILES = Map.ofEntries(
+            Map.entry("intro", InputProfile.CUALQUIER_BOTON),
+            Map.entry("loading", InputProfile.CUALQUIER_BOTON),
+            Map.entry("menu", InputProfile.MENU),
+            Map.entry("combatMenu", InputProfile.MENU),
+            Map.entry("pokedex", InputProfile.LISTA),
+            Map.entry("history", InputProfile.LISTA),
+            Map.entry("historyView", InputProfile.LISTA),
+            Map.entry("pveHub", InputProfile.LISTA),
+            Map.entry("pvpHub1", InputProfile.LISTA),
+            Map.entry("pvpHub2", InputProfile.LISTA),
+            Map.entry("pveTeam", InputProfile.EQUIPO),
+            Map.entry("pvpTeam1", InputProfile.EQUIPO),
+            Map.entry("pvpTeam2", InputProfile.EQUIPO));
 
     public GameWindow() {
         setTitle("Pokken Battle");
@@ -130,26 +147,6 @@ public class GameWindow extends JFrame {
             }
         }.execute();
     }
-
-    private final GamepadInput gamepad = new GamepadInput();
-    private String currentScreen;
-
-    // Perfil del mando por pantalla (las que no estén aquí usan MENU)
-    private static final Map<String, InputProfile> PROFILES = Map.ofEntries(
-            Map.entry("intro", InputProfile.CUALQUIER_BOTON),
-            Map.entry("loading", InputProfile.CUALQUIER_BOTON),
-            Map.entry("menu", InputProfile.MENU),
-            Map.entry("combatMenu", InputProfile.MENU),
-            Map.entry("pokedex", InputProfile.LISTA),
-            Map.entry("history", InputProfile.LISTA),
-            Map.entry("historyView", InputProfile.LISTA),
-            Map.entry("pveHub", InputProfile.LISTA),
-            Map.entry("pvpHub1", InputProfile.LISTA),
-            Map.entry("pvpHub2", InputProfile.LISTA),
-            Map.entry("pveTeam", InputProfile.EQUIPO),
-            Map.entry("pvpTeam1", InputProfile.EQUIPO),
-            Map.entry("pvpTeam2", InputProfile.EQUIPO));
-
 
     /** Muestra un error con el estilo retro; ESC o Enter vuelven a backScreen. */
     public void showError(String message, String backScreen) {
