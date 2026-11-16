@@ -297,8 +297,10 @@ public final class FreeFightEvolutionCheck {
                 var selection=(FreeFightSetup)field(panel[0],"setup");var chosen=setup(BASE[idx],BASE[(idx+1)%4]);
                 selection.setPlayerOne(chosen.getPlayerOne(),chosen.getTeamOne());selection.setPlayerTwo(chosen.getPlayerTwo(),chosen.getTeamTwo());
                 window[0].setGameSize(1280,720);window[0].showScreen("fighting");session[0]=(FightingGameSession)field(panel[0],"session");
-                session[0].debugFillActiveEnergy(0);session[0].debugFillActiveEnergy(1);key(panel[0],"pressed R");key(panel[0],"pressed P");
+                session[0].debugFillActiveEnergy(0);session[0].debugFillActiveEnergy(1);
             }catch(Throwable e){error[0]=e;}});
+            if(error[0]==null)FightingWindowChecks.awaitGameplay(panel[0]);
+            SwingUtilities.invokeAndWait(()->{if(error[0]==null){key(panel[0],"pressed R");key(panel[0],"pressed P");}});
             awaitEdt(()->error[0]!=null || session[0].getFighters().stream()
                     .allMatch(f->f.isEvolved()&&!f.isEvolutionAnimating()),"Live transformation did not complete");
             SwingUtilities.invokeAndWait(()->{try{

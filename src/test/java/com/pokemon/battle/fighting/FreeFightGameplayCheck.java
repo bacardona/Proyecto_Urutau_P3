@@ -218,6 +218,7 @@ public final class FreeFightGameplayCheck {
                 var screens=(java.util.Map<?,?>)field(main[0],"screens");
                 check(((JComponent)screens.get("intro")).isShowing(),"Startup intro not visible");
                 capture((JComponent)main[0].getContentPane(),"free-fight-app-startup.png");
+                key((JComponent)screens.get("intro"),"pressed ENTER");
                 main[0].showScreen("menu");
                 // Supply in-memory selections through the existing setup object: no Oracle mutations.
                 panel[0]=(FightingGamePanel)screens.get("fighting");
@@ -229,9 +230,10 @@ public final class FreeFightGameplayCheck {
                 session[0]=(FightingGameSession)field(panel[0],"session");
                 check(panel[0].isShowing() && session[0].getFighters().get(0).getPokemonId().equals("BULBASAUR"),"Real fighting mode did not activate");
                 var a=session[0].getFighters().get(0);var b=session[0].getFighters().get(1);a.setX(490);b.setX(700);
-                key(panel[0],"pressed D");key(panel[0],"pressed LEFT");
             }catch(Throwable e){failure[0]=e;}
         });
+        if(failure[0]==null)FightingWindowChecks.awaitGameplay(panel[0]);
+        SwingUtilities.invokeAndWait(()->{if(failure[0]==null){key(panel[0],"pressed D");key(panel[0],"pressed LEFT");}});
         Thread.sleep(1200);
         SwingUtilities.invokeAndWait(()->{
             try{
@@ -284,7 +286,8 @@ public final class FreeFightGameplayCheck {
                 session[0].debugDefeatActiveFighter(0);
             }catch(Throwable e){failure[0]=e;}
         });
-        Thread.sleep(900);
+        FightingWindowChecks.awaitCondition(() -> failure[0]!=null
+                || session[0].getFighters().get(0).getPokemonId().equals("EEVEE"), "Live replacement did not complete");
         SwingUtilities.invokeAndWait(()->{
             try{
                 if(failure[0]==null){

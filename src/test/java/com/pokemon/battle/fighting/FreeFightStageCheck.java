@@ -174,11 +174,16 @@ public final class FreeFightStageCheck {
                     window[0].setGameSize(1280, 720); window[0].showScreen("fighting");
                     session[0] = (FightingGameSession) field(panel[0], "session");
                     check(panel[0].isShowing(), "Real fighting panel is hidden");
+                } catch (Throwable e) { failure[0] = e; }
+            });
+            if (failure[0] != null) throw new AssertionError(failure[0]);
+            FightingWindowChecks.awaitGameplay(panel[0]);
+            SwingUtilities.invokeAndWait(() -> {
+                try {
                     capture(panel[0], "combate-libre-escenario-ventana");
                     key(panel[0], "pressed J"); key(panel[0], "released J");
                 } catch (Throwable e) { failure[0] = e; }
             });
-            if (failure[0] != null) throw new AssertionError(failure[0]);
             awaitEdt(() -> !session[0].getProjectiles().isEmpty(), "Live projectile did not spawn");
             SwingUtilities.invokeAndWait(() -> {
                 try { capture(panel[0], "combate-libre-escenario-proyectil"); key(panel[0], "pressed ESCAPE"); }

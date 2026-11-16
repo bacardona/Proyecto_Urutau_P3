@@ -351,8 +351,11 @@ public final class FreeFightStatusShieldCheck {
                             window[0].setGameSize(1280, 720); window[0].showScreen("fighting");
                             session[0] = (FightingGameSession) field(panel[0], "session");
                             contact(session[0], false);
-                            if (evolved) { session[0].debugFillActiveEnergy(0); key(panel[0], "pressed R"); key(panel[0], "released R"); }
                         } catch (Throwable e) { failure[0] = e; }
+                    });
+                    if (failure[0] == null) FightingWindowChecks.awaitGameplay(panel[0]);
+                    if (evolved) SwingUtilities.invokeAndWait(() -> {
+                        session[0].debugFillActiveEnergy(0); key(panel[0], "pressed R"); key(panel[0], "released R");
                     });
                     awaitEdt(() -> failure[0] != null || !evolved
                             || session[0].getFighters().get(0).isEvolved()
