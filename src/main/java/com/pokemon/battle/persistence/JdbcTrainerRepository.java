@@ -58,7 +58,49 @@ public class JdbcTrainerRepository implements TrainerRepository {
         } catch (SQLException e) {
             throw new PersistenceException("Error al consultar jugadores en Oracle BD", e);
         }
+        loadPlayerStats(players);
         return players;
+    }
+
+    private static final String GAMES_PLAYED_SQL =
+            "SELECT id_entrenador, func_partidas_jugadas_jugador(id_entrenador) AS valor FROM jugador";
+
+    private static final String WIN_RATE_SQL =
+            "SELECT id_entrenador, func_winrate_entrendaor(id_entrenador) AS valor FROM jugador";
+
+    /**
+     * Fills the games played and the win rate of each player with the stored functions
+     * func_partidas_jugadas_jugador and func_winrate_entrendaor. If a function fails the
+     * players still load and the screen shows "--" for that value.
+     */
+    private void loadPlayerStats(List<Player> players) {
+        java.util.Map<Integer, Double> games = readFunction(GAMES_PLAYED_SQL, "func_partidas_jugadas_jugador");
+        java.util.Map<Integer, Double> rates = readFunction(WIN_RATE_SQL, "func_winrate_entrendaor");
+        for (Player p : players) {
+            Double played = games.get(p.getId());
+            if (played != null) {
+                p.setGamesPlayed((int) Math.round(played));
+            }
+            Double rate = rates.get(p.getId());
+            if (rate != null) {
+                p.setWinRate(rate);
+            }
+        }
+    }
+
+    // id_entrenador -> valor que devuelve la funcion
+    private java.util.Map<Integer, Double> readFunction(String sql, String functionName) {
+        java.util.Map<Integer, Double> values = new java.util.HashMap<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                values.put(rs.getInt("id_entrenador"), rs.getDouble("valor"));
+            }
+        } catch (SQLException e) {
+            System.err.println("No se pudo usar " + functionName + ": " + e.getMessage());
+        }
+        return values;
     }
 
     /**
