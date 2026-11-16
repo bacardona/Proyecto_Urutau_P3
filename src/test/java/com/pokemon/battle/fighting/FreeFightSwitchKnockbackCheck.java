@@ -99,7 +99,18 @@ public class FreeFightSwitchKnockbackCheck {
         guard.updateStatusEffects(0.5);
         guard.setBlocking(true);
         check(guard.isInParryWindow(), "Parry works again after waiting");
-        System.out.println("PASS switch/knockback");
+        // K.O. del segundo despues de un cambio: debe volver el primero (antes se quedaba trabado)
+        FightingGameSession ko = new FightingGameSession(setup());
+        Fighter starter = ko.getFighters().get(0);
+        starter.setX(PhysicsSystem.halfWidthFor(starter));
+        check(ko.trySwitchActiveFighter(0), "Switch before the KO");
+        Fighter switched = ko.getFighters().get(0);
+        check(ko.debugDefeatActiveFighter(0), "KO the switched Pokemon");
+        for (int i = 0; i < 240 && ko.getFighters().get(0) != starter; i++) ko.update(new FightingInput(), 1 / 60.0);
+        check(switched.isDefeated() && ko.getFighters().get(0) == starter && !starter.isDefeated(),
+                "After a KO the first Pokemon must come back");
+        check(ko.getState() == FightingGameSession.State.RUNNING, "The match goes on while a Pokemon is alive");
+                System.out.println("PASS switch/knockback");
     }
 
     private static FreeFightSetup setup() {
