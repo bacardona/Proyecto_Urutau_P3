@@ -74,7 +74,34 @@ public class JdbcPokemonRepository implements PokemonRepository {
             throw new PersistenceException("Error al consultar Pokémon en Oracle BD", e);
         }
 
+        loadTotalStats(pokemons);
         return pokemons;
+    }
+
+    /**
+     * Asks the database for the total of the base stats of each Pokemon using the stored
+     * function func_stats_totales_pokken. If the function fails, the Pokemon still load
+     * and the total stays at -1 (the screens then show "--").
+     */
+    private void loadTotalStats(List<Pokemon> pokemons) {
+        String sql = "SELECT id_pokken, func_stats_totales_pokken(id_pokken) AS total_stats FROM POKKEN";
+        java.util.Map<Integer, Integer> totals = new java.util.HashMap<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                totals.put(rs.getInt("id_pokken"), rs.getInt("total_stats"));
+            }
+        } catch (SQLException e) {
+            System.err.println("No se pudo usar func_stats_totales_pokken: " + e.getMessage());
+            return;
+        }
+        for (Pokemon p : pokemons) {
+            Integer total = totals.get(p.getId());
+            if (total != null) {
+                p.setTotalStats(total);
+            }
+        }
     }
 
     @Override
