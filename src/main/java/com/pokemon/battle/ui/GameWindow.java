@@ -43,7 +43,14 @@ public class GameWindow extends JFrame {
             Map.entry("pvpHub2", InputProfile.LISTA),
             Map.entry("pveTeam", InputProfile.EQUIPO),
             Map.entry("pvpTeam1", InputProfile.EQUIPO),
-            Map.entry("pvpTeam2", InputProfile.EQUIPO));
+            Map.entry("pvpTeam2", InputProfile.EQUIPO),
+            // Combate libre: menus como los de PvP; en la pelea la pantalla lee el mando sola
+            Map.entry("freeHub1", InputProfile.LISTA),
+            Map.entry("freeHub2", InputProfile.LISTA),
+            Map.entry("freeTeam1", InputProfile.EQUIPO),
+            Map.entry("freeTeam2", InputProfile.EQUIPO),
+            Map.entry("freeStage", InputProfile.MENU),
+            Map.entry("fighting", InputProfile.LIBRE));
 
     public GameWindow() {
         setTitle("Pokken Battle");
@@ -60,6 +67,11 @@ public class GameWindow extends JFrame {
         pack();
         setLocationRelativeTo(null);
     }
+    /** El mando, para las pantallas que lo leen solas (combate libre). */
+    public GamepadInput getGamepad() {
+        return gamepad;
+    }
+
     public void setGameSize(int width, int height) {
 
         container.setPreferredSize(
