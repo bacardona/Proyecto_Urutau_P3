@@ -25,6 +25,8 @@ public class Pokemon {
     private final Type secondaryType;
     private final List<Move> moves;
     private final int level = DEFAULT_LEVEL;
+    /** Total of the base stats, as returned by the database function (-1 = not loaded). */
+    private int totalStats = -1;
 
     /**
      * Creates a Pokemon.
@@ -60,6 +62,18 @@ public class Pokemon {
     /**
      * @return the Pokedex number
      */
+    /**
+     * @return total of the base stats calculated by func_stats_totales_pokken, or -1 if
+     *         it could not be read from the database
+     */
+    public int getTotalStats() {
+        return totalStats;
+    }
+
+    public void setTotalStats(int totalStats) {
+        this.totalStats = totalStats;
+    }
+
     public int getId() {
         return id;
     }
