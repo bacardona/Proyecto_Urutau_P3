@@ -379,7 +379,7 @@ public class TeamSelectScreen extends RetroScreen {
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
-        int rowH = 28;
+        int rowH = 25;
         int top = r.y + 40;
         int lineX = r.x + 150;
         int barX = lineX + 12;
@@ -389,16 +389,29 @@ public class TeamSelectScreen extends RetroScreen {
             int y = top + i * rowH;
             g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
             g.fillRect(r.x + 6, y, r.width - 12, rowH);
-            RetroStyle.shadowText(g, labels[i], r.x + 14, y + 20, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, labels[i], r.x + 14, y + 19, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
             String value = String.valueOf(values[i]);
             int vw = g.getFontMetrics().stringWidth(value);
-            RetroStyle.shadowText(g, value, lineX - 10 - vw, y + 20, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
-            RetroStyle.drawStatBar(g, barX, y + 6, barMax, 16, values[i], MAX_STAT);
+            RetroStyle.shadowText(g, value, lineX - 10 - vw, y + 19, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.drawStatBar(g, barX, y + 5, barMax, 15, values[i], MAX_STAT);
         }
         g.setColor(new Color(0xC9C4B5));
         g.fillRect(lineX, top, 2, rowH * labels.length);
+        drawTotalStats(g, p, r, top + rowH * labels.length, lineX);
     }
 
+    /** Fila TOTAL: la suma de stats que calcula la funcion func_stats_totales_pokken de la BD. */
+    private void drawTotalStats(Graphics2D g, Pokemon p, Rectangle r, int y, int lineX) {
+        g.setColor(new Color(0xFFF1C2));
+        g.fillRect(r.x + 6, y, r.width - 12, 25);
+        g.setColor(new Color(0xC9C4B5));
+        g.fillRect(r.x + 6, y, r.width - 12, 2);
+        g.setFont(RetroStyle.font(22));
+        RetroStyle.shadowText(g, "TOTAL", r.x + 14, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
+        int tw = g.getFontMetrics().stringWidth(total);
+        RetroStyle.shadowText(g, total, lineX - 10 - tw, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+    }
     private void drawMoves(Graphics2D g, Pokemon p) {
         Rectangle r = MOVES_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
