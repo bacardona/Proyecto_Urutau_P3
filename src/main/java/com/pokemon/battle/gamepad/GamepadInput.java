@@ -22,6 +22,11 @@ public class GamepadInput {
     private static final long REPEAT_RATE_NS  = 120_000_000L;
     private static final long POLL_CONNECTED_MS = 16;    // ~60 Hz con mando
     private static final long POLL_IDLE_MS = 250;        // sin mando, casi no gasta nada
+    // Combate libre: zona muerta mas chica para caminar, y gatillos (LT/RT) desde la mitad
+    private static final double FIGHT_DEADZONE = 0.45;
+    private static final double TRIGGER_PRESSED = 0.5;
+    /** Mandos que se leen: uno por jugador. */
+    public static final int MAX_PADS = 2;
 
     // ---- Que acciones vale en cada perfil
     private static final EnumMap<InputProfile, EnumSet<GameAction>> ALLOWED =
@@ -46,6 +51,7 @@ public class GamepadInput {
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
     private volatile Consumer<GameAction> listener = a -> {};
     private volatile ControllerState lastState;   // para el modo LIBRE
+    private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
 
     // ---- Solo los toca el hilo del mando
@@ -84,6 +90,17 @@ public class GamepadInput {
     /** Para el modo LIBRE: ultimo estado crudo del mando (puede ser null). */
     public ControllerState raw() { return lastState; }
 
+    /**
+     * Combate libre: foto del mando de un jugador (0 = mando 1, 1 = mando 2).
+     * Nunca devuelve null; si no hay mando, todo sale suelto.
+     */
+    public PadSnapshot snapshot(int player) {
+        if (player < 0 || player >= MAX_PADS) return PadSnapshot.NONE;
+        synchronized (snapshots) {
+            return snapshots[player];
+        }
+    }
+
     // ------------------------------------------------------------------ hilo del mando
 
     private void run() {
@@ -100,11 +117,21 @@ public class GamepadInput {
             while (running) {
                 ControllerState s = controllers.getState(0);
                 lastState = s;
-                if (!s.isConnected) {
+                // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
+                boolean any = false;
+                for (int i = 0; i < MAX_PADS; i++) {
+                    ControllerState pad = i == 0 ? s : controllers.getState(i);
+                    PadSnapshot snap = toSnapshot(pad);
+                    synchronized (snapshots) {
+                        snapshots[i] = snap;
+                    }
+                    any |= snap.connected();
+                }
+                if (!any) {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                poll(s, System.nanoTime());
+                if (s.isConnected) poll(s, System.nanoTime());   // menus: mando 1
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
@@ -155,6 +182,19 @@ public class GamepadInput {
             nextRepeat = now + REPEAT_RATE_NS;
             emit(dir);
         }
+    }
+
+    private static PadSnapshot toSnapshot(ControllerState s) {
+        if (s == null || !s.isConnected) return PadSnapshot.NONE;
+        double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
+        return new PadSnapshot(true,
+                s.dpadLeft || s.leftStickX < -FIGHT_DEADZONE,
+                s.dpadRight || s.leftStickX > FIGHT_DEADZONE,
+                s.dpadUp || stickY > FIGHT_DEADZONE,
+                s.dpadDown || stickY < -FIGHT_DEADZONE,
+                SWAP_AB ? s.b : s.a, SWAP_AB ? s.a : s.b, s.x, s.y,
+                s.lb, s.rb, s.leftTrigger > TRIGGER_PRESSED, s.rightTrigger > TRIGGER_PRESSED,
+                s.start, s.back);
     }
 
     private boolean anyButton(ControllerState s) {
