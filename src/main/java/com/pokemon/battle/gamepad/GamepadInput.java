@@ -107,8 +107,11 @@ public class GamepadInput {
         try {
             long t0 = System.nanoTime();
             controllers = new ControllerManager();
+            System.out.println("ControllerManager: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+
+            long t1 = System.nanoTime();
             controllers.initSDLGamepad();
-            System.out.println("Init mando: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+            System.out.println("initSDLGamepad: " + (System.nanoTime() - t1) / 1_000_000 + " ms");
         } catch (Throwable t) {
             t.printStackTrace();   // el juego sigue con teclado y mouse
             return;
