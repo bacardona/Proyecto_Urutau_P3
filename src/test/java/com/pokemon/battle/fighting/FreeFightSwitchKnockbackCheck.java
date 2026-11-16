@@ -110,7 +110,21 @@ public class FreeFightSwitchKnockbackCheck {
         check(switched.isDefeated() && ko.getFighters().get(0) == starter && !starter.isDefeated(),
                 "After a KO the first Pokemon must come back");
         check(ko.getState() == FightingGameSession.State.RUNNING, "The match goes on while a Pokemon is alive");
-                System.out.println("PASS switch/knockback");
+                // Onda Trueno (RB de Pikachu): tiene espera para repetirla, pero no deja congelado al que la usa
+        FreeFightSetup pikaSetup = new FreeFightSetup();
+        pikaSetup.setPlayerOne(new Player(1, "A", 0, 0), List.of(p("PIKACHU", Type.ELECTRIC), p("CHARMANDER", Type.FIRE)));
+        pikaSetup.setPlayerTwo(new Player(2, "B", 0, 0), List.of(p("SQUIRTLE", Type.WATER), p("EEVEE", Type.NORMAL)));
+        FightingGameSession pika = new FightingGameSession(pikaSetup);
+        FightingInput wave = new FightingInput();
+        wave.setPlayerOneAttackFour(true);
+        pika.update(wave, 1 / 60.0);
+        wave.setPlayerOneAttackFour(false);
+        Fighter pikachu = pika.getFighters().get(0);
+        check(pika.getCombatSystem().getAttackVisual(pikachu, pika.getFighters()) != null, "Thunder Wave starts");
+        for (int i = 0; i < 72; i++) pika.update(wave, 1 / 60.0);   // 1.2 s
+        check(pika.getCombatSystem().getAttackVisual(pikachu, pika.getFighters()) == null,
+                "Thunder Wave must not freeze Pikachu for seconds");
+        System.out.println("PASS switch/knockback");
     }
 
     private static FreeFightSetup setup() {
