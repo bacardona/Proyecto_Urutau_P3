@@ -98,6 +98,18 @@ public class FreeFightGamepadCheck {
             frame[0].setVisible(true);
         });
         FightingWindowChecks.awaitGameplay(panel[0]);
+        // Con mando conectado, el aviso de evolucion dice LT en vez de R
+        current[0] = pad().build();
+        FightingWindowChecks.awaitCondition(() -> ((boolean[]) field(panel[0], "padConnected"))[0],
+                "Panel must notice the pad");
+        Object hud = field(field(panel[0], "renderer"), "hud");
+        var label = hud.getClass().getDeclaredMethod("energyLabel", Fighter.class, int.class);
+        label.setAccessible(true);
+        Fighter one = session(panel[0]).getFighters().get(0);
+        session(panel[0]).debugFillActiveEnergy(0);
+        check("EVOLUCIONA (LT)".equals(label.invoke(hud, one, 0)), "Pad label must say LT");
+        check("EVOLUCIONA (P)".equals(label.invoke(hud, session(panel[0]).getFighters().get(1), 1))
+                || !session(panel[0]).getFighters().get(1).isEvolutionReady(), "Keyboard player keeps P");
         current[0] = pad().start(true).build();
         FightingWindowChecks.awaitCondition(() -> session(panel[0]).getState()
                 == FightingGameSession.State.PAUSED, "START must pause");

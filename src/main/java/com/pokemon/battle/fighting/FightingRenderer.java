@@ -38,6 +38,11 @@ public class FightingRenderer {
     public void setPauseHover(boolean hover) {
         hud.setPauseHover(hover);
     }
+    /** Con mando conectado, el HUD muestra los botones del mando. */
+    public void setPadConnected(int player, boolean connected) {
+        hud.setPadConnected(player, connected);
+    }
+
     public FightingFx fx() {
         return fx;
     }

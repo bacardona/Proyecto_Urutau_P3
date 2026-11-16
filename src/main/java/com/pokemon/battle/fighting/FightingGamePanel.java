@@ -77,6 +77,7 @@ public class FightingGamePanel extends JPanel {
     private final Timer gamepadTimer;
     private final GamepadFightControls gamepadControls = new GamepadFightControls();
     private IntFunction<PadSnapshot> gamepadSource;
+    private final boolean[] padConnected = new boolean[2];
 
     private int frameIndex = 0;
     private long lastSimulationNanos;
@@ -351,6 +352,11 @@ public class FightingGamePanel extends JPanel {
         for (int player = 0; player < 2; player++) {
             PadSnapshot pad = gamepadSource.apply(player);
             if (pad == null) pad = PadSnapshot.NONE;
+            if (padConnected[player] != pad.connected()) {
+                padConnected[player] = pad.connected();
+                renderer.setPadConnected(player, pad.connected());
+                repaint();
+            }
             FightingGameSession.State state = session.getState();
             if (state == FightingGameSession.State.RUNNING) {
                 boolean pause = gamepadControls.justPressed(player, pad, PadSnapshot::start);
@@ -897,10 +903,11 @@ public class FightingGamePanel extends JPanel {
     }
 
     private String[] attackSummary(Fighter fighter, boolean playerOne) {
-        String keyOne = playerOne ? "F" : "I";
-        String keyTwo = playerOne ? "G" : "J";
-        String keyThree = playerOne ? "H" : "K";
-        String keyFour = playerOne ? "V" : "L";
+        boolean pad = padConnected[playerOne ? 0 : 1];
+        String keyOne = pad ? "X" : playerOne ? "F" : "I";
+        String keyTwo = pad ? "Y" : playerOne ? "G" : "J";
+        String keyThree = pad ? "B" : playerOne ? "H" : "K";
+        String keyFour = pad ? "RB" : playerOne ? "V" : "L";
         String moveOne;
         String moveTwo;
         String moveThree;
