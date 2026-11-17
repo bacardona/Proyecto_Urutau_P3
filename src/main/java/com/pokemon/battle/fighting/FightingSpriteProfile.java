@@ -48,7 +48,10 @@ final class FightingSpriteProfile {
             Map.entry("PIKACHU", new FightingSpriteProfile("PIKACHU", 4, 78, 30, "Idle", Map.of(
                     "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
             Map.entry("RAICHU", new FightingSpriteProfile("RAICHU", "PIKACHU", 4, 96, 34, "Idle", "Faint", Map.of(
-                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))));
+                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
+            // Jefe secreto
+            Map.entry("MEWTWO", new FightingSpriteProfile("MEWTWO", 6, 200, 52, "Idle", Map.of(
+                    "PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge", "TELEPORT", "Rotate"))));
 
     final String species;
     final int scale;

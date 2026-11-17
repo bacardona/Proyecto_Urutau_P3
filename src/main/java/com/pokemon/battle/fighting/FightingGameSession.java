@@ -56,17 +56,7 @@ public class FightingGameSession {
         this.height = 720;
         this.groundY = 677;
         this.stage = stage == null ? FightingStage.BOSQUE : stage;
-        // El bosque tiene las plataformas de Angel; el templo y el volcan solo el piso
-        this.platforms = this.stage == FightingStage.BOSQUE
-                ? List.of(
-                        new Platform(100, 570, 180, 24),
-                        new Platform(320, 475, 160, 24),
-                        new Platform(510, 375, 155, 24),
-                        new Platform(700, 425, 145, 24),
-                        new Platform(870, 475, 160, 24),
-                        new Platform(1060, 570, 170, 24),
-                        new Platform(0, groundY, width, 24))
-                : List.of(new Platform(0, groundY, width, 24));
+        this.platforms = platformsFor(this.stage, groundY, width);
         List<Pokemon> firstTeam = usePrototypeTeams ? List.of() : teamOne;
         List<Pokemon> secondTeam = usePrototypeTeams ? List.of() : teamTwo;
         this.playerOneTeam = usePrototypeTeams
@@ -78,6 +68,122 @@ public class FightingGameSession {
                     new String[]{"CHARIZARD", "SQUIRTLE", "CHARMANDER"}, 1050, groundY, true)
                 : new FightingTeam(playerTwoName, secondTeam, 1050, groundY, true);
         this.fighters = new ArrayList<>(List.of(playerOneTeam.getActive(), playerTwoTeam.getActive()));
+        this.bossIndex = -1;
+        this.bossAi = null;
+    }
+
+    // El bosque tiene las plataformas de Angel; el templo y el volcan solo el piso
+    private static List<Platform> platformsFor(FightingStage stage, int groundY, int width) {
+        return stage == FightingStage.BOSQUE
+                ? List.of(
+                        new Platform(100, 570, 180, 24),
+                        new Platform(320, 475, 160, 24),
+                        new Platform(510, 375, 155, 24),
+                        new Platform(700, 425, 145, 24),
+                        new Platform(870, 475, 160, 24),
+                        new Platform(1060, 570, 170, 24),
+                        new Platform(0, groundY, width, 24))
+                : List.of(new Platform(0, groundY, width, 24));
+    }
+
+    // ------------------------------------------------------------ jefe secreto
+
+    /** Nombre que aparece como "entrenador" del jefe. */
+    public static final String BOSS_NAME = "MEWTWO";
+    private final int bossIndex;
+    private final BossAI bossAi;
+    private boolean bossEnragedEvent;
+    private boolean bossBlinkEvent;
+    private double bossBlinkFromX;
+
+    private FightingGameSession(FightingTeam one, FightingTeam two, FightingStage stage, int bossIndex) {
+        this.width = 1280;
+        this.height = 720;
+        this.groundY = 677;
+        this.stage = stage == null ? FightingStage.TEMPLO : stage;
+        this.platforms = platformsFor(this.stage, groundY, width);
+        this.playerOneTeam = one;
+        this.playerTwoTeam = two;
+        this.fighters = new ArrayList<>(List.of(one.getActive(), two.getActive()));
+        this.bossIndex = bossIndex;
+        this.bossAi = new BossAI(bossIndex);
+    }
+
+    /**
+     * Pelea contra Mewtwo: el retador conserva su lado (y sus teclas) y su equipo entra con la vida llena.
+     * @param challengerOnRight true si el que gano era el jugador 2
+     */
+    public static FightingGameSession bossFight(String challengerName, List<Pokemon> challengerTeam,
+                                                boolean challengerOnRight, FightingStage stage) {
+        FightingTeam challenger = new FightingTeam(challengerName, challengerTeam,
+                challengerOnRight ? 1050 : 230, 677, challengerOnRight);
+        return withBoss(challenger, challengerOnRight, stage);
+    }
+
+    /** Lo mismo con Pokemon de prueba (sin base de datos), para las pruebas y el video. */
+    static FightingGameSession bossFightPrototype(String challengerName, String[] species,
+                                                  boolean challengerOnRight, FightingStage stage) {
+        FightingTeam challenger = FightingTeam.prototype(challengerName, species,
+                challengerOnRight ? 1050 : 230, 677, challengerOnRight);
+        return withBoss(challenger, challengerOnRight, stage);
+    }
+
+    private static FightingGameSession withBoss(FightingTeam challenger, boolean challengerOnRight,
+                                                FightingStage stage) {
+        FightingTeam boss = FightingTeam.boss(BOSS_NAME,
+                new Fighter("MEWTWO", challengerOnRight ? 230 : 1050, 677, !challengerOnRight));
+        return challengerOnRight
+                ? new FightingGameSession(boss, challenger, stage, 0)
+                : new FightingGameSession(challenger, boss, stage, 1);
+    }
+
+    public boolean isBossFight() { return bossIndex >= 0; }
+    /** 0 o 1 segun el lado de Mewtwo; -1 si no es pelea de jefe. */
+    public int getBossIndex() { return bossIndex; }
+    public Fighter getBoss() { return bossIndex < 0 ? null : fighters.get(bossIndex); }
+    /** True si el retador le gano a Mewtwo. */
+    public boolean challengerWon() {
+        if (bossIndex < 0 || outcome == null) return false;
+        return bossIndex == 1 ? outcome == Outcome.PLAYER_ONE_WINS : outcome == Outcome.PLAYER_TWO_WINS;
+    }
+
+    /** Una sola vez: Mewtwo acaba de entrar en su segunda fase. */
+    public boolean consumeBossEnraged() {
+        boolean was = bossEnragedEvent;
+        bossEnragedEvent = false;
+        return was;
+    }
+
+    /** Una sola vez: Mewtwo se acaba de teletransportar (devuelve de donde salio, o NaN). */
+    public double consumeBossBlink() {
+        if (!bossBlinkEvent) return Double.NaN;
+        bossBlinkEvent = false;
+        return bossBlinkFromX;
+    }
+
+    /** Teletransporte de Mewtwo: desaparece y aparece en x mirando al rival. */
+    boolean bossBlink(double x) {
+        Fighter boss = getBoss();
+        if (boss == null || boss.isDefeated() || boss.isHitStunned() || boss.isAsleep()) return false;
+        double half = PhysicsSystem.halfWidthFor(boss);
+        bossBlinkFromX = boss.getX();
+        boss.setX(Math.max(half, Math.min(width - half, x)));
+        Fighter rival = fighters.get(1 - bossIndex);
+        boss.setFacingLeft(rival.getX() < boss.getX());
+        bossBlinkEvent = true;
+        return true;
+    }
+
+    private void updateBossPhase() {
+        Fighter boss = getBoss();
+        if (boss == null || boss.isDefeated() || boss.isEnraged()) return;
+        // Espera a que termine una ultimate en curso para no cortarla con la escena de furia
+        if (!combatSystem.getUltimateVisuals().isEmpty()) return;
+        if (boss.getHealth() <= boss.getMaxHealth() / 2) {
+            boss.enrage();
+            boss.addEvolutionEnergy(60);   // al enfurecerse ya tiene media barra de Psicoataque
+            bossEnragedEvent = true;
+        }
     }
 
     public int getWidth() { return width; }
@@ -109,6 +215,7 @@ public class FightingGameSession {
 
     public void update(FightingInput input, double deltaSeconds) {
         if (state != State.RUNNING) return;
+        if (bossAi != null) bossAi.drive(this, input, deltaSeconds);
         for (Fighter fighter : playerOneTeam.getMembers()) {
             fighter.advanceDefeatedAnimation(deltaSeconds);
         }
@@ -153,6 +260,7 @@ public class FightingGameSession {
             fighter.advanceKnockback(deltaSeconds, width, PhysicsSystem.halfWidthFor(fighter));
         }
         replaceDefeatedFighters();
+        updateBossPhase();
         boolean playerOneSwitch = input.consumePlayerOneSwitch();
         boolean playerTwoSwitch = input.consumePlayerTwoSwitch();
         updateEntrances();

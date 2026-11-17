@@ -108,6 +108,20 @@ public class FightingCombatSystem {
             "TELEPORT", 109, AttackDefinition.Kind.DASH, 8,
             0.06, 0.18, 0.60, 56, 70, 520, 0, 0, 0, new Color(0xE6B8FF));
 
+    // Jefe secreto Mewtwo: mismas animaciones de los ataques psiquicos, pero mas fuertes
+    private static final AttackDefinition PSYCHO_CUT = new AttackDefinition(
+            "PSYCHO_CUT", 63, AttackDefinition.Kind.HITBOX, 13,
+            0.09, 0.12, 0.46, 64, 70, 0, 0, 0, 0, new Color(0xB78CFF));
+    private static final AttackDefinition BOSS_PSYCHIC = new AttackDefinition(
+            "PSYCHIC", 60, AttackDefinition.Kind.PROJECTILE, 12,
+            0.18, 0.06, 0.55, 0, 0, 0, 540, 1.8, 28, new Color(0xB78CFF));
+    private static final AttackDefinition BOSS_SHADOW_BALL = new AttackDefinition(
+            "SHADOW_BALL", 59, AttackDefinition.Kind.PROJECTILE, 14,
+            0.24, 0.06, 0.70, 0, 0, 0, 420, 2.0, 34, new Color(0x7B4FC4));
+    private static final AttackDefinition BOSS_TELEPORT = new AttackDefinition(
+            "TELEPORT", 109, AttackDefinition.Kind.DASH, 11,
+            0.06, 0.18, 0.55, 64, 80, 620, 0, 0, 0, new Color(0xE6B8FF));
+
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
             "TACKLE", 18, AttackDefinition.Kind.DASH, 12,
             0.08, 0.16, 0.40, 64, 82, 360, 0, 0, 0, new Color(0xF2C28B));
@@ -202,7 +216,7 @@ public class FightingCombatSystem {
     public boolean hasAttackProfile(String pokemonId) {
         return switch (pokemonId) {
             case "PIKACHU", "CHARIZARD", "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE",
-                 "VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA" -> true;
+                 "VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA", "MEWTWO" -> true;
             default -> false;
         };
     }
@@ -383,6 +397,7 @@ public class FightingCombatSystem {
             case "GASTLY" -> new AttackDefinition[]{LICK, SHADOW_BALL, SLEEP_POWDER, GROWL};
             case "MACHOP" -> new AttackDefinition[]{TACKLE, CLOSE_COMBAT, GROWL, BODY_SLAM};
             case "ABRA" -> new AttackDefinition[]{ZEN_HEADBUTT, PSYCHIC, GROWTH, TELEPORT};
+            case "MEWTWO" -> new AttackDefinition[]{PSYCHO_CUT, BOSS_PSYCHIC, BOSS_SHADOW_BALL, BOSS_TELEPORT};
             default -> null;
         };
         if (newMoves != null) return requestedAttack < newMoves.length ? newMoves[requestedAttack] : null;
@@ -740,6 +755,8 @@ public class FightingCombatSystem {
             originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) + 12);
             originY = attacker.getY() - 82;
         }
+        // Mewtwo es muy alto: sus disparos salen a la altura de un Pokemon pequeno (se pueden saltar)
+        if (attacker.isBoss()) originY = Math.max(originY, attacker.getY() - 62);
         emit(CombatEvent.Type.PROJECTILE_FIRED, definition.moveId(), ownerIndex,
                 originX, originY, direction, 0);
         projectiles.add(new FightingProjectile(definition.moveId(), originX, originY,
