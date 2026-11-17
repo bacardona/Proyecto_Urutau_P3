@@ -166,6 +166,7 @@ public final class FightingFx {
         lastActive[1] = null;
         projectileOrigins.clear();
         decals.clear();
+        fallingColumns.clear();
         zoom = 0;
         speedLines = 0;
         impactFrame = 0;
@@ -200,6 +201,12 @@ public final class FightingFx {
         react(session, sdt);
         followCamera(session, dt);
         if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished(session);
+    }
+
+    /** Pantalla de resultados: solo avanzan las animaciones (texto, confeti, risa). */
+    public void tickResults(double dt) {
+        time += dt;
+        director.tickResults(dt);
     }
 
     FightingDirector director() {
@@ -238,6 +245,7 @@ public final class FightingFx {
         }
         bolts.removeIf(b -> (b.life -= dt) <= 0);
         decals.removeIf(d -> (d.life -= dt) <= 0);
+        fallingColumns.removeIf(c -> (c[1] += dt) > COLUMN_FALL_SECONDS + 0.3);
         zoom = Math.max(0, zoom - dt * 0.35);
         speedLines = Math.max(0, speedLines - dt);
         impactFrame = Math.max(0, impactFrame - dt);
@@ -892,14 +900,59 @@ public final class FightingFx {
                 sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.4f);
                 bossPopup("¡PREMONICION!", e.x(), e.y() - 150, pink, 24);
             }
+            case FUTURE_SIGHT_FALL -> {
+                // La columna empieza a caer desde arriba de la pantalla
+                fallingColumns.add(new double[]{e.x(), 0});
+                sound.play(FightingSound.Sfx.WHOOSH, 0.9f);
+            }
             case FUTURE_SIGHT_STRIKE -> {
                 sound.play(FightingSound.Sfx.THUNDER, 0.7f);
-                bigLimited(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, e.x(), e.y() - 150, false);
-                ring(e.x(), e.y(), 20, 120, 0.3, pink, 0, 4);
-                sparks(e.x(), e.y() - 20, 10, 380, Color.WHITE, pink);
-                shake(6, 0.2);
+                sound.play(FightingSound.Sfx.HIT_HEAVY, 0.6f);
+                ring(e.x(), e.y(), 20, 130, 0.3, pink, 0, 5);
+                ring(e.x(), e.y(), 10, 80, 0.22, Color.WHITE, 0, 3);
+                sparks(e.x(), e.y() - 10, 12, 420, Color.WHITE, pink);
+                decal("crack", e.x(), 110, 3.5);
+                shake(7, 0.22);
             }
+            case WAVE_CHARGE -> {
+                sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.6f);
+                ring(e.x(), e.y(), 10, 120, 0.45, pink, 0, 4);
+                glow(e.x(), e.y() - 40, 110, 0.45, pink, false);
+                bossPopup("¡ONDA MENTAL!", e.x(), e.y() - 260, pink, 26);
+            }
+            case WAVE -> {
+                sound.play(FightingSound.Sfx.THUNDER, 0.5f);
+                sound.play(FightingSound.Sfx.WHOOSH, 1f);
+                shake(5, 0.25);
+            }
+            case TRIPLE_BLINK -> bossPopup("¡TELETRANSPORTE TRIPLE!", e.x(), e.y() - 260, purple, 24);
             case VOLLEY -> bossPopup("¡TRIPLE BOLA SOMBRA!", e.x(), e.y() - 240, purple, 22);
+        }
+    }
+
+    // Columnas de Premonicion cayendo: {x, edad}
+    static final double COLUMN_FALL_SECONDS = 0.15;
+    private final List<double[]> fallingColumns = new ArrayList<>();
+
+    /** Columna de energia que baja del cielo hasta el suelo y luego se desvanece. */
+    private void drawFallingColumns(Graphics2D g) {
+        for (double[] column : fallingColumns) {
+            double age = column[1];
+            int x = (int) column[0];
+            double fall = Math.min(1, age / COLUMN_FALL_SECONDS);
+            int bottom = (int) (groundY * fall);
+            float alpha = (float) (age <= COLUMN_FALL_SECONDS ? 1 : Math.max(0, 1 - (age - COLUMN_FALL_SECONDS) / 0.3));
+            var old = g.getComposite();
+            g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha));
+            g.setColor(new Color(255, 111, 208, 150));
+            g.fillRect(x - 30, 0, 60, bottom);
+            g.setColor(new Color(0xFFD6F0));
+            g.fillRect(x - 12, 0, 24, bottom);
+            g.setColor(Color.WHITE);
+            g.fillRect(x - 4, 0, 8, bottom);
+            // Punta brillante mientras cae
+            if (fall < 1) g.fillOval(x - 22, bottom - 22, 44, 44);
+            g.setComposite(old);
         }
     }
 
@@ -1293,6 +1346,7 @@ public final class FightingFx {
     /** Draws the PVFX effects at full resolution (outside the posterized layer). */
     public void drawBig(Graphics2D g) {
         big.draw(g);
+        drawFallingColumns(g);
     }
 
     // ------------------------------------------------------------------ ayudantes para crear efectos

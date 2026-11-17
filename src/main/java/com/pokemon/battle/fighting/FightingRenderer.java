@@ -94,6 +94,7 @@ public class FightingRenderer {
             drawAttackEffects(lg, session);
         });
         drawFutureSightMarks(g, session);
+        drawPsychicWaves(g, session);
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         for (Fighter fighter : session.getFighters()) {
             // Mewtwo aparece de a poco dentro de su columna de energia al llegar
@@ -659,6 +660,25 @@ public class FightingRenderer {
         }
     }
 
+    /** Onda mental: pared baja de energia rosada que corre por el suelo. */
+    private void drawPsychicWaves(Graphics2D g, FightingGameSession session) {
+        if (!session.isBossFight()) return;
+        int ground = session.getGroundY();
+        for (FightingGameSession.PsychicWave wave : session.getPsychicWaves()) {
+            int x = (int) wave.x();
+            int dir = (int) wave.direction();
+            for (int k = 0; k < 6; k++) {
+                int tx = x - dir * k * 16;
+                int height = 54 - k * 8;
+                int alpha = 220 - k * 35;
+                g.setColor(new Color(255, 95, 184, Math.max(20, alpha)));
+                g.fillRoundRect(tx - 7, ground - height, 14, height, 8, 8);
+            }
+            g.setColor(Color.WHITE);
+            g.fillRoundRect(x - 3, ground - 50, 6, 50, 4, 4);
+        }
+    }
+
     /** Barrera de Mewtwo: domo hexagonal rosado. */
     private void drawBossBarrier(Graphics2D g, FightingGameSession session) {
         Fighter boss = session.getBoss();
@@ -701,11 +721,21 @@ public class FightingRenderer {
         if (boss == null || !boss.isEnraged() || session.getState() == FightingGameSession.State.FINISHED) return;
         int w = session.getWidth(), h = session.getHeight();
         double pulse = 0.5 + 0.5 * Math.sin(fx.time() * 3.2);
+        if (boss.isMega()) {
+            // Fase final: todo el escenario en un rosado oscuro que late
+            java.awt.Composite oldMood = g.getComposite();
+            g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER,
+                    (float) (0.16 + 0.05 * pulse)));
+            g.setColor(new Color(0x3A0628));
+            g.fillRect(0, 0, w, h);
+            g.setComposite(oldMood);
+        }
         float edge = (float) (0.30 + 0.15 * pulse);
         java.awt.RadialGradientPaint vignette = new java.awt.RadialGradientPaint(
                 new java.awt.geom.Point2D.Double(w / 2.0, h / 2.0), w * 0.72f,
                 new float[]{0.45f, 1f},
-                new Color[]{new Color(40, 0, 60, 0), new Color(70, 10, 110, (int) (255 * edge))});
+                new Color[]{new Color(40, 0, 60, 0), boss.isMega() ? new Color(120, 10, 70, (int) (255 * edge))
+                        : new Color(70, 10, 110, (int) (255 * edge))});
         java.awt.Paint old = g.getPaint();
         g.setPaint(vignette);
         g.fillRect(0, 0, w, h);

@@ -75,6 +75,7 @@ public class FightingGamePanel extends JPanel {
     private final Timer simulationTimer;
     // Mando: se lee aparte de la simulacion para que tambien funcione en pausa y resultados
     private final Timer gamepadTimer;
+    private final Timer resultsTimer;
     private final GamepadFightControls gamepadControls = new GamepadFightControls();
     private IntFunction<PadSnapshot> gamepadSource;
     private final boolean[] padConnected = new boolean[2];
@@ -117,6 +118,15 @@ public class FightingGamePanel extends JPanel {
 
         simulationTimer = new Timer(8, e -> updateSimulation());
         gamepadTimer = new Timer(16, e -> readGamepads());
+        // Despues del combate: sigue animando la pantalla final (dialogo, confeti, risa)
+        resultsTimer = new Timer(33, e -> {
+            if (session.getState() != FightingGameSession.State.FINISHED || !isShowing()) {
+                ((Timer) e.getSource()).stop();
+                return;
+            }
+            renderer.fx().tickResults(0.033);
+            repaint();
+        });
 
         // Iniciar o detener las animaciones
         // cuando se muestra u oculta la pantalla.
@@ -593,6 +603,7 @@ public class FightingGamePanel extends JPanel {
 
     /** Cuenta la racha del ganador; a la tercera victoria seguida Mewtwo lo desafia. */
     private void onMatchFinished() {
+        resultsTimer.start();
         FightingGameSession.Outcome outcome = session.getOutcome();
         if (session.isBossFight()) {
             // Gane o pierda contra Mewtwo, la racha vuelve a cero; si perdio puede reintentar

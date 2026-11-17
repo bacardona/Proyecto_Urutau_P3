@@ -146,6 +146,20 @@ public final class BossFightCheck {
         for (int i = 0; i < 90; i++) { mover.setX(i < 20 ? 500 : 300); dodge.update(new FightingInput(), DT); }
         check(mover.getHealth() == moverHealth, "Moving away dodges future sight");
 
+        // La Premonicion avisa que cae (columna desde arriba) antes del golpe
+        FightingGameSession fall = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
+        fall.bossFutureSight();
+        boolean fallSeen = false, strikeAfterFall = false;
+        for (int i = 0; i < 90; i++) {
+            fall.update(new FightingInput(), DT);
+            for (var e : fall.consumeBossEvents()) {
+                if (e.kind() == FightingGameSession.BossEvent.Kind.FUTURE_SIGHT_FALL) fallSeen = true;
+                if (e.kind() == FightingGameSession.BossEvent.Kind.FUTURE_SIGHT_STRIKE) strikeAfterFall = fallSeen;
+            }
+        }
+        check(strikeAfterFall, "Future sight falls from above before it strikes");
+
         // Una cosa a la vez: una sola Premonicion y escudo o barrera, nunca los dos
         FightingGameSession once = FightingGameSession.bossFightPrototype(
                 "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
@@ -188,6 +202,44 @@ public final class BossFightCheck {
         check(boss.isMegaPending() && !boss.isMega(), "Mega transformation starts at 20%");
         for (int i = 0; i < 60 * 7; i++) phases.update(new FightingInput(), DT);
         check(boss.isMega() && Fighter.MEGA_FORM_ID.equals(boss.getPokemonId()), "Becomes Mega Mewtwo Y");
+        check(boss.getHealth() == phases.bossMegaHealTarget(), "Mega recovers up to 50%: " + boss.getHealth());
+
+        // Onda mental: pega en el suelo, se esquiva saltando
+        Fighter target = phases.getFighters().get(0);
+        boolean waveStarted = false;
+        for (int i = 0; i < 60 * 20 && !waveStarted; i++) {         // espera a que Mewtwo este libre
+            target.setX(boss.getX() - 300);
+            waveStarted = phases.bossPsychicWave();
+            if (!waveStarted) phases.update(new FightingInput(), DT);
+        }
+        check(waveStarted && !phases.bossPsychicWave(), "One mind wave at a time");
+        int beforeWave = target.getHealth();
+        for (int i = 0; i < 90; i++) phases.update(new FightingInput(), DT);
+        check(target.getHealth() < beforeWave, "Mind wave hits a grounded rival");
+        for (int i = 0; i < 400; i++) phases.update(new FightingInput(), DT);   // termina la onda y su espera
+        FightingGameSession jumpWave = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
+        Fighter jw = jumpWave.getBoss();
+        jw.receiveDamage(jw.getMaxHealth() / 2 + 1);
+        jumpWave.update(new FightingInput(), DT);
+        jw.receiveDamage(jw.getHealth() - 39);
+        for (int i = 0; i < 60 * 7; i++) jumpWave.update(new FightingInput(), DT);
+        Fighter jumper = jumpWave.getFighters().get(0);
+        boolean jumpWaveStarted = false;
+        for (int i = 0; i < 60 * 20 && !jumpWaveStarted; i++) {
+            jumper.setX(jw.getX() - 300);
+            jumpWaveStarted = jumpWave.bossPsychicWave();
+            if (!jumpWaveStarted) jumpWave.update(new FightingInput(), DT);
+        }
+        check(jumpWaveStarted, "Mind wave starts");
+        int beforeJump = jumper.getHealth();
+        for (int i = 0; i < 90; i++) {
+            jumper.setOnGround(false);
+            jumper.setY(jumpWave.getGroundY() - 150);
+            jumper.setVelocityY(0);
+            jumpWave.update(new FightingInput(), DT);
+        }
+        check(jumper.getHealth() == beforeJump, "Jumping dodges the mind wave");
         check(UltimateDefinition.forEvolvedForm(Fighter.MEGA_FORM_ID) != null, "Mega has its Psystrike");
         check(FightingSpriteProfile.forSpecies(Fighter.MEGA_FORM_ID) != null, "Mega sprites exist");
     }

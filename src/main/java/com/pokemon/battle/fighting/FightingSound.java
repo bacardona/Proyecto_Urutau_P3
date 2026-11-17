@@ -60,6 +60,7 @@ public final class FightingSound {
     private volatile boolean musicPlaying;
     private int musicPosition;
     private float[] battleTheme;
+    private float[] intenseTheme;
     private float[] fanfare;
 
     private FightingSound() {
@@ -73,6 +74,18 @@ public final class FightingSound {
         }
         if (music != battleTheme) musicPosition = 0;
         music = battleTheme;
+        musicPlaying = true;
+        ensureStarted();
+    }
+
+    /** Musica de la fase final (Mega Mewtwo Y): mas rapida e intensa. */
+    public void startIntenseMusic() {
+        if (!available) return;
+        synchronized (this) {
+            if (intenseTheme == null) intenseTheme = MusicTheme.intense(RATE);
+        }
+        if (music != intenseTheme) musicPosition = 0;
+        music = intenseTheme;
         musicPlaying = true;
         ensureStarted();
     }

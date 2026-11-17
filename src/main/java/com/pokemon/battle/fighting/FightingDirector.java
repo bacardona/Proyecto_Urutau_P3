@@ -905,10 +905,26 @@ final class FightingDirector {
         return megaTime >= MEGA_SILHOUETTE && megaTime < MEGA_BURST;
     }
 
+    /** En la pantalla de resultados el combate ya no avanza, pero sus animaciones si. */
+    void tickResults(double dt) {
+        time += dt;
+    }
+
+    // Al transformarse recupera vida: la barra se llena durante la frase
+    static final double MEGA_HEAL_SECONDS = 1.6;
+    private int megaHealFrom;
+
     private void tickMega(double dt) {
         double before = megaTime;
         megaTime += dt;
+        Fighter megaBoss = megaSession.getBoss();
+        if (megaBoss != null && megaTime > MEGA_BURST && megaTime <= MEGA_BURST + MEGA_HEAL_SECONDS + dt) {
+            double p = Math.min(1, (megaTime - MEGA_BURST) / MEGA_HEAL_SECONDS);
+            int wanted = (int) Math.round(megaHealFrom + (megaSession.bossMegaHealTarget() - megaHealFrom) * p);
+            if (wanted > megaBoss.getHealth()) megaSession.bossMegaHeal(wanted - megaBoss.getHealth());
+        }
         if (before < MEGA_BURST && megaTime >= MEGA_BURST) {
+            megaHealFrom = megaBoss == null ? 0 : megaBoss.getHealth();
             megaSession.completeBossMega();
             sound.play(FightingSound.Sfx.THUNDER);
             sound.play(FightingSound.Sfx.ULTI_RELEASE);
@@ -918,7 +934,7 @@ final class FightingDirector {
         if (megaTime >= MEGA_END) {
             megaTime = -1;
             megaSession = null;
-            sound.startBattleMusic();
+            sound.startIntenseMusic();
         }
     }
 
@@ -983,6 +999,13 @@ final class FightingDirector {
                 g.drawLine(x1, y1, x2, y2);
             }
             g.setComposite(old);
+        }
+
+        // La barra de vida se rellena: texto junto a la barra de Mewtwo
+        if (t >= MEGA_BURST && t < MEGA_BURST + MEGA_HEAL_SECONDS + 0.6) {
+            int side = megaSession.getBossIndex() == 0 ? 330 : w - 330;
+            boolean blink = ((int) (t * 8)) % 2 == 0;
+            outlined(g, "¡RECUPERACION!", side, 150, 30, blink ? new Color(0x7DFFA0) : Color.WHITE, OUTLINE, 3);
         }
 
         // La frase

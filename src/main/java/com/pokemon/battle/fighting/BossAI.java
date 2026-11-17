@@ -46,7 +46,7 @@ final class BossAI {
     private boolean jumpToPress;
     private boolean ultimateToPress;
 
-    static final double THINK_SECONDS_MEGA = 0.11;
+    static final double THINK_SECONDS_MEGA = 0.13;
     private final boolean hard;
     private double barrierCooldown = 4.0;
     private double volleyCooldown = 3.0;
@@ -55,6 +55,11 @@ final class BossAI {
     // Respiro entre tecnicas especiales: una cosa a la vez para que se puedan ver venir
     static final double SPECIAL_GAP_SECONDS = 1.5;
     private double specialCooldown;
+    // Fase Mega: Onda mental y Teletransporte triple
+    private double waveCooldown = 2.0;
+    private double tripleCooldown = 4.0;
+    private int tripleLeft;
+    private double tripleTimer;
 
     BossAI(int bossIndex) {
         this(bossIndex, false);
@@ -80,6 +85,8 @@ final class BossAI {
         telekinesisCooldown -= dt;
         futureSightCooldown -= dt;
         specialCooldown -= dt;
+        waveCooldown -= dt;
+        tripleCooldown -= dt;
         if (boss.isMegaPending()) {
             // Transformandose: no hace nada hasta la explosion
             press(input, 0, false, -1, false, false);
@@ -95,11 +102,17 @@ final class BossAI {
         }
         if (boss.isEnraged()) boss.addEvolutionEnergy(ENRAGED_ENERGY_PER_SECOND * dt);
 
-        think -= dt;
-        if (think <= 0) {
-            think = boss.isMega() ? THINK_SECONDS_MEGA
-                    : boss.isEnraged() ? THINK_SECONDS_ENRAGED : THINK_SECONDS;
-            decide(session, boss, foe);
+        if (tripleLeft > 0) {
+            // En medio del Teletransporte triple no piensa otra cosa
+            stepTripleBlink(session, boss, foe, dt);
+            think = THINK_SECONDS_MEGA;
+        } else {
+            think -= dt;
+            if (think <= 0) {
+                think = boss.isMega() ? THINK_SECONDS_MEGA
+                        : boss.isEnraged() ? THINK_SECONDS_ENRAGED : THINK_SECONDS;
+                decide(session, boss, foe);
+            }
         }
 
         if (attackToPress >= 0 || ultimateToPress) {
@@ -180,10 +193,39 @@ final class BossAI {
         else decideCalm(session, boss, foe, distance, towardFoe);
     }
 
+    /** Teletransporte triple: aparece detras del rival y pega, tres veces seguidas. */
+    private void stepTripleBlink(FightingGameSession session, Fighter boss, Fighter foe, double dt) {
+        tripleTimer -= dt;
+        boolean free = session.getCombatSystem().getAttackVisual(boss, session.getFighters()) == null
+                && !boss.isHitStunned() && !boss.isAsleep();
+        if (tripleTimer > 0 || !free) return;
+        if (foe.isDefeated()) {
+            tripleLeft = 0;
+            return;
+        }
+        blink(session, boss, foe, true);
+        attackToPress = 0;                                 // Psicocorte apenas aparece
+        tripleLeft--;
+        tripleTimer = 0.7;
+    }
+
     /** Triple Bola Sombra (siempre), Telequinesis y Premonicion (furioso). True si uso una. */
     private boolean hardTechnique(FightingGameSession session, Fighter boss, Fighter foe,
                                   double distance, boolean enraged) {
         double speedUp = boss.isMega() ? 0.65 : 1.0;
+        if (boss.isMega()) {
+            if (waveCooldown <= 0 && random.nextDouble() < 0.4 && session.bossPsychicWave()) {
+                waveCooldown = 6;
+                return true;
+            }
+            if (tripleCooldown <= 0 && random.nextDouble() < 0.35) {
+                tripleLeft = 3;
+                tripleTimer = 0;
+                tripleCooldown = 9;
+                session.announceTripleBlink();
+                return true;
+            }
+        }
         if (enraged && telekinesisCooldown <= 0 && distance > 240 && distance < 760
                 && random.nextDouble() < 0.4) {
             if (session.bossTelekinesis()) {

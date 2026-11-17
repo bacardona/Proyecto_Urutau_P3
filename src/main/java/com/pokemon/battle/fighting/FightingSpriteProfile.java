@@ -53,7 +53,7 @@ final class FightingSpriteProfile {
             Map.entry("MEWTWO", new FightingSpriteProfile("MEWTWO", 6, 200, 52, "Idle", Map.of(
                     "PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge", "TELEPORT", "Rotate"))),
             // Fase 3 del modo dificil (paquete Evolucion de MEWTWO = forma 0002 de SpriteCollab)
-            Map.entry("MEGA_MEWTWO_Y", new FightingSpriteProfile("MEGA_MEWTWO_Y", "MEWTWO", 6, 210, 54, "Idle",
+            Map.entry("MEGA_MEWTWO_Y", new FightingSpriteProfile("MEGA_MEWTWO_Y", "MEWTWO", 7, 235, 60, "Idle",
                     "Hurt", Map.of("PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge",
                             "TELEPORT", "Rotate"))));
 

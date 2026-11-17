@@ -211,6 +211,8 @@ public class FightingGameSession {
             megaSceneLeft = MEGA_SCENE_SECONDS;
             futureSights.clear();
             pendingVolley.clear();
+            waves.clear();
+            waveCharge = -1;
             combatSystem.clearProjectiles();
             bossEvents.add(new BossEvent(BossEvent.Kind.MEGA, boss.getX(), boss.getY()));
         }
@@ -226,11 +228,58 @@ public class FightingGameSession {
 
     /** Avisos para los efectos (FightingFx los consume). */
     public record BossEvent(Kind kind, double x, double y) {
-        public enum Kind { MEGA, BARRIER, TELEKINESIS, FUTURE_SIGHT_MARK, FUTURE_SIGHT_STRIKE, VOLLEY }
+        public enum Kind { MEGA, BARRIER, TELEKINESIS, FUTURE_SIGHT_MARK, FUTURE_SIGHT_FALL, FUTURE_SIGHT_STRIKE,
+            VOLLEY, WAVE_CHARGE, WAVE, TRIPLE_BLINK }
     }
 
     /** Marca de Premonicion en el suelo: progress va de 0 a 1 hasta que cae el golpe. */
     public record FutureSightMark(double x, double progress) { }
+
+    /** Onda mental que avanza por el suelo (direction -1 o 1). */
+    public record PsychicWave(double x, double direction) { }
+
+    // Fase Mega: al transformarse recupera vida hasta el 60 %, y tiene la Onda mental
+    static final double MEGA_HEAL_TO = 0.50;
+    static final double FUTURE_SIGHT_FALL_SECONDS = 0.15;
+    static final double WAVE_CHARGE_SECONDS = 0.45;
+    static final double WAVE_SPEED = 720;
+    private final List<double[]> waves = new ArrayList<>();          // {x, direccion}
+    private double waveCharge = -1;
+    private boolean waveHit;
+
+    public List<PsychicWave> getPsychicWaves() {
+        List<PsychicWave> list = new ArrayList<>();
+        for (double[] wave : waves) list.add(new PsychicWave(wave[0], wave[1]));
+        return list;
+    }
+
+    /** Onda mental: Mewtwo carga medio segundo y salen dos ondas por el suelo, una a cada lado. */
+    boolean bossPsychicWave() {
+        Fighter boss = getBoss();
+        if (boss == null || !boss.isMega() || !waves.isEmpty() || waveCharge >= 0 || bossUltimateActive()) {
+            return false;
+        }
+        waveCharge = WAVE_CHARGE_SECONDS;
+        bossEvents.add(new BossEvent(BossEvent.Kind.WAVE_CHARGE, boss.getX(), boss.getY()));
+        return true;
+    }
+
+    /** Aviso para el efecto del Teletransporte triple. */
+    void announceTripleBlink() {
+        Fighter boss = getBoss();
+        if (boss != null) bossEvents.add(new BossEvent(BossEvent.Kind.TRIPLE_BLINK, boss.getX(), boss.getY()));
+    }
+
+    /** Durante la escena de Mega, la barra de Mewtwo se va llenando (la llama el director). */
+    void bossMegaHeal(int amount) {
+        Fighter boss = getBoss();
+        if (boss != null) boss.heal(amount);
+    }
+
+    int bossMegaHealTarget() {
+        Fighter boss = getBoss();
+        return boss == null ? 0 : (int) Math.round(boss.getMaxHealth() * MEGA_HEAL_TO);
+    }
 
     private final List<BossEvent> bossEvents = new ArrayList<>();
     private final List<double[]> futureSights = new ArrayList<>();   // {x, tiempo}
@@ -258,6 +307,15 @@ public class FightingGameSession {
             boss.addEvolutionEnergy(100);
             megaSceneLeft = 0;
         }
+    }
+
+    /** Sin director (pruebas): termina la transformacion y cura de una vez. */
+    private void completeBossMegaWithoutScene() {
+        Fighter boss = getBoss();
+        if (boss == null) return;
+        completeBossMega();
+        int missing = bossMegaHealTarget() - boss.getHealth();
+        if (missing > 0) boss.heal(missing);
     }
 
     /** Triple Bola Sombra: baja, al medio y alta, una detras de otra. */
@@ -304,6 +362,29 @@ public class FightingGameSession {
         return true;
     }
 
+    private void updatePsychicWaves(Fighter boss, Fighter foe, double dt) {
+        if (waveCharge >= 0) {
+            waveCharge -= dt;
+            if (waveCharge < 0) {
+                waves.add(new double[]{boss.getX(), -1});
+                waves.add(new double[]{boss.getX(), 1});
+                waveHit = false;
+                bossEvents.add(new BossEvent(BossEvent.Kind.WAVE, boss.getX(), groundY));
+            }
+        }
+        for (java.util.Iterator<double[]> it = waves.iterator(); it.hasNext(); ) {
+            double[] wave = it.next();
+            wave[0] += wave[1] * WAVE_SPEED * dt;
+            // Solo pega a quien esta en el suelo (saltandola se esquiva), una vez por ataque
+            boolean grounded = foe.isOnGround() || foe.getY() > groundY - 30;
+            if (!waveHit && !foe.isDefeated() && grounded && Math.abs(foe.getX() - wave[0]) < 40) {
+                waveHit = true;
+                combatSystem.bossMindWaveHit(bossIndex, boss, foe);
+            }
+            if (wave[0] < -60 || wave[0] > width + 60) it.remove();
+        }
+    }
+
     private boolean bossUltimateActive() {
         return !"IDLE".equals(combatSystem.getUltimatePhaseName(bossIndex));
     }
@@ -312,7 +393,7 @@ public class FightingGameSession {
         if (boss.isMegaPending()) {
             // Sin director (pruebas) la transformacion termina sola
             megaSceneLeft -= dt;
-            if (megaSceneLeft <= 0) completeBossMega();
+            if (megaSceneLeft <= 0) completeBossMegaWithoutScene();
             return;
         }
         Fighter foe = fighters.get(1 - bossIndex);
@@ -327,7 +408,13 @@ public class FightingGameSession {
         }
         for (java.util.Iterator<double[]> it = futureSights.iterator(); it.hasNext(); ) {
             double[] mark = it.next();
+            double before = mark[1];
             mark[1] += dt;
+            // Un instante antes del golpe empieza a caer la columna desde el cielo
+            double fallAt = FUTURE_SIGHT_DELAY - FUTURE_SIGHT_FALL_SECONDS;
+            if (before < fallAt && mark[1] >= fallAt) {
+                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_FALL, mark[0], groundY));
+            }
             if (mark[1] >= FUTURE_SIGHT_DELAY) {
                 it.remove();
                 bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_STRIKE, mark[0], groundY));
@@ -336,6 +423,7 @@ public class FightingGameSession {
                 }
             }
         }
+        updatePsychicWaves(boss, foe, dt);
     }
 
     public int getWidth() { return width; }
