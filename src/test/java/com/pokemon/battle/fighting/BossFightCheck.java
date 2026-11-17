@@ -59,6 +59,22 @@ public final class BossFightCheck {
         check(third.bossBlink(400), "Blink works");
         check(third.getBoss().getX() == 400 && third.consumeBossBlink() == from, "Blink moves Mewtwo and reports where it was");
 
+        // Un retador que pega sin parar no puede dejar a Mewtwo atrapado en su escudo
+        FightingGameSession hammer = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"CHARMANDER", "SQUIRTLE"}, false, FightingStage.TEMPLO);
+        FightingInput keys = new FightingInput();
+        for (int i = 0; i < 60 * 150 && hammer.getState() == FightingGameSession.State.RUNNING; i++) {
+            Fighter me = hammer.getFighters().get(0), them = hammer.getFighters().get(1);
+            boolean far = Math.abs(them.getX() - me.getX()) > 120;
+            keys.setPlayerOneRight(far && them.getX() > me.getX());
+            keys.setPlayerOneLeft(far && them.getX() < me.getX());
+            keys.setPlayerOneAttackOne(!far && i % 18 == 0);
+            hammer.update(keys, DT);
+            hammer.getCombatSystem().drainEvents();
+            hammer.consumeBossBlink();
+        }
+        check(hammer.getState() == FightingGameSession.State.FINISHED, "A fight against a hammering challenger ends");
+
         System.out.println("PASS boss fight (shots=" + shots + ", blinks=" + blinks + ")");
     }
 

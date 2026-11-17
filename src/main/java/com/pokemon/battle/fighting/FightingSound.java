@@ -23,7 +23,9 @@ public final class FightingSound {
         HIT_LIGHT, HIT_HEAVY, WHOOSH, JUMP, LAND, BLOCK,
         FIRE_SHOT, FIRE_HIT, WATER_SHOT, WATER_HIT, ELECTRIC_SHOT, ELECTRIC_HIT,
         POWDER, VINE, BITE, GROWL, BUFF, KO, ULTI_CHARGE, ULTI_RELEASE,
-        VS, COUNT, GO, CUT_IN
+        VS, COUNT, GO, CUT_IN,
+        // Jefe secreto: trueno de su llegada y su risa cuando gana
+        THUNDER, LAUGH
     }
 
     private static final int RATE = 22050;
@@ -244,6 +246,9 @@ public final class FightingSound {
             case COUNT -> square(0.18, 660, 660, 0.35, 0.5);
             case GO -> arpeggio(new double[]{523, 784, 1047, 1568}, 0.06, 0.4);
             case CUT_IN -> mixAll(sweepNoise(random, 0.35, 0.1, 0.9, 0.5), square(0.25, 880, 1320, 0.25, 0.5));
+            case THUNDER -> crush(mixAll(explosion(random, 1.0, 1.0), zap(random, 0.45, 0.5),
+                    thump(0.5, 70, 30, 0.9)), 4);
+            case LAUGH -> laugh();
         };
     }
 
@@ -442,6 +447,22 @@ public final class FightingSound {
             }
         }
         return out;
+    }
+
+    /** "¡Ja, ja, ja, ja!" grave: cuatro silabas que bajan de tono, con vibrato. */
+    private static float[] laugh() {
+        double syllable = 0.17;
+        double gap = 0.07;
+        int count = 5;
+        float[] out = buffer(count * (syllable + gap) + 0.1);
+        for (int n = 0; n < count; n++) {
+            double from = 230 - n * 16;
+            float[] ha = mixAll(saw(syllable, from, from * 0.82, 0.42, 22),
+                    square(syllable, from * 2, from * 1.6, 0.08, 0.3));
+            int start = (int) (n * (syllable + gap) * RATE);
+            for (int i = 0; i < ha.length && start + i < out.length; i++) out[start + i] += ha[i];
+        }
+        return crush(out, 3);
     }
 
     private static float[] mixAll(float[]... parts) {

@@ -518,8 +518,9 @@ public class FightingGamePanel extends JPanel {
 
     private void activateResultOption() {
         if (selectedResultOption == 0) {
-            session = bossOffered ? createBossSession() : createSession();
+            session = bossOffered || bossRetry ? createBossSession() : createSession();
             bossOffered = false;
+            bossRetry = false;
             input.clear();
             frameIndex = 0;
             selectedResultOption = 0;
@@ -530,6 +531,8 @@ public class FightingGamePanel extends JPanel {
                 simulationTimer.start();
             }
         } else {
+            bossOffered = false;
+            bossRetry = false;
             stopGameTimersAndClearInput();
             onBack.run();
         }
@@ -574,14 +577,18 @@ public class FightingGamePanel extends JPanel {
     // Rachas por entrenador mientras el juego esta abierto
     private static final java.util.Map<String, Integer> WIN_STREAKS = new java.util.HashMap<>();
     private boolean bossOffered;
+    // Mewtwo gano: se puede reintentar sin volver a ganar 3 seguidas
+    private boolean bossRetry;
     private int bossChallenger = -1;
 
     /** Cuenta la racha del ganador; a la tercera victoria seguida Mewtwo lo desafia. */
     private void onMatchFinished() {
         FightingGameSession.Outcome outcome = session.getOutcome();
         if (session.isBossFight()) {
-            // Gane o pierda contra Mewtwo, la racha vuelve a cero
+            // Gane o pierda contra Mewtwo, la racha vuelve a cero; si perdio puede reintentar
             WIN_STREAKS.remove(session.getTrainerName(1 - session.getBossIndex()));
+            bossChallenger = 1 - session.getBossIndex();
+            bossRetry = !session.challengerWon();
             return;
         }
         if (outcome == null || outcome == FightingGameSession.Outcome.DRAW) return;
