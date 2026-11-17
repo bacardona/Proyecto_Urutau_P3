@@ -181,6 +181,7 @@ public class FightingGamePanel extends JPanel {
             bindKey("F7", () -> debugDefeat(1));
             bindKey("F8", () -> session.debugFillActiveEnergy(0));
             bindKey("F9", () -> session.debugFillActiveEnergy(1));
+            bindKey("F10", this::debugStartBoss);
         }
 
         bindHeldKey("A", input::setPlayerOneLeft);
@@ -396,6 +397,7 @@ public class FightingGamePanel extends JPanel {
             if (session.getState() == FightingGameSession.State.FINISHED) {
                 stopGameTimersAndClearInput();
                 simulationAccumulatorNanos = 0;
+                onMatchFinished();
                 break;
             }
         }
@@ -516,7 +518,8 @@ public class FightingGamePanel extends JPanel {
 
     private void activateResultOption() {
         if (selectedResultOption == 0) {
-            session = createSession();
+            session = bossOffered ? createBossSession() : createSession();
+            bossOffered = false;
             input.clear();
             frameIndex = 0;
             selectedResultOption = 0;
@@ -565,6 +568,64 @@ public class FightingGamePanel extends JPanel {
         input.clear();
     }
 
+    // ------------------------------------------------------------ jefe secreto
+    /** Victorias seguidas en Combate Libre para que aparezca Mewtwo. */
+    static final int BOSS_WIN_STREAK = 3;
+    // Rachas por entrenador mientras el juego esta abierto
+    private static final java.util.Map<String, Integer> WIN_STREAKS = new java.util.HashMap<>();
+    private boolean bossOffered;
+    private int bossChallenger = -1;
+
+    /** Cuenta la racha del ganador; a la tercera victoria seguida Mewtwo lo desafia. */
+    private void onMatchFinished() {
+        FightingGameSession.Outcome outcome = session.getOutcome();
+        if (session.isBossFight()) {
+            // Gane o pierda contra Mewtwo, la racha vuelve a cero
+            WIN_STREAKS.remove(session.getTrainerName(1 - session.getBossIndex()));
+            return;
+        }
+        if (outcome == null || outcome == FightingGameSession.Outcome.DRAW) return;
+        int winner = outcome == FightingGameSession.Outcome.PLAYER_ONE_WINS ? 0 : 1;
+        String winnerName = session.getTrainerName(winner);
+        WIN_STREAKS.remove(session.getTrainerName(1 - winner));
+        int streak = WIN_STREAKS.merge(winnerName, 1, Integer::sum);
+        if (streak >= BOSS_WIN_STREAK) {
+            bossOffered = true;
+            bossChallenger = winner;
+        }
+    }
+
+    /** El ganador (con su equipo y la vida llena) contra Mewtwo, en el mismo mapa. */
+    private FightingGameSession createBossSession() {
+        renderer.reset();
+        int challenger = Math.max(0, bossChallenger);
+        String name = session.getTrainerName(challenger);
+        FightingStage stage = session.getStage();
+        if (setup != null && setup.isComplete()) {
+            var team = challenger == 0 ? setup.getTeamOne() : setup.getTeamTwo();
+            return FightingGameSession.bossFight(name, team, challenger == 1, stage);
+        }
+        return FightingGameSession.bossFightPrototype(name, new String[]{"PIKACHU", "BULBASAUR"},
+                challenger == 1, stage);
+    }
+
+    /** F10 con -Dpokemon.fighting.debug=true: Mewtwo aparece ya (jugador 1 de retador). */
+    private void debugStartBoss() {
+        bossChallenger = 0;
+        session = createBossSession();
+        bossOffered = false;
+        input.clear();
+        frameIndex = 0;
+        selectedResultOption = 0;
+        simulationAccumulatorNanos = 0;
+        lastSimulationNanos = System.nanoTime();
+        if (isShowing()) {
+            animationTimer.start();
+            simulationTimer.start();
+        }
+        repaint();
+    }
+
     private FightingGameSession createSession() {
         renderer.reset();
         return setup != null && setup.isComplete()
@@ -575,7 +636,10 @@ public class FightingGamePanel extends JPanel {
     private void debugDefeat(int playerIndex) {
         if (!DEBUG_KO_ENABLED || session.getState() != FightingGameSession.State.RUNNING) return;
         session.debugDefeatActiveFighter(playerIndex);
-        if (session.getState() == FightingGameSession.State.FINISHED) stopGameTimersAndClearInput();
+        if (session.getState() == FightingGameSession.State.FINISHED) {
+            stopGameTimersAndClearInput();
+            onMatchFinished();
+        }
         repaint();
     }
 
@@ -640,7 +704,7 @@ public class FightingGamePanel extends JPanel {
         if (DEBUG_KO_ENABLED) {
             sceneGraphics.setFont(RetroStyle.font(16));
             sceneGraphics.setColor(new Color(0x7B2020));
-            sceneGraphics.drawString("HERRAMIENTA DE DEPURACION: F6 KO P1 | F7 KO P2", 350, 700);
+            sceneGraphics.drawString("HERRAMIENTA DE DEPURACION: F6 KO P1 | F7 KO P2 | F10 MEWTWO", 320, 700);
         }
 
         sceneGraphics.dispose();
@@ -684,7 +748,7 @@ public class FightingGamePanel extends JPanel {
                 drawPause(menuGraphics);
             } else {
                 renderer.drawWinnerBackdrop(menuGraphics, session);
-                renderer.drawResults(menuGraphics, session, selectedResultOption);
+                renderer.drawResults(menuGraphics, session, selectedResultOption, bossOffered);
             }
 
             menuGraphics.dispose();

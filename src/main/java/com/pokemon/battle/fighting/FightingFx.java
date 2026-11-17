@@ -182,6 +182,7 @@ public final class FightingFx {
      */
     public void step(FightingGameSession session, FightingInput input, double dt) {
         time += dt;
+        if (session.isBossFight()) director.useBossIntro();
         director.tick(dt);
         tick(dt);
         if (director.freezesSimulation()) {
@@ -279,6 +280,13 @@ public final class FightingFx {
             }
             lastActive[i] = now;
             if (session.consumeEntranceLanding(i)) entranceLanding(now);
+        }
+        // Jefe secreto: teletransporte y furia
+        double blinkFrom = session.consumeBossBlink();
+        if (!Double.isNaN(blinkFrom) && session.getBoss() != null) bossBlink(session.getBoss(), blinkFrom);
+        if (session.consumeBossEnraged() && session.getBoss() != null) {
+            director.startEnrage(session.getBoss());
+            shake(10, 0.5);
         }
 
         // Quien perdio vida en este paso (puede que ya lo hayan cambiado por otro del equipo)
@@ -441,7 +449,7 @@ public final class FightingFx {
         double backX = attacker.getX() - dir * attacker.getBodyHalfWidth() * 0.6;
         switch (e.moveId()) {
             case "TACKLE", "QUICK_ATTACK", "TAIL_WHIP", "BITE", "FIRE_FANG", "DIG", "LICK",
-                 "CLOSE_COMBAT", "BODY_SLAM", "ZEN_HEADBUTT", "TELEPORT" -> {
+                 "CLOSE_COMBAT", "BODY_SLAM", "ZEN_HEADBUTT", "PSYCHO_CUT", "TELEPORT" -> {
                 sound.play(FightingSound.Sfx.WHOOSH, 0.8f);
                 dust(backX, feetY, -dir, 7, 1.0);
             }
@@ -611,7 +619,7 @@ public final class FightingFx {
             }
             case "ROCK_SLIDE" -> big.play(PvfxEffects.Effect.IMPACTS_ROCK_SHATTER, x, y + 20, 3, flip);
             case "LICK", "SHADOW_BALL" -> big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, x, y, 2, flip);
-            case "PSYCHIC", "ZEN_HEADBUTT" -> big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, y, 2, flip);
+            case "PSYCHIC", "ZEN_HEADBUTT", "PSYCHO_CUT" -> big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, y, 2, flip);
             case "CLOSE_COMBAT", "BODY_SLAM" -> big.play(PvfxEffects.Effect.IMPACTS_CRIT_HIT, x, y, 2, flip);
             default -> big.play(heavy ? PvfxEffects.Effect.IMPACTS_CRIT_HIT : PvfxEffects.Effect.IMPACTS_PUNCH_HIT,
                     x, y, heavy ? 2 : 3, flip);
@@ -853,6 +861,19 @@ public final class FightingFx {
         p.size = 38;
         p.color = new Color(0xFFE45A);
         popups.add(p);
+    }
+
+    /** Mewtwo desaparece en un destello morado y aparece en otro lado. */
+    private void bossBlink(Fighter boss, double fromX) {
+        Color purple = new Color(0xB78CFF);
+        double midY = boss.getY() - boss.getRenderHeight() * 0.5;
+        sound.play(FightingSound.Sfx.WHOOSH, 1f);
+        sound.play(FightingSound.Sfx.BUFF, 0.5f);
+        big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, fromX, midY, 3, false);
+        big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, boss.getX(), midY, 3, boss.isFacingLeft());
+        ring(fromX, midY, 20, 120, 0.25, purple, 0, 4);
+        ring(boss.getX(), midY, 10, 150, 0.3, Color.WHITE, 0, 4);
+        sparks(boss.getX(), midY, 16, 380, Color.WHITE, purple);
     }
 
     /** El Pokemon que entra cae al suelo: onda de choque y polvo. */

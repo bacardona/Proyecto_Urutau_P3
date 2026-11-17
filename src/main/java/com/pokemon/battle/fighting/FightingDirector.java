@@ -41,6 +41,7 @@ final class FightingDirector {
 
     private double time;
     // Sin reset() no hay intro (por ejemplo al dibujar vistas previas)
+    private double vsSeconds = VS_SECONDS;
     private double introTime = INTRO_SECONDS;
     private int lastCountStep = 4;
     private int cutOwner = -1;
@@ -61,7 +62,10 @@ final class FightingDirector {
     /** New match or rematch: the intro starts again. */
     void reset() {
         boolean introEnabled = !Boolean.getBoolean("pokemon.fighting.skipIntro");
-        introTime = introEnabled ? 0 : INTRO_SECONDS;
+        vsSeconds = VS_SECONDS;
+        bossIntro = false;
+        enrageTime = -1;
+        introTime = introEnabled ? 0 : introSeconds();
         lastCountStep = introEnabled ? -1 : 4;
         cutOwner = -1;
         cutFighter = null;
@@ -75,10 +79,10 @@ final class FightingDirector {
     void tick(double dt) {
         time += dt;
         sound.keepAlive();
-        if (introTime < INTRO_SECONDS) {
+        if (introTime < introSeconds()) {
             if (introTime == 0) sound.play(FightingSound.Sfx.VS);
             introTime += dt;
-            int step = introTime < VS_SECONDS ? -1 : (int) ((introTime - VS_SECONDS) / COUNT_STEP);
+            int step = introTime < vsSeconds ? -1 : (int) ((introTime - vsSeconds) / COUNT_STEP);
             if (step != lastCountStep && step >= 0 && step <= 3) {
                 sound.play(step == 3 ? FightingSound.Sfx.GO : FightingSound.Sfx.COUNT);
                 if (step == 3) sound.startBattleMusic();
@@ -108,11 +112,48 @@ final class FightingDirector {
             koTime += dt;
             if (koTime > KO_TEXT_SECONDS) koTime = -1;
         }
+        if (enrageTime >= 0) {
+            double before = enrageTime;
+            enrageTime += dt;
+            if (before < 0.9 && enrageTime >= 0.9) sound.play(FightingSound.Sfx.ULTI_RELEASE, 0.8f);
+            if (enrageTime >= ENRAGE_SECONDS) {
+                enrageTime = -1;
+                enragedBoss = null;
+            }
+        }
     }
 
     /** While true the fighters do not move (intro and ultimate banner). */
     boolean freezesSimulation() {
-        return introTime < INTRO_SECONDS || cutOwner >= 0 || evolutionTime >= 0;
+        return introTime < introSeconds() || cutOwner >= 0 || evolutionTime >= 0 || enrageTime >= 0;
+    }
+
+    private double introSeconds() {
+        return vsSeconds + COUNT_STEP * 4;
+    }
+
+    // ------------------------------------------------------------ jefe secreto
+    static final double BOSS_WARNING_SECONDS = 4.6;
+    static final double ENRAGE_SECONDS = 2.6;
+    private static final Color BOSS_COLOR = new Color(0x9B4DFF);
+    private static final Color ALERT_RED = new Color(0xE8342E);
+    private boolean bossIntro;
+    private double enrageTime = -1;
+    private Fighter enragedBoss;
+
+    /** Pelea de jefe: la intro es la alerta de "un nuevo retador" (mas larga que el VS). */
+    void useBossIntro() {
+        if (bossIntro || introTime >= VS_SECONDS) return;
+        bossIntro = true;
+        vsSeconds = BOSS_WARNING_SECONDS;
+    }
+
+    /** Mewtwo llega a la mitad de vida: escena corta de furia. */
+    void startEnrage(Fighter boss) {
+        enragedBoss = boss;
+        enrageTime = 0;
+        sound.play(FightingSound.Sfx.CUT_IN);
+        sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.8f);
     }
 
     /** 1 = normal speed; less than 1 during the slow motion of a K.O. */
@@ -121,7 +162,7 @@ final class FightingDirector {
     }
 
     boolean isIntroRunning() {
-        return introTime < INTRO_SECONDS;
+        return introTime < introSeconds();
     }
 
     void startCutIn(int ownerIndex, Fighter owner, UltimateDefinition definition) {
@@ -186,18 +227,105 @@ final class FightingDirector {
         int h = session.getHeight();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        if (introTime < VS_SECONDS) {
+        if (introTime < vsSeconds && bossIntro) {
+            drawBossWarning(g, session, w, h, introTime);
+        } else if (introTime < vsSeconds) {
             drawVersus(g, session, w, h, introTime);
-        } else if (introTime < INTRO_SECONDS) {
-            drawCountdown(g, w, h, introTime - VS_SECONDS);
+        } else if (introTime < introSeconds()) {
+            drawCountdown(g, w, h, introTime - vsSeconds);
         }
-        if (sound.isMuted() && introTime >= INTRO_SECONDS) {
+        if (sound.isMuted() && introTime >= introSeconds()) {
             outlined(g, "SONIDO APAGADO (F1)", w / 2, 108, 22, new Color(0xFF8A80), OUTLINE, 2);
         }
         if (session.getState() == FightingGameSession.State.FINISHED) return;
         if (evolutionTime >= 0) drawEvolution(g, w, h);
         if (cutOwner >= 0 && cutFighter != null) drawCutIn(g, w, h);
         if (koTime >= 0) drawKnockOut(g, w, h);
+        if (enrageTime >= 0 && enragedBoss != null) drawEnrage(g, w, h);
+    }
+
+    /** "¡ALERTA! UN NUEVO RETADOR SE ACERCA" y luego Mewtwo aparece de la oscuridad. */
+    private void drawBossWarning(Graphics2D g, FightingGameSession session, int w, int h, double t) {
+        Composite old = g.getComposite();
+        g.setColor(new Color(0x07040E));
+        g.fillRect(0, 0, w, h);
+        // Franjas rojas que cruzan arriba y abajo
+        boolean blink = ((int) (t * 4)) % 2 == 0;
+        for (int band = 0; band < 2; band++) {
+            int y = band == 0 ? 120 : h - 180;
+            g.setColor(new Color(0x3A0A0A));
+            g.fillRect(0, y, w, 60);
+            g.setColor(ALERT_RED);
+            int offset = (int) (t * 260) % 80;
+            for (int x = -80 + (band == 0 ? offset : -offset); x < w + 80; x += 80) {
+                g.fill(new Polygon(new int[]{x, x + 40, x + 60, x + 20}, new int[]{y, y, y + 60, y + 60}, 4));
+            }
+        }
+        Fighter boss = session.getBoss();
+        if (t < 2.0) {
+            if (blink) outlined(g, "¡ALERTA!", w / 2, h / 2 - 30, 110, ALERT_RED, Color.WHITE, 5);
+            outlined(g, "UN NUEVO RETADOR SE ACERCA", w / 2, h / 2 + 60, 44, Color.WHITE, OUTLINE, 3);
+        } else {
+            double q = t - 2.0;
+            // Rayos morados y Mewtwo saliendo de su silueta negra
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.min(0.5, q * 0.6)));
+            g.setColor(BOSS_COLOR);
+            for (int i = 0; i < 16; i++) {
+                double a = i * Math.PI / 8 + time * 0.6;
+                g.fill(new Polygon(new int[]{w / 2, (int) (w / 2 + Math.cos(a) * 1300), (int) (w / 2 + Math.cos(a + 0.14) * 1300)},
+                        new int[]{h / 2 - 20, (int) (h / 2 - 20 + Math.sin(a) * 1300), (int) (h / 2 - 20 + Math.sin(a + 0.14) * 1300)}, 3));
+            }
+            g.setComposite(old);
+            if (boss != null) {
+                FightingSpriteProfile profile = FightingSpriteProfile.forFighter(boss);
+                boolean silhouette = q < 0.9;
+                if (profile != null && silhouette) drawShadowProfile(g, profile, w / 2, h / 2 - 10, 330);
+                else if (profile != null) drawProfile(g, profile, w / 2, h / 2 - 10, 330, false);
+                if (q >= 0.9 && q < 0.97) flash(g, w, h, 0.85f);
+            }
+            if (q >= 0.9) {
+                double grow = Math.max(1, 1.8 - (q - 0.9) * 6);
+                outlined(g, "MEWTWO", w / 2, h - 205, (int) (78 * grow), BOSS_COLOR, Color.WHITE, 5);
+                outlined(g, "EL POKEMON MAS PODEROSO", w / 2, h - 222 + 120, 26, Color.WHITE, OUTLINE, 2);
+            }
+        }
+        if (t > vsSeconds - 0.25) {
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                    (float) Math.min(1, (t - (vsSeconds - 0.25)) / 0.25)));
+            g.setColor(Color.BLACK);
+            g.fillRect(0, 0, w, h);
+        }
+        g.setComposite(old);
+    }
+
+    /** Escena de furia: pantalla oscura, Mewtwo con un brillo rojo y el texto. */
+    private void drawEnrage(Graphics2D g, int w, int h) {
+        double t = enrageTime;
+        Composite old = g.getComposite();
+        float dark = (float) Math.min(0.75, t * 2.5) * (float) Math.min(1, (ENRAGE_SECONDS - t) / 0.3);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0, dark)));
+        g.setColor(new Color(0x12021C));
+        g.fillRect(0, 0, w, h);
+        g.setComposite(old);
+        double fade = Math.min(1, (ENRAGE_SECONDS - t) / 0.3);
+        if (fade <= 0) return;
+        int bandY = h / 2 - 110;
+        int slide = (int) (w * (1 - Math.min(1, t / 0.25)));
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) fade));
+        g.setColor(new Color(0x2A0838));
+        g.fillRect(-slide, bandY, w, 220);
+        g.setColor(ALERT_RED);
+        g.fillRect(-slide, bandY, w, 6);
+        g.fillRect(-slide, bandY + 214, w, 6);
+        FightingSpriteProfile profile = FightingSpriteProfile.forFighter(enragedBoss);
+        if (profile != null) drawProfile(g, profile, w / 2 - 300 - slide, h / 2 + 5, 200, false);
+        double shake = t < 1.2 ? Math.sin(t * 70) * 6 : 0;
+        outlined(g, "¡MEWTWO SE ENFURECE!", w / 2 + 120 - slide + (int) shake, h / 2 + 10, 58,
+                new Color(0xFF6A5A), Color.WHITE, 4);
+        outlined(g, "MAS RAPIDO  ·  MAS FUERTE  ·  PSICOATAQUE", w / 2 + 120 - slide, h / 2 + 62, 22,
+                Color.WHITE, OUTLINE, 2);
+        g.setComposite(old);
+        if (t >= 0.9 && t < 0.98) flash(g, w, h, 0.6f);
     }
 
     private void drawVersus(Graphics2D g, FightingGameSession session, int w, int h, double t) {
@@ -241,9 +369,9 @@ final class FightingDirector {
             outlined(g, "VS", w / 2, h / 2 + 50, (int) (170 * grow), new Color(0xFF4545), Color.WHITE, 6);
             if (q < 0.06) flash(g, w, h, 0.8f);
         }
-        if (t > VS_SECONDS - 0.25) {
+        if (t > vsSeconds - 0.25) {
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                    (float) Math.min(1, (t - (VS_SECONDS - 0.25)) / 0.25)));
+                    (float) Math.min(1, (t - (vsSeconds - 0.25)) / 0.25)));
             g.setColor(Color.BLACK);
             g.fillRect(0, 0, w, h);
         }
@@ -369,6 +497,40 @@ final class FightingDirector {
                 cy - bh * scale / 2 + bh * scale, box[0], box[1], box[2], box[3], null);
     }
 
+    /** Silueta negra con borde morado (Mewtwo antes de revelarse). */
+    private void drawShadowProfile(Graphics2D g, FightingSpriteProfile profile, int cx, int cy, int height) {
+        var animation = profile.sprites().get("Idle");
+        if (animation == null) return;
+        BufferedImage image = shadows.computeIfAbsent(animation.frameAtTime(0, false, true).image(),
+                FightingDirector::shadowOf);
+        int[] box = opaqueBounds(image);
+        if (box == null) return;
+        int bw = box[2] - box[0];
+        int bh = box[3] - box[1];
+        int scale = Math.max(2, Math.min(10, height / Math.max(1, bh)));
+        g.drawImage(image, cx - bw * scale / 2, cy - bh * scale / 2, cx - bw * scale / 2 + bw * scale,
+                cy - bh * scale / 2 + bh * scale, box[0], box[1], box[2], box[3], null);
+    }
+
+    private final java.util.Map<BufferedImage, BufferedImage> shadows = new java.util.IdentityHashMap<>();
+
+    private static BufferedImage shadowOf(BufferedImage source) {
+        int w = source.getWidth(), h = source.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if ((source.getRGB(x, y) >>> 24) <= 20) continue;
+                boolean edge = false;
+                for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                    int nx = x + d[0], ny = y + d[1];
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h || (source.getRGB(nx, ny) >>> 24) <= 20) edge = true;
+                }
+                out.setRGB(x, y, edge ? 0xFF9B4DFF : 0xFF0A0612);
+            }
+        }
+        return out;
+    }
+
     private static BufferedImage whiteOf(BufferedImage source) {
         BufferedImage out = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < source.getHeight(); y++) {
@@ -428,8 +590,14 @@ final class FightingDirector {
         }
         FightingTeam team = winner == 0 ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
         Fighter champion = team.getActive();
-        outlined(g, "¡" + session.getTrainerName(winner).toUpperCase() + " GANA!", w / 2, 125, 84,
-                new Color(0xFFE45A), OUTLINE, 5);
+        if (session.isBossFight() && winner == session.getBossIndex()) {
+            outlined(g, "MEWTWO ES INVENCIBLE...", w / 2, 125, 72, BOSS_COLOR, Color.WHITE, 5);
+        } else if (session.isBossFight()) {
+            outlined(g, "¡DERROTASTE A MEWTWO!", w / 2, 125, 76, new Color(0xFFE45A), OUTLINE, 5);
+        } else {
+            outlined(g, "¡" + session.getTrainerName(winner).toUpperCase() + " GANA!", w / 2, 125, 84,
+                    new Color(0xFFE45A), OUTLINE, 5);
+        }
         drawPortrait(g, champion, 190, h / 2 + 60, 280, false, "Pose");
         drawPortrait(g, champion, w - 190, h / 2 + 60, 280, true, "Pose");
     }
