@@ -69,6 +69,7 @@ public class FightingGameSession {
                 : new FightingTeam(playerTwoName, secondTeam, 1050, groundY, true);
         this.fighters = new ArrayList<>(List.of(playerOneTeam.getActive(), playerTwoTeam.getActive()));
         this.bossIndex = -1;
+        this.hardBoss = false;
         this.bossAi = null;
     }
 
@@ -92,11 +93,13 @@ public class FightingGameSession {
     public static final String BOSS_NAME = "MEWTWO";
     private final int bossIndex;
     private final BossAI bossAi;
+    private final boolean hardBoss;
     private boolean bossEnragedEvent;
     private boolean bossBlinkEvent;
     private double bossBlinkFromX;
 
-    private FightingGameSession(FightingTeam one, FightingTeam two, FightingStage stage, int bossIndex) {
+    private FightingGameSession(FightingTeam one, FightingTeam two, FightingStage stage, int bossIndex,
+                                boolean hardBoss) {
         this.width = 1280;
         this.height = 720;
         this.groundY = 677;
@@ -106,7 +109,8 @@ public class FightingGameSession {
         this.playerTwoTeam = two;
         this.fighters = new ArrayList<>(List.of(one.getActive(), two.getActive()));
         this.bossIndex = bossIndex;
-        this.bossAi = new BossAI(bossIndex);
+        this.hardBoss = hardBoss;
+        this.bossAi = new BossAI(bossIndex, hardBoss);
     }
 
     /**
@@ -115,29 +119,43 @@ public class FightingGameSession {
      */
     public static FightingGameSession bossFight(String challengerName, List<Pokemon> challengerTeam,
                                                 boolean challengerOnRight, FightingStage stage) {
+        return bossFight(challengerName, challengerTeam, challengerOnRight, stage, false);
+    }
+
+    /** @param hard revancha "Mewtwo Despertado" (se ofrece al vencerlo en normal) */
+    public static FightingGameSession bossFight(String challengerName, List<Pokemon> challengerTeam,
+                                                boolean challengerOnRight, FightingStage stage, boolean hard) {
         FightingTeam challenger = new FightingTeam(challengerName, challengerTeam,
                 challengerOnRight ? 1050 : 230, 677, challengerOnRight);
-        return withBoss(challenger, challengerOnRight, stage);
+        return withBoss(challenger, challengerOnRight, stage, hard);
     }
 
     /** Lo mismo con Pokemon de prueba (sin base de datos), para las pruebas y el video. */
     static FightingGameSession bossFightPrototype(String challengerName, String[] species,
                                                   boolean challengerOnRight, FightingStage stage) {
+        return bossFightPrototype(challengerName, species, challengerOnRight, stage, false);
+    }
+
+    static FightingGameSession bossFightPrototype(String challengerName, String[] species,
+                                                  boolean challengerOnRight, FightingStage stage, boolean hard) {
         FightingTeam challenger = FightingTeam.prototype(challengerName, species,
                 challengerOnRight ? 1050 : 230, 677, challengerOnRight);
-        return withBoss(challenger, challengerOnRight, stage);
+        return withBoss(challenger, challengerOnRight, stage, hard);
     }
 
     private static FightingGameSession withBoss(FightingTeam challenger, boolean challengerOnRight,
-                                                FightingStage stage) {
-        FightingTeam boss = FightingTeam.boss(BOSS_NAME,
-                new Fighter("MEWTWO", challengerOnRight ? 230 : 1050, 677, !challengerOnRight));
+                                                FightingStage stage, boolean hard) {
+        Fighter mewtwo = new Fighter("MEWTWO", challengerOnRight ? 230 : 1050, 677, !challengerOnRight);
+        FightingTeam boss = FightingTeam.boss(BOSS_NAME, mewtwo);
+        if (hard) mewtwo.markAsHardBoss();
         return challengerOnRight
-                ? new FightingGameSession(boss, challenger, stage, 0)
-                : new FightingGameSession(challenger, boss, stage, 1);
+                ? new FightingGameSession(boss, challenger, stage, 0, hard)
+                : new FightingGameSession(challenger, boss, stage, 1, hard);
     }
 
     public boolean isBossFight() { return bossIndex >= 0; }
+    /** Revancha dificil: barrera, ataques nuevos, Recuperacion y Mega Mewtwo Y. */
+    public boolean isHardBoss() { return hardBoss; }
     /** 0 o 1 segun el lado de Mewtwo; -1 si no es pelea de jefe. */
     public int getBossIndex() { return bossIndex; }
     public Fighter getBoss() { return bossIndex < 0 ? null : fighters.get(bossIndex); }
@@ -174,15 +192,153 @@ public class FightingGameSession {
         return true;
     }
 
-    private void updateBossPhase() {
+    private void updateBossPhase(double dt) {
         Fighter boss = getBoss();
-        if (boss == null || boss.isDefeated() || boss.isEnraged()) return;
-        // Espera a que termine una ultimate en curso para no cortarla con la escena de furia
+        if (boss == null || boss.isDefeated()) return;
+        updateBossTechniques(boss, dt);
+        // Espera a que termine una ultimate en curso para no cortarla con una escena
         if (!combatSystem.getUltimateVisuals().isEmpty()) return;
-        if (boss.getHealth() <= boss.getMaxHealth() / 2) {
+        if (!boss.isEnraged() && boss.getHealth() <= boss.getMaxHealth() / 2) {
             boss.enrage();
             boss.addEvolutionEnergy(60);   // al enfurecerse ya tiene media barra de Psicoataque
             bossEnragedEvent = true;
+            return;
+        }
+        if (!hardBoss) return;
+        if (!bossRecovered && boss.getHealth() <= boss.getMaxHealth() * RECOVER_AT) {
+            bossRecovered = true;
+            boss.heal(RECOVER_AMOUNT);
+            bossEvents.add(new BossEvent(BossEvent.Kind.RECOVER, boss.getX(), boss.getY()));
+            return;
+        }
+        if (bossRecovered && !boss.isMega() && !boss.isMegaPending()
+                && boss.getHealth() <= boss.getMaxHealth() * MEGA_AT) {
+            boss.startMega();
+            megaSceneLeft = MEGA_SCENE_SECONDS;
+            futureSights.clear();
+            pendingVolley.clear();
+            combatSystem.clearProjectiles();
+            bossEvents.add(new BossEvent(BossEvent.Kind.MEGA, boss.getX(), boss.getY()));
+        }
+    }
+
+    // ------------------------------------------------------------ modo dificil
+    static final double RECOVER_AT = 0.25;
+    static final int RECOVER_AMOUNT = 50;
+    static final double MEGA_AT = 0.20;
+    /** Lo que dura la escena de Mega (el director la congela; esto es por si no hay director). */
+    static final double MEGA_SCENE_SECONDS = 6.4;
+    static final double FUTURE_SIGHT_DELAY = 1.2;
+    static final double FUTURE_SIGHT_RADIUS = 62;
+    static final double TELEKINESIS_PULL = 760;
+
+    /** Avisos para los efectos (FightingFx los consume). */
+    public record BossEvent(Kind kind, double x, double y) {
+        public enum Kind { RECOVER, MEGA, BARRIER, TELEKINESIS, FUTURE_SIGHT_MARK, FUTURE_SIGHT_STRIKE, VOLLEY }
+    }
+
+    /** Marca de Premonicion en el suelo: progress va de 0 a 1 hasta que cae el golpe. */
+    public record FutureSightMark(double x, double progress) { }
+
+    private final List<BossEvent> bossEvents = new ArrayList<>();
+    private final List<double[]> futureSights = new ArrayList<>();   // {x, tiempo}
+    private final List<double[]> pendingVolley = new ArrayList<>();  // {espera, altura}
+    private boolean bossRecovered;
+    private double megaSceneLeft;
+
+    public List<BossEvent> consumeBossEvents() {
+        if (bossEvents.isEmpty()) return List.of();
+        List<BossEvent> copy = List.copyOf(bossEvents);
+        bossEvents.clear();
+        return copy;
+    }
+
+    public List<FutureSightMark> getFutureSightMarks() {
+        List<FutureSightMark> marks = new ArrayList<>();
+        for (double[] mark : futureSights) marks.add(new FutureSightMark(mark[0], mark[1] / FUTURE_SIGHT_DELAY));
+        return marks;
+    }
+
+    /** La escena de Mega llego a la explosion: desde aqui pelea como Mega Mewtwo Y. */
+    void completeBossMega() {
+        Fighter boss = getBoss();
+        if (boss != null && boss.isMegaPending()) {
+            boss.completeMega();
+            boss.addEvolutionEnergy(100);
+            megaSceneLeft = 0;
+        }
+    }
+
+    /** Triple Bola Sombra: baja, al medio y alta, una detras de otra. */
+    boolean bossTripleShadowBall() {
+        Fighter boss = getBoss();
+        if (boss == null || !pendingVolley.isEmpty()) return false;
+        pendingVolley.add(new double[]{0.0, 28});
+        pendingVolley.add(new double[]{0.32, 62});
+        pendingVolley.add(new double[]{0.64, 150});
+        bossEvents.add(new BossEvent(BossEvent.Kind.VOLLEY, boss.getX(), boss.getY()));
+        return true;
+    }
+
+    /** Telequinesis: jala al rival hacia Mewtwo y lo deja un instante sin poder moverse. */
+    boolean bossTelekinesis() {
+        Fighter boss = getBoss();
+        if (boss == null) return false;
+        Fighter foe = fighters.get(1 - bossIndex);
+        if (foe.isDefeated()) return false;
+        double toward = boss.getX() >= foe.getX() ? 1 : -1;
+        foe.applyKnockback(toward, TELEKINESIS_PULL);
+        foe.applyBlockStun(0.45);
+        bossEvents.add(new BossEvent(BossEvent.Kind.TELEKINESIS, foe.getX(), foe.getY()));
+        return true;
+    }
+
+    /** Premonicion: marca donde esta el rival; en 1.2 s cae un golpe ahi. */
+    boolean bossFutureSight() {
+        Fighter boss = getBoss();
+        if (boss == null || futureSights.size() >= 2) return false;
+        Fighter foe = fighters.get(1 - bossIndex);
+        futureSights.add(new double[]{foe.getX(), 0});
+        bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_MARK, foe.getX(), groundY));
+        return true;
+    }
+
+    /** Barrera: unos segundos devuelve los proyectiles. */
+    boolean bossBarrier(double seconds) {
+        Fighter boss = getBoss();
+        if (boss == null || boss.hasBarrier()) return false;
+        boss.raiseBarrier(seconds);
+        bossEvents.add(new BossEvent(BossEvent.Kind.BARRIER, boss.getX(), boss.getY()));
+        return true;
+    }
+
+    private void updateBossTechniques(Fighter boss, double dt) {
+        if (boss.isMegaPending()) {
+            // Sin director (pruebas) la transformacion termina sola
+            megaSceneLeft -= dt;
+            if (megaSceneLeft <= 0) completeBossMega();
+            return;
+        }
+        Fighter foe = fighters.get(1 - bossIndex);
+        for (java.util.Iterator<double[]> it = pendingVolley.iterator(); it.hasNext(); ) {
+            double[] shot = it.next();
+            shot[0] -= dt;
+            if (shot[0] <= 0) {
+                boss.setFacingLeft(foe.getX() < boss.getX());
+                combatSystem.spawnBossShadowBall(bossIndex, boss, shot[1]);
+                it.remove();
+            }
+        }
+        for (java.util.Iterator<double[]> it = futureSights.iterator(); it.hasNext(); ) {
+            double[] mark = it.next();
+            mark[1] += dt;
+            if (mark[1] >= FUTURE_SIGHT_DELAY) {
+                it.remove();
+                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_STRIKE, mark[0], groundY));
+                if (!foe.isDefeated() && Math.abs(foe.getX() - mark[0]) < FUTURE_SIGHT_RADIUS) {
+                    combatSystem.bossFutureSightStrike(bossIndex, boss, foe);
+                }
+            }
         }
     }
 
@@ -260,7 +416,7 @@ public class FightingGameSession {
             fighter.advanceKnockback(deltaSeconds, width, PhysicsSystem.halfWidthFor(fighter));
         }
         replaceDefeatedFighters();
-        updateBossPhase();
+        if (bossAi != null) updateBossPhase(deltaSeconds);
         boolean playerOneSwitch = input.consumePlayerOneSwitch();
         boolean playerTwoSwitch = input.consumePlayerTwoSwitch();
         updateEntrances();

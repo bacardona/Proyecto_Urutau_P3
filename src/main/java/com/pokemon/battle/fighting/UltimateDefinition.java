@@ -39,7 +39,10 @@ public record UltimateDefinition(String moveId, String displayName, Shape shape,
                     new Color(0xF04418), new Color(0xFFD84A))),
             // Jefe secreto: su psicoataque pega mas y tiene un pulso extra
             Map.entry("MEWTWO", new UltimateDefinition("PSYSTRIKE", "PSICOATAQUE",
-                    Shape.BEAM, 70, 6, 1.1, 0.25, new Color(0x9B4DFF), new Color(0xF0C8FF)))
+                    Shape.BEAM, 70, 6, 1.1, 0.25, new Color(0x9B4DFF), new Color(0xF0C8FF))),
+            // Mega Mewtwo Y: su Psicoataque es mas grande
+            Map.entry("MEGA_MEWTWO_Y", new UltimateDefinition("PSYSTRIKE", "PSICOATAQUE MAXIMO",
+                    Shape.BEAM, 75, 8, 1.2, 0.22, new Color(0xFF4FA8), new Color(0xFFE0F2)))
     );
 
     public int damagePerPulse() {

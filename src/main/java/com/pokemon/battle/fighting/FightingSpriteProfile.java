@@ -51,7 +51,11 @@ final class FightingSpriteProfile {
                     "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
             // Jefe secreto
             Map.entry("MEWTWO", new FightingSpriteProfile("MEWTWO", 6, 200, 52, "Idle", Map.of(
-                    "PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge", "TELEPORT", "Rotate"))));
+                    "PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge", "TELEPORT", "Rotate"))),
+            // Fase 3 del modo dificil (paquete Evolucion de MEWTWO = forma 0002 de SpriteCollab)
+            Map.entry("MEGA_MEWTWO_Y", new FightingSpriteProfile("MEGA_MEWTWO_Y", "MEWTWO", 6, 210, 54, "Idle",
+                    "Hurt", Map.of("PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge",
+                            "TELEPORT", "Rotate"))));
 
     final String species;
     final int scale;
