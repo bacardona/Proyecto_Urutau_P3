@@ -189,6 +189,14 @@ final class BossAI {
             return;
         }
 
+        // Rival en una plataforma: se teletransporta hasta alla. Si el que quedo arriba es el, baja.
+        boolean bossAbove = boss.getY() < foe.getY() - FightingGameSession.ELEVATED_GAP && foe.isOnGround();
+        if ((session.isRivalAboveBoss() || bossAbove) && blinkCooldown <= 0 && random.nextDouble() < 0.55) {
+            blink(session, boss, foe, true);
+            meleeCooldown = 0;
+            return;
+        }
+
         if (enraged) decideEnraged(session, boss, foe, distance, towardFoe);
         else decideCalm(session, boss, foe, distance, towardFoe);
     }
@@ -234,9 +242,11 @@ final class BossAI {
                 return true;
             }
         }
-        if (enraged && futureSightCooldown <= 0 && random.nextDouble() < 0.35) {
+        // Premonicion: mas seguido (y tambien tranquilo) si el rival se subio a una plataforma
+        boolean above = session.isRivalAboveBoss();
+        if ((enraged || above) && futureSightCooldown <= 0 && random.nextDouble() < (above ? 0.8 : 0.35)) {
             if (session.bossFutureSight()) {
-                futureSightCooldown = 5.5 * speedUp;
+                futureSightCooldown = (above ? 2.8 : 5.5) * speedUp;
                 return true;
             }
         }

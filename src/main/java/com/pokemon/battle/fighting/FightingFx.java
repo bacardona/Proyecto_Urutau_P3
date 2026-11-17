@@ -902,7 +902,7 @@ public final class FightingFx {
             }
             case FUTURE_SIGHT_FALL -> {
                 // La columna empieza a caer desde arriba de la pantalla
-                fallingColumns.add(new double[]{e.x(), 0});
+                fallingColumns.add(new double[]{e.x(), 0, e.y()});
                 sound.play(FightingSound.Sfx.WHOOSH, 0.9f);
             }
             case FUTURE_SIGHT_STRIKE -> {
@@ -911,7 +911,7 @@ public final class FightingFx {
                 ring(e.x(), e.y(), 20, 130, 0.3, pink, 0, 5);
                 ring(e.x(), e.y(), 10, 80, 0.22, Color.WHITE, 0, 3);
                 sparks(e.x(), e.y() - 10, 12, 420, Color.WHITE, pink);
-                decal("crack", e.x(), 110, 3.5);
+                if (Math.abs(e.y() - groundY) < 2) decal("crack", e.x(), 110, 3.5);
                 shake(7, 0.22);
             }
             case WAVE_CHARGE -> {
@@ -940,7 +940,7 @@ public final class FightingFx {
             double age = column[1];
             int x = (int) column[0];
             double fall = Math.min(1, age / COLUMN_FALL_SECONDS);
-            int bottom = (int) (groundY * fall);
+            int bottom = (int) (column[2] * fall);
             float alpha = (float) (age <= COLUMN_FALL_SECONDS ? 1 : Math.max(0, 1 - (age - COLUMN_FALL_SECONDS) / 0.3));
             var old = g.getComposite();
             g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha));
@@ -1243,8 +1243,12 @@ public final class FightingFx {
         double startX = owner.getX() + dir * owner.getBodyHalfWidth() * 0.8;
         double mouthY = owner.getY() - owner.getRenderHeight() * 0.45;
         double distance = Math.max(80, Math.abs(target.getX() - startX));
+        // Los rayos decorativos son horizontales: si el rival esta en una plataforma (mas alto
+        // o mas bajo) no se dibujan, para que solo se vea el rayo real que apunta hacia el
+        boolean level = Math.abs(owner.getY() - target.getY()) < 40;
         switch (d.moveId()) {
             case "FIRE_BLAST" -> {
+                if (!level) break;
                 double step = 128 * 3 * 0.8;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.FIRE_FLAMETHROWER, startX + dir * k * step, mouthY, 3, flip,
@@ -1259,6 +1263,7 @@ public final class FightingFx {
                 }
             }
             case "LEAF_STORM" -> {
+                if (!level) break;
                 double step = 80 * 3 * 0.8;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.NATURE_LEAF_STORM, startX + dir * k * step, mouthY, 3, flip,
@@ -1284,6 +1289,7 @@ public final class FightingFx {
                     3, false, 0, seconds);
             case "PSYSTRIKE" -> {
                 big.play(PvfxEffects.Effect.ARCANE_MAGIC_CIRCLE, owner.getX(), owner.getY() + 6, 3, false);
+                if (!level) break;
                 double step = 168 * 3 * 0.85;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, startX + dir * k * step, mouthY, 3, flip,

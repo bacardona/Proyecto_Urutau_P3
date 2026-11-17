@@ -639,10 +639,10 @@ public class FightingRenderer {
     /** Premonicion: circulo rosado en el suelo que se cierra hasta que cae el golpe. */
     private void drawFutureSightMarks(Graphics2D g, FightingGameSession session) {
         if (!session.isBossFight()) return;
-        int ground = session.getGroundY();
         for (FightingGameSession.FutureSightMark mark : session.getFutureSightMarks()) {
             double p = mark.progress();
             int x = (int) mark.x();
+            int ground = (int) mark.y();     // suelo o la plataforma donde estaba el rival
             boolean blink = p > 0.7 && ((int) (fx.time() * 12)) % 2 == 0;
             Color c = blink ? Color.WHITE : new Color(0xFF6FD0);
             int rx = (int) (FightingGameSession.FUTURE_SIGHT_RADIUS + 30 * (1 - p));
@@ -939,6 +939,15 @@ public class FightingRenderer {
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
                     (float) Math.max(0.15, 1 - fade)));
         }
+        // Mewtwo apuntando a una plataforma: se inclina hacia arriba mientras dispara
+        java.awt.geom.AffineTransform beforeLean = g.getTransform();
+        boolean aimingUp = fighter.isBoss() && fighter.getAimUpAngle() > 0 && (ultimate != null
+                || (visual != null && ("PSYCHIC".equals(visual.definition().moveId())
+                        || "SHADOW_BALL".equals(visual.definition().moveId()))));
+        if (aimingUp) {
+            double lean = fighter.getAimUpAngle() * 0.6 * (fighter.isFacingLeft() ? 1 : -1);
+            g.rotate(lean, centerX, fighter.getY());
+        }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         float flash = fx.whiteFlash(fighter);
         if (flash > 0) {
@@ -948,6 +957,7 @@ public class FightingRenderer {
                     x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         }
         g.setComposite(oldComposite);
+        g.setTransform(beforeLean);
         return true;
     }
 

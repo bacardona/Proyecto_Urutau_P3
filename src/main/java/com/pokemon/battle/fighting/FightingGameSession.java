@@ -185,8 +185,23 @@ public class FightingGameSession {
         if (boss == null || boss.isDefeated() || boss.isHitStunned() || boss.isAsleep()) return false;
         double half = PhysicsSystem.halfWidthFor(boss);
         bossBlinkFromX = boss.getX();
-        boss.setX(Math.max(half, Math.min(width - half, x)));
+        double targetX = Math.max(half, Math.min(width - half, x));
         Fighter rival = fighters.get(1 - bossIndex);
+        // Si el rival esta en una plataforma, aparece arriba junto a el (en la misma plataforma)
+        double targetY = groundY;
+        if (isRivalAboveBoss()) {
+            Platform platform = platformAt(rival.getX(), rival.getY());
+            if (platform != null) {
+                double minX = platform.getX() + half * 0.6, maxX = platform.getX() + platform.getWidth() - half * 0.6;
+                targetX = minX > maxX ? platform.getX() + platform.getWidth() / 2.0
+                        : Math.max(minX, Math.min(maxX, targetX));
+                targetY = platform.getTop();
+            }
+        }
+        boss.setX(targetX);
+        boss.setY(targetY);
+        boss.setVelocityY(0);
+        boss.setOnGround(true);
         boss.setFacingLeft(rival.getX() < boss.getX());
         bossBlinkEvent = true;
         return true;
@@ -233,7 +248,7 @@ public class FightingGameSession {
     }
 
     /** Marca de Premonicion en el suelo: progress va de 0 a 1 hasta que cae el golpe. */
-    public record FutureSightMark(double x, double progress) { }
+    public record FutureSightMark(double x, double progress, double y) { }
 
     /** Onda mental que avanza por el suelo (direction -1 o 1). */
     public record PsychicWave(double x, double direction) { }
@@ -295,7 +310,7 @@ public class FightingGameSession {
 
     public List<FutureSightMark> getFutureSightMarks() {
         List<FutureSightMark> marks = new ArrayList<>();
-        for (double[] mark : futureSights) marks.add(new FutureSightMark(mark[0], mark[1] / FUTURE_SIGHT_DELAY));
+        for (double[] mark : futureSights) marks.add(new FutureSightMark(mark[0], mark[1] / FUTURE_SIGHT_DELAY, mark[2]));
         return marks;
     }
 
@@ -348,8 +363,10 @@ public class FightingGameSession {
         // Solo una Premonicion en pantalla, y nunca durante su Psicoataque
         if (boss == null || !futureSights.isEmpty() || bossUltimateActive()) return false;
         Fighter foe = fighters.get(1 - bossIndex);
-        futureSights.add(new double[]{foe.getX(), 0});
-        bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_MARK, foe.getX(), groundY));
+        // La marca queda donde esta parado el rival (suelo o plataforma)
+        double markY = foe.isOnGround() ? foe.getY() : groundY;
+        futureSights.add(new double[]{foe.getX(), 0, markY});
+        bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_MARK, foe.getX(), markY));
         return true;
     }
 
@@ -389,6 +406,39 @@ public class FightingGameSession {
         return !"IDLE".equals(combatSystem.getUltimatePhaseName(bossIndex));
     }
 
+    /** Mas alto que esto (en pixeles) el rival cuenta como "arriba en una plataforma". */
+    static final double ELEVATED_GAP = 40;
+    static final double MAX_AIM_RADIANS = 0.75;
+
+    /** True si el rival esta claramente mas arriba que Mewtwo (en una plataforma). */
+    public boolean isRivalAboveBoss() {
+        Fighter boss = getBoss();
+        if (boss == null) return false;
+        Fighter foe = fighters.get(1 - bossIndex);
+        return foe.isOnGround() && foe.getY() < boss.getY() - ELEVATED_GAP;
+    }
+
+    /** Hacia donde apunta Mewtwo: recto, o inclinado hacia el rival si esta arriba. */
+    private void updateBossAim(Fighter boss, Fighter foe) {
+        if (!isRivalAboveBoss()) {
+            boss.setAimUpAngle(0);
+            return;
+        }
+        double dx = Math.max(60, Math.abs(foe.getX() - boss.getX()));
+        double dy = (boss.getY() - boss.getRenderHeight() * 0.62) - (foe.getY() - foe.getRenderHeight() * 0.5);
+        boss.setAimUpAngle(Math.max(0, Math.min(MAX_AIM_RADIANS, Math.atan2(dy, dx))));
+    }
+
+    /** Si existe, la plataforma bajo x a la altura del rival (para teletransportarse junto a el). */
+    private Platform platformAt(double x, double topY) {
+        for (Platform platform : platforms) {
+            if (Math.abs(platform.getTop() - topY) < 6 && x >= platform.getX() && x <= platform.getX() + platform.getWidth()) {
+                return platform;
+            }
+        }
+        return null;
+    }
+
     private void updateBossTechniques(Fighter boss, double dt) {
         if (boss.isMegaPending()) {
             // Sin director (pruebas) la transformacion termina sola
@@ -397,6 +447,7 @@ public class FightingGameSession {
             return;
         }
         Fighter foe = fighters.get(1 - bossIndex);
+        updateBossAim(boss, foe);
         for (java.util.Iterator<double[]> it = pendingVolley.iterator(); it.hasNext(); ) {
             double[] shot = it.next();
             shot[0] -= dt;
@@ -413,11 +464,11 @@ public class FightingGameSession {
             // Un instante antes del golpe empieza a caer la columna desde el cielo
             double fallAt = FUTURE_SIGHT_DELAY - FUTURE_SIGHT_FALL_SECONDS;
             if (before < fallAt && mark[1] >= fallAt) {
-                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_FALL, mark[0], groundY));
+                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_FALL, mark[0], mark[2]));
             }
             if (mark[1] >= FUTURE_SIGHT_DELAY) {
                 it.remove();
-                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_STRIKE, mark[0], groundY));
+                bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_STRIKE, mark[0], mark[2]));
                 if (!foe.isDefeated() && Math.abs(foe.getX() - mark[0]) < FUTURE_SIGHT_RADIUS) {
                     combatSystem.bossFutureSightStrike(bossIndex, boss, foe);
                 }
