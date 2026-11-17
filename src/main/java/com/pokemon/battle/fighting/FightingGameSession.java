@@ -263,7 +263,7 @@ public class FightingGameSession {
     /** Triple Bola Sombra: baja, al medio y alta, una detras de otra. */
     boolean bossTripleShadowBall() {
         Fighter boss = getBoss();
-        if (boss == null || !pendingVolley.isEmpty()) return false;
+        if (boss == null || !pendingVolley.isEmpty() || bossUltimateActive()) return false;
         pendingVolley.add(new double[]{0.0, 28});
         pendingVolley.add(new double[]{0.32, 62});
         pendingVolley.add(new double[]{0.64, 150});
@@ -274,7 +274,7 @@ public class FightingGameSession {
     /** Telequinesis: jala al rival hacia Mewtwo y lo deja un instante sin poder moverse. */
     boolean bossTelekinesis() {
         Fighter boss = getBoss();
-        if (boss == null) return false;
+        if (boss == null || bossUltimateActive()) return false;
         Fighter foe = fighters.get(1 - bossIndex);
         if (foe.isDefeated()) return false;
         double toward = boss.getX() >= foe.getX() ? 1 : -1;
@@ -287,7 +287,8 @@ public class FightingGameSession {
     /** Premonicion: marca donde esta el rival; en 1.2 s cae un golpe ahi. */
     boolean bossFutureSight() {
         Fighter boss = getBoss();
-        if (boss == null || futureSights.size() >= 2) return false;
+        // Solo una Premonicion en pantalla, y nunca durante su Psicoataque
+        if (boss == null || !futureSights.isEmpty() || bossUltimateActive()) return false;
         Fighter foe = fighters.get(1 - bossIndex);
         futureSights.add(new double[]{foe.getX(), 0});
         bossEvents.add(new BossEvent(BossEvent.Kind.FUTURE_SIGHT_MARK, foe.getX(), groundY));
@@ -297,10 +298,14 @@ public class FightingGameSession {
     /** Barrera: unos segundos devuelve los proyectiles. */
     boolean bossBarrier(double seconds) {
         Fighter boss = getBoss();
-        if (boss == null || boss.hasBarrier()) return false;
+        if (boss == null || boss.hasBarrier() || boss.isBlocking()) return false;
         boss.raiseBarrier(seconds);
         bossEvents.add(new BossEvent(BossEvent.Kind.BARRIER, boss.getX(), boss.getY()));
         return true;
+    }
+
+    private boolean bossUltimateActive() {
+        return !"IDLE".equals(combatSystem.getUltimatePhaseName(bossIndex));
     }
 
     private void updateBossTechniques(Fighter boss, double dt) {

@@ -146,6 +146,33 @@ public final class BossFightCheck {
         for (int i = 0; i < 90; i++) { mover.setX(i < 20 ? 500 : 300); dodge.update(new FightingInput(), DT); }
         check(mover.getHealth() == moverHealth, "Moving away dodges future sight");
 
+        // Una cosa a la vez: una sola Premonicion y escudo o barrera, nunca los dos
+        FightingGameSession once = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
+        check(once.bossFutureSight() && !once.bossFutureSight(), "Only one future sight at a time");
+        Fighter guard = once.getBoss();
+        guard.setBlocking(true);
+        check(!once.bossBarrier(2), "No barrier while blocking");
+        guard.setBlocking(false);
+        check(once.bossBarrier(2), "Barrier when not blocking");
+
+        // Durante una pelea entera nunca tiene escudo y barrera juntos
+        FightingGameSession watch = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"CHARMANDER", "SQUIRTLE"}, false, FightingStage.TEMPLO, true);
+        FightingInput shots = new FightingInput();
+        for (int i = 0; i < 60 * 90 && watch.getState() == FightingGameSession.State.RUNNING; i++) {
+            shots.setPlayerOneAttackTwo(i % 50 == 0);
+            watch.update(shots, DT);
+            Fighter w = watch.getBoss();
+            check(!(w.hasBarrier() && w.isBlocking()), "Never shield and barrier together");
+            boolean ultimate = !"IDLE".equals(watch.getCombatSystem().getUltimatePhaseName(1));
+            if (ultimate) check(!watch.bossFutureSight() && !watch.bossTripleShadowBall(),
+                    "No techniques during Psystrike");
+            watch.getCombatSystem().drainEvents();
+            watch.consumeBossEvents();
+            watch.consumeBossBlink();
+        }
+
         // Mega al 20 %
         FightingGameSession phases = FightingGameSession.bossFightPrototype(
                 "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);

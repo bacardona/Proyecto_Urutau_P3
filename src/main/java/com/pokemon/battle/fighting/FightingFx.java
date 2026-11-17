@@ -867,7 +867,7 @@ public final class FightingFx {
         p.maxLife = 0.9;
         p.size = 38;
         p.color = new Color(0xFFE45A);
-        popups.add(p);
+        addPopup(p);
     }
 
     /** Tecnicas del modo dificil de Mewtwo. */
@@ -894,13 +894,38 @@ public final class FightingFx {
             }
             case FUTURE_SIGHT_STRIKE -> {
                 sound.play(FightingSound.Sfx.THUNDER, 0.7f);
-                big.play(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, e.x(), e.y() - 150, 3, false);
-                ring(e.x(), e.y(), 20, 140, 0.3, pink, 0, 5);
-                sparks(e.x(), e.y() - 20, 18, 420, Color.WHITE, pink);
+                bigLimited(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, e.x(), e.y() - 150, false);
+                ring(e.x(), e.y(), 20, 120, 0.3, pink, 0, 4);
+                sparks(e.x(), e.y() - 20, 10, 380, Color.WHITE, pink);
                 shake(6, 0.2);
             }
             case VOLLEY -> bossPopup("¡TRIPLE BOLA SOMBRA!", e.x(), e.y() - 240, purple, 22);
         }
+    }
+
+    // Solo un efecto grande de Mewtwo a la vez: si hay otro en curso, este sale en tamano pequeno
+    private double bossBigBusyUntil;
+
+    private void bigLimited(PvfxEffects.Effect effect, double x, double y, boolean flip) {
+        boolean busy = time < bossBigBusyUntil;
+        big.play(effect, x, y, busy ? 1 : 2, flip);
+        if (!busy) bossBigBusyUntil = time + effect.seconds();
+    }
+
+    /** Agrega un texto; si hay otro reciente en el mismo lugar, este sube para no encimarse. */
+    private void addPopup(Popup p) {
+        for (int tries = 0; tries < 5; tries++) {
+            boolean moved = false;
+            for (Popup other : popups) {
+                boolean recent = other.life > other.maxLife - 0.6;
+                if (recent && Math.abs(other.x - p.x) < 150 && Math.abs(other.y - p.y) < (other.size + p.size) * 0.6) {
+                    p.y = other.y - (other.size + p.size) * 0.7;
+                    moved = true;
+                }
+            }
+            if (!moved) break;
+        }
+        popups.add(p);
     }
 
     private void bossPopup(String text, double x, double y, Color color, int size) {
@@ -912,7 +937,7 @@ public final class FightingFx {
         p.maxLife = 1.0;
         p.size = size;
         p.color = color;
-        popups.add(p);
+        addPopup(p);
     }
 
     /** Mewtwo desaparece en un destello morado y aparece en otro lado. */
@@ -921,11 +946,10 @@ public final class FightingFx {
         double midY = boss.getY() - boss.getRenderHeight() * 0.5;
         sound.play(FightingSound.Sfx.WHOOSH, 1f);
         sound.play(FightingSound.Sfx.BUFF, 0.5f);
-        big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, fromX, midY, 3, false);
-        big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, boss.getX(), midY, 3, boss.isFacingLeft());
-        ring(fromX, midY, 20, 120, 0.25, purple, 0, 4);
-        ring(boss.getX(), midY, 10, 150, 0.3, Color.WHITE, 0, 4);
-        sparks(boss.getX(), midY, 16, 380, Color.WHITE, purple);
+        // Efecto corto: un anillo donde desaparece y un destello pequeno donde aparece
+        ring(fromX, midY, 14, 70, 0.2, purple, 0, 3);
+        bigLimited(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, boss.getX(), midY, boss.isFacingLeft());
+        sparks(boss.getX(), midY, 8, 300, Color.WHITE, purple);
     }
 
     /** El Pokemon que entra cae al suelo: onda de choque y polvo. */
@@ -1481,7 +1505,7 @@ public final class FightingFx {
         p.maxLife = 0.7;
         p.size = damage >= 11 ? 30 : 24;
         p.color = damage >= 11 ? new Color(0xFFB13B) : Color.WHITE;
-        popups.add(p);
+        addPopup(p);
     }
 
     private void switchEffect(Fighter incoming) {
@@ -1498,7 +1522,7 @@ public final class FightingFx {
         p.maxLife = 0.9;
         p.size = 30;
         p.color = new Color(0xFFE45A);
-        popups.add(p);
+        addPopup(p);
     }
 
     private void chipPopup(double x, double y, int damage) {
@@ -1511,7 +1535,7 @@ public final class FightingFx {
         p.maxLife = 0.6;
         p.size = 20;
         p.color = new Color(0xA7E8FF);
-        popups.add(p);
+        addPopup(p);
     }
 
     private void shake(double magnitude, double duration) {
