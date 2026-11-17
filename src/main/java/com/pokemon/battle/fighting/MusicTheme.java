@@ -14,7 +14,16 @@ final class MusicTheme {
 
     /** Battle loop in A minor, 150 bpm, 16 bars (about 26 seconds). It loops without a gap. */
     static float[] battle(int rate) {
-        double beat = 60.0 / 150;
+        return battle(rate, 150, 0);
+    }
+
+    /** La misma cancion mas rapida y mas aguda: fase final de Mega Mewtwo. */
+    static float[] intense(int rate) {
+        return battle(rate, 180, 2);
+    }
+
+    private static float[] battle(int rate, int bpm, int transpose) {
+        double beat = 60.0 / bpm;
         double eighth = beat / 2;
         int bars = 16;
         float[] out = new float[(int) (bars * 8 * eighth * rate)];
@@ -27,7 +36,7 @@ final class MusicTheme {
         Random random = new Random(150);
         for (int bar = 0; bar < bars; bar++) {
             double start = bar * 8 * eighth;
-            int root = chordRoots[bar % 4];
+            int root = chordRoots[bar % 4] + transpose;
             int[] phrase = melody[(bar / 2) % 4];
             int half = (bar % 2) * 8;
             for (int k = 0; k < 8; k++) {
@@ -37,7 +46,7 @@ final class MusicTheme {
                 if (k == 0 || k == 4) add(out, drum(rate, random, 0.12, 0.25, 25, 0.15), at, rate);
                 if (k == 2 || k == 6) add(out, drum(rate, random, 0.10, 0.18, 35, 1.0), at, rate);
                 add(out, drum(rate, random, 0.03, 0.05, 120, 1.0), at + eighth / 2, rate);
-                int note = phrase[half + k];
+                int note = phrase[half + k] == 0 ? 0 : phrase[half + k] + transpose;
                 if (note > 0) {
                     add(out, square(rate, hz(note), eighth * 1.6, 0.25, 0.11), at, rate);
                     add(out, square(rate, hz(note - 12), eighth * 1.2, 0.5, 0.04), at, rate);

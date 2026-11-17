@@ -61,7 +61,7 @@ public class Fighter {
     private boolean boss;
     private boolean enraged;
     // Modo dificil: Mega Mewtwo Y (fase 3) y barrera que refleja proyectiles
-    static final double MEGA_DAMAGE_BONUS = 0.25;
+    static final double MEGA_DAMAGE_BONUS = 0.15;
     static final double MEGA_SPEED_BONUS = 0.25;
     static final String MEGA_FORM_ID = "MEGA_MEWTWO_Y";
     private boolean megaPending;
@@ -175,6 +175,12 @@ public class Fighter {
     }
 
     public boolean hasBarrier() { return barrierSeconds > 0; }
+
+    /** Cura sin pasar del maximo (Mega Mewtwo recupera vida al transformarse). */
+    void heal(int amount) {
+        if (defeated || amount <= 0) return;
+        health = Math.min(MAX_HEALTH, health + amount);
+    }
     void raiseBarrier(double seconds) { if (boss) barrierSeconds = Math.max(barrierSeconds, seconds); }
 
 

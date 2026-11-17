@@ -122,6 +122,11 @@ public class FightingCombatSystem {
             "TELEPORT", 109, AttackDefinition.Kind.DASH, 11,
             0.06, 0.18, 0.55, 64, 80, 620, 0, 0, 0, new Color(0xE6B8FF));
 
+    // Onda mental de Mega Mewtwo: recorre el suelo, hay que saltarla
+    private static final AttackDefinition MIND_WAVE = new AttackDefinition(
+            "MIND_WAVE", 60, AttackDefinition.Kind.HITBOX, 14,
+            0, 0.1, 0, 60, 60, 0, 0, 0, 0, new Color(0xFF5FB8));
+
     // Premonicion: el golpe que cae donde marco Mewtwo
     private static final AttackDefinition FUTURE_SIGHT = new AttackDefinition(
             "FUTURE_SIGHT", 60, AttackDefinition.Kind.HITBOX, 15,
@@ -771,6 +776,11 @@ public class FightingCombatSystem {
     /** Cae la Premonicion: golpe normal (respeta escudo y parry no; solo esquivandolo). */
     void bossFutureSightStrike(int attackerIndex, Fighter boss, Fighter target) {
         applyHit(attackerIndex, boss, target, FUTURE_SIGHT);
+    }
+
+    /** La Onda mental alcanza al rival en el suelo. */
+    void bossMindWaveHit(int attackerIndex, Fighter boss, Fighter target) {
+        applyHit(attackerIndex, boss, target, MIND_WAVE);
     }
 
     private void spawnProjectile(Fighter attacker, int ownerIndex, AttackDefinition definition) {
