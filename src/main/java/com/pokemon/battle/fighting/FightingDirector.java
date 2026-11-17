@@ -80,8 +80,10 @@ final class FightingDirector {
         time += dt;
         sound.keepAlive();
         if (introTime < introSeconds()) {
-            if (introTime == 0) sound.play(FightingSound.Sfx.VS);
+            if (introTime == 0 && !bossIntro) sound.play(FightingSound.Sfx.VS);
+            double before = introTime;
             introTime += dt;
+            if (bossIntro) tickBossArrival(before, introTime);
             int step = introTime < vsSeconds ? -1 : (int) ((introTime - vsSeconds) / COUNT_STEP);
             if (step != lastCountStep && step >= 0 && step <= 3) {
                 sound.play(step == 3 ? FightingSound.Sfx.GO : FightingSound.Sfx.COUNT);
@@ -133,7 +135,7 @@ final class FightingDirector {
     }
 
     // ------------------------------------------------------------ jefe secreto
-    static final double BOSS_WARNING_SECONDS = 4.6;
+    static final double BOSS_WARNING_SECONDS = 5.0;
     static final double ENRAGE_SECONDS = 2.6;
     private static final Color BOSS_COLOR = new Color(0x9B4DFF);
     private static final Color ALERT_RED = new Color(0xE8342E);
@@ -146,6 +148,7 @@ final class FightingDirector {
         if (bossIntro || introTime >= VS_SECONDS) return;
         bossIntro = true;
         vsSeconds = BOSS_WARNING_SECONDS;
+        sound.play(FightingSound.Sfx.COUNT, 0.8f);
     }
 
     /** Mewtwo llega a la mitad de vida: escena corta de furia. */
@@ -201,10 +204,20 @@ final class FightingDirector {
     }
 
     void onFinished() {
+        onFinished(null);
+    }
+
+    /** Fin del combate: fanfarria, o la risa de Mewtwo si fue el que gano. */
+    void onFinished(FightingGameSession session) {
         if (finishedHandled) return;
         finishedHandled = true;
         sound.stopMusic();
-        sound.playFanfare();
+        if (session != null && session.isBossFight() && !session.challengerWon()) {
+            sound.play(FightingSound.Sfx.LAUGH);
+            sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.4f);
+        } else {
+            sound.playFanfare();
+        }
     }
 
     /** Throw away one-shot keys pressed while the fight waits. Held directions stay. */
@@ -244,57 +257,182 @@ final class FightingDirector {
         if (enrageTime >= 0 && enragedBoss != null) drawEnrage(g, w, h);
     }
 
-    /** "¡ALERTA! UN NUEVO RETADOR SE ACERCA" y luego Mewtwo aparece de la oscuridad. */
+    // Momentos de la llegada de Mewtwo (segundos desde que empieza la intro)
+    static final double ARRIVAL_STRIKE = 1.5;     // cae el rayo
+    static final double ARRIVAL_PILLAR = 1.85;    // circulo y columna de energia
+    static final double ARRIVAL_REVEAL = 2.25;    // Mewtwo empieza a aparecer
+    static final double ARRIVAL_SHOWN = 2.85;     // ya se ve entero
+    static final double ARRIVAL_BANNER = 3.0;     // franja con su nombre
+
+    /** 0 = Mewtwo invisible, 1 = visible. Durante su llegada aparece dentro de la columna. */
+    double bossReveal() {
+        if (!bossIntro || introTime >= vsSeconds) return 1;
+        if (introTime < ARRIVAL_REVEAL) return 0;
+        return Math.min(1, (introTime - ARRIVAL_REVEAL) / (ARRIVAL_SHOWN - ARRIVAL_REVEAL));
+    }
+
+    /** Sonidos de la llegada, al pasar por cada momento. */
+    private void tickBossArrival(double before, double now) {
+        for (double beep : new double[]{0.0, 0.5, 1.0}) {
+            if (before <= beep && now > beep) sound.play(FightingSound.Sfx.COUNT, 0.8f);
+        }
+        if (before < ARRIVAL_STRIKE && now >= ARRIVAL_STRIKE) sound.play(FightingSound.Sfx.THUNDER);
+        if (before < ARRIVAL_PILLAR && now >= ARRIVAL_PILLAR) sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.8f);
+        if (before < ARRIVAL_BANNER && now >= ARRIVAL_BANNER) sound.play(FightingSound.Sfx.CUT_IN);
+    }
+
+    /**
+     * Llegada de Mewtwo dentro del escenario (como en el trailer): alerta con franjas,
+     * un rayo cae, aparece un circulo magico con una columna de energia y de ahi sale Mewtwo;
+     * luego una franja con su nombre.
+     */
     private void drawBossWarning(Graphics2D g, FightingGameSession session, int w, int h, double t) {
         Composite old = g.getComposite();
-        g.setColor(new Color(0x07040E));
+        Fighter boss = session.getBoss();
+        int ground = session.getGroundY();
+        int bx = boss == null ? w * 3 / 4 : (int) boss.getX();
+
+        // Escenario oscurecido con tono morado
+        float tint = (float) Math.min(0.55, t * 1.2);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, tint));
+        g.setColor(new Color(0x1A0630));
         g.fillRect(0, 0, w, h);
-        // Franjas rojas que cruzan arriba y abajo
-        boolean blink = ((int) (t * 4)) % 2 == 0;
-        for (int band = 0; band < 2; band++) {
-            int y = band == 0 ? 120 : h - 180;
-            g.setColor(new Color(0x3A0A0A));
-            g.fillRect(0, y, w, 60);
-            g.setColor(ALERT_RED);
-            int offset = (int) (t * 260) % 80;
-            for (int x = -80 + (band == 0 ? offset : -offset); x < w + 80; x += 80) {
-                g.fill(new Polygon(new int[]{x, x + 40, x + 60, x + 20}, new int[]{y, y, y + 60, y + 60}, 4));
+        g.setComposite(old);
+
+        // Franjas de alerta arriba y abajo con el texto corriendo
+        if (t < ARRIVAL_BANNER) {
+            drawTicker(g, w, 0, t);
+            drawTicker(g, w, h - 34, -t);
+        }
+
+        // Rayo
+        if (t >= ARRIVAL_STRIKE && t < ARRIVAL_STRIKE + 0.45) {
+            double q = (t - ARRIVAL_STRIKE) / 0.45;
+            if (q < 0.12) flash(g, w, h, 0.75f);
+            drawLightning(g, bx, ground, (int) (t * 30), (float) (1 - q * 0.8));
+        }
+
+        // Circulo magico y columna de energia
+        if (t >= ARRIVAL_PILLAR && t < vsSeconds) {
+            double q = t - ARRIVAL_PILLAR;
+            float alpha = (float) Math.min(1, q / 0.2) * (float) Math.min(1, (vsSeconds - t) / 0.4);
+            drawMagicCircle(g, bx, ground, q, alpha);
+            if (t < ARRIVAL_SHOWN + 0.25) {
+                float pillar = (float) Math.min(1, q / 0.15) * (float) Math.min(1, (ARRIVAL_SHOWN + 0.25 - t) / 0.3);
+                drawPillar(g, bx, ground, pillar);
             }
         }
-        Fighter boss = session.getBoss();
-        if (t < 2.0) {
-            if (blink) outlined(g, "¡ALERTA!", w / 2, h / 2 - 30, 110, ALERT_RED, Color.WHITE, 5);
-            outlined(g, "UN NUEVO RETADOR SE ACERCA", w / 2, h / 2 + 60, 44, Color.WHITE, OUTLINE, 3);
-        } else {
-            double q = t - 2.0;
-            // Rayos morados y Mewtwo saliendo de su silueta negra
-            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.min(0.5, q * 0.6)));
+
+        // Franja con el nombre
+        if (t >= ARRIVAL_BANNER) {
+            double q = t - ARRIVAL_BANNER;
+            double out = vsSeconds - t;
+            int slide = (int) (w * (1 - Math.min(1, q / 0.22)));
+            if (out < 0.25) slide = (int) (-w * (1 - out / 0.25));
+            int bandY = h / 2 - 105;
+            Polygon band = new Polygon(new int[]{slide, slide + w, slide + w, slide},
+                    new int[]{bandY + 18, bandY - 6, bandY + 196, bandY + 220}, 4);
+            g.setColor(new Color(0x14071F));
+            g.fill(band);
             g.setColor(BOSS_COLOR);
-            for (int i = 0; i < 16; i++) {
-                double a = i * Math.PI / 8 + time * 0.6;
-                g.fill(new Polygon(new int[]{w / 2, (int) (w / 2 + Math.cos(a) * 1300), (int) (w / 2 + Math.cos(a + 0.14) * 1300)},
-                        new int[]{h / 2 - 20, (int) (h / 2 - 20 + Math.sin(a) * 1300), (int) (h / 2 - 20 + Math.sin(a + 0.14) * 1300)}, 3));
+            g.setStroke(new BasicStroke(8));
+            g.drawLine(slide, bandY + 18, slide + w, bandY - 6);
+            g.drawLine(slide, bandY + 220, slide + w, bandY + 196);
+            g.setStroke(new BasicStroke(2));
+            for (int i = 0; i < 14; i++) {
+                int ly = bandY + 30 + (i * 37) % 170;
+                int lx = slide + (int) ((i * 173 + time * 900) % (w + 200)) - 100;
+                g.setColor(new Color(155, 77, 255, 110));
+                g.drawLine(lx, ly, lx + 120, ly);
             }
-            g.setComposite(old);
             if (boss != null) {
                 FightingSpriteProfile profile = FightingSpriteProfile.forFighter(boss);
-                boolean silhouette = q < 0.9;
-                if (profile != null && silhouette) drawShadowProfile(g, profile, w / 2, h / 2 - 10, 330);
-                else if (profile != null) drawProfile(g, profile, w / 2, h / 2 - 10, 330, false);
-                if (q >= 0.9 && q < 0.97) flash(g, w, h, 0.85f);
+                if (profile != null) drawProfile(g, profile, slide + 300, h / 2 + 5, 210, false);
             }
-            if (q >= 0.9) {
-                double grow = Math.max(1, 1.8 - (q - 0.9) * 6);
-                outlined(g, "MEWTWO", w / 2, h - 205, (int) (78 * grow), BOSS_COLOR, Color.WHITE, 5);
-                outlined(g, "EL POKEMON MAS PODEROSO", w / 2, h - 222 + 120, 26, Color.WHITE, OUTLINE, 2);
-            }
+            outlined(g, "MEWTWO", slide + w / 2 + 110, h / 2 + 10, 76, BOSS_COLOR, Color.WHITE, 5);
+            outlined(g, "JEFE SECRETO", slide + w / 2 + 110, h / 2 + 55, 26, Color.WHITE, OUTLINE, 2);
         }
-        if (t > vsSeconds - 0.25) {
-            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                    (float) Math.min(1, (t - (vsSeconds - 0.25)) / 0.25)));
-            g.setColor(Color.BLACK);
-            g.fillRect(0, 0, w, h);
+        g.setComposite(old);
+    }
+
+    private void drawTicker(Graphics2D g, int w, int y, double t) {
+        g.setColor(ALERT_RED);
+        g.fillRect(0, y, w, 34);
+        g.setColor(new Color(0x5A0E0E));
+        g.fillRect(0, y + 30, w, 4);
+        g.setFont(RetroStyle.font(20));
+        String text = "¡ALERTA!   UN DESAFIO APARECE   ";
+        int textWidth = g.getFontMetrics().stringWidth(text);
+        int offset = (int) Math.floorMod((long) (t * 220), (long) textWidth);
+        g.setColor(Color.WHITE);
+        for (int x = -offset; x < w; x += textWidth) g.drawString(text, x, y + 24);
+    }
+
+    private static void drawLightning(Graphics2D g, int x, int ground, int seed, float alpha) {
+        java.util.Random random = new java.util.Random(seed);
+        int segments = 12;
+        int[] xs = new int[segments + 1];
+        int[] ys = new int[segments + 1];
+        for (int i = 0; i <= segments; i++) {
+            ys[i] = ground * i / segments;
+            xs[i] = x + (i == 0 || i == segments ? 0 : random.nextInt(70) - 35);
         }
+        Composite old = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0, alpha)));
+        g.setStroke(new BasicStroke(16, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(new Color(110, 190, 255, 120));
+        g.drawPolyline(xs, ys, xs.length);
+        g.setStroke(new BasicStroke(6, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(new Color(0xBFE8FF));
+        g.drawPolyline(xs, ys, xs.length);
+        g.setStroke(new BasicStroke(2));
+        g.setColor(Color.WHITE);
+        g.drawPolyline(xs, ys, xs.length);
+        // Chispazo en el suelo
+        g.setColor(new Color(0xBFE8FF));
+        for (int i = 0; i < 10; i++) {
+            double a = Math.PI + i * Math.PI / 9;
+            g.drawLine(x, ground, (int) (x + Math.cos(a) * 50), (int) (ground + Math.sin(a) * 30));
+        }
+        g.setComposite(old);
+    }
+
+    private void drawMagicCircle(Graphics2D g, int x, int ground, double q, float alpha) {
+        Composite old = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0, alpha)));
+        double grow = Math.min(1, q / 0.35);
+        int rx = (int) (110 * grow), ry = (int) (26 * grow);
+        g.setStroke(new BasicStroke(4));
+        g.setColor(BOSS_COLOR);
+        g.drawOval(x - rx, ground - ry, rx * 2, ry * 2);
+        g.setStroke(new BasicStroke(2));
+        g.setColor(new Color(0xF0C8FF));
+        g.drawOval(x - rx * 7 / 10, ground - ry * 7 / 10, rx * 14 / 10, ry * 14 / 10);
+        // Runas que giran alrededor del circulo
+        for (int i = 0; i < 12; i++) {
+            double a = i * Math.PI / 6 + time * 2.2;
+            int px = (int) (x + Math.cos(a) * rx * 0.85);
+            int py = (int) (ground + Math.sin(a) * ry * 0.85);
+            g.fillRect(px - 3, py - 2, 6, 4);
+        }
+        g.setComposite(old);
+    }
+
+    private static void drawPillar(Graphics2D g, int x, int ground, float alpha) {
+        if (alpha <= 0) return;
+        Composite old = g.getComposite();
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(1, alpha)));
+        int top = ground - 420;
+        java.awt.GradientPaint outer = new java.awt.GradientPaint(0, top, new Color(155, 77, 255, 0),
+                0, ground, new Color(155, 77, 255, 200));
+        java.awt.Paint paint = g.getPaint();
+        g.setPaint(outer);
+        g.fillRect(x - 46, top, 92, ground - top);
+        java.awt.GradientPaint inner = new java.awt.GradientPaint(0, top, new Color(255, 255, 255, 0),
+                0, ground, new Color(255, 240, 255, 235));
+        g.setPaint(inner);
+        g.fillRect(x - 14, top, 28, ground - top);
+        g.setPaint(paint);
         g.setComposite(old);
     }
 
@@ -381,7 +519,7 @@ final class FightingDirector {
     private void drawCountdown(Graphics2D g, int w, int h, double t) {
         int step = Math.min(3, (int) (t / COUNT_STEP));
         double local = t - step * COUNT_STEP;
-        if (t < 0.25) {
+        if (t < 0.25 && !bossIntro) {
             Composite old = g.getComposite();
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) (1 - t / 0.25)));
             g.setColor(Color.BLACK);
@@ -574,7 +712,8 @@ final class FightingDirector {
             case PLAYER_TWO_WINS -> 1;
             default -> -1;
         };
-        Color main = winner == 1 ? P2_COLOR : P1_COLOR;
+        Color main = session.isBossFight() && winner == session.getBossIndex() ? BOSS_COLOR
+                : winner == 1 ? P2_COLOR : P1_COLOR;
         Composite old = g.getComposite();
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.35f));
         g.setColor(main);
@@ -592,6 +731,7 @@ final class FightingDirector {
         Fighter champion = team.getActive();
         if (session.isBossFight() && winner == session.getBossIndex()) {
             outlined(g, "MEWTWO ES INVENCIBLE...", w / 2, 125, 72, BOSS_COLOR, Color.WHITE, 5);
+            drawTaunt(g, session, w, h);
         } else if (session.isBossFight()) {
             outlined(g, "¡DERROTASTE A MEWTWO!", w / 2, 125, 76, new Color(0xFFE45A), OUTLINE, 5);
         } else {
@@ -600,6 +740,35 @@ final class FightingDirector {
         }
         drawPortrait(g, champion, 190, h / 2 + 60, 280, false, "Pose");
         drawPortrait(g, champion, w - 190, h / 2 + 60, 280, true, "Pose");
+    }
+
+    private static final String[] TAUNTS = {
+            "¿ESO ES TODO LO QUE TIENES?",
+            "VUELVE CUANDO SEAS MAS FUERTE",
+            "NINGUN POKEMON PUEDE VENCERME",
+            "QUE DECEPCION, HUMANO"
+    };
+
+    /** Mewtwo se rie de ti: globo con "¡JA JA JA!" que rebota y una frase para picarte. */
+    private void drawTaunt(Graphics2D g, FightingGameSession session, int w, int h) {
+        String taunt = TAUNTS[Math.floorMod(System.identityHashCode(session), TAUNTS.length)];
+        int bx = 190, by = h / 2 - 150;
+        int bw = 350, bh = 96;
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(bx - bw / 2, by - 50, bw, bh, 26, 26);
+        g.fill(new Polygon(new int[]{bx - 20, bx + 20, bx + 4}, new int[]{by + 44, by + 44, by + 74}, 3));
+        g.setColor(OUTLINE);
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(bx - bw / 2, by - 50, bw, bh, 26, 26);
+        String[] has = {"¡JA", "JA", "JA!"};
+        for (int i = 0; i < has.length; i++) {
+            double hop = Math.abs(Math.sin(time * 9 + i * 0.9)) * 8;
+            outlined(g, has[i], bx - 80 + i * 80, by - 6 - (int) hop, 36, BOSS_COLOR, OUTLINE, 2);
+        }
+        g.setFont(RetroStyle.font(17));
+        g.setColor(RetroStyle.DARK);
+        int tw = g.getFontMetrics().stringWidth(taunt);
+        g.drawString(taunt, bx - tw / 2, by + 30);
     }
 
     // ------------------------------------------------------------------ ayudantes

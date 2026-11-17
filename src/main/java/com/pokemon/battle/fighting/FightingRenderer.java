@@ -95,8 +95,14 @@ public class FightingRenderer {
         });
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         for (Fighter fighter : session.getFighters()) {
+            // Mewtwo aparece de a poco dentro de su columna de energia al llegar
+            float reveal = fighter.isBoss() ? (float) fx.director().bossReveal() : 1f;
+            if (reveal <= 0) continue;
+            var oldComposite = g.getComposite();
+            if (reveal < 1) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, reveal));
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
                     session.getGroundY(), session.getCombatSystem(), session.getFighters());
+            g.setComposite(oldComposite);
         }
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
         pixelLayer(g, session, lg -> {
@@ -196,8 +202,10 @@ public class FightingRenderer {
                     blink ? new Color(0xC8302A) : new Color(0x7A2BD0));
         }
 
-        String[] options = {bossOffered ? "ACEPTAR DESAFIO" : session.isBossFight() ? "NUEVO COMBATE" : "REVANCHA",
-                "VOLVER AL MENU"};
+        String first = bossOffered ? "ACEPTAR DESAFIO"
+                : session.isBossFight() && !session.challengerWon() ? "REINTENTAR"
+                : session.isBossFight() ? "NUEVO COMBATE" : "REVANCHA";
+        String[] options = {first, "VOLVER AL MENU"};
         for (int i = 0; i < options.length; i++) {
             int y = RESULT_OPTION_Y + i * (RESULT_OPTION_H + RESULT_OPTION_GAP);
             g.setColor(i == selectedOption ? new Color(0xBED7FF) : Color.WHITE);

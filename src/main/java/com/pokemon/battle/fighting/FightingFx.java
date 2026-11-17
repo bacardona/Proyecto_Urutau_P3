@@ -199,7 +199,7 @@ public final class FightingFx {
         simTime += sdt;
         react(session, sdt);
         followCamera(session, dt);
-        if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished();
+        if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished(session);
     }
 
     FightingDirector director() {

@@ -21,6 +21,8 @@ final class BossAI {
     static final double THINK_SECONDS_ENRAGED = 0.13;
     // Energia de ultimate que gana por segundo cuando esta furioso
     static final double ENRAGED_ENERGY_PER_SECOND = 6;
+    // Fase 1: espera minima entre disparos
+    static final double CALM_SHOT_SECONDS = 0.80;
     // Espera minima entre Psicoataques (si lo interrumpen no lo repite enseguida)
     static final double ULTIMATE_COOLDOWN_SECONDS = 14;
 
@@ -32,6 +34,8 @@ final class BossAI {
     private double meleeCooldown;
     private double ultimateCooldown;
     private double blockSeconds;
+    // Cuanto lleva cubriendose seguido: si es mucho, contraataca en vez de seguir aguantando
+    private double guardedSeconds;
     private double walkSeconds;
     private double walkDirection;
     private int attackToPress = -1;
@@ -52,6 +56,8 @@ final class BossAI {
         blinkCooldown -= dt;
         meleeCooldown -= dt;
         ultimateCooldown -= dt;
+        if (blockSeconds > 0) guardedSeconds += dt;
+        else guardedSeconds = Math.max(0, guardedSeconds - dt * 0.5);
         blockSeconds = Math.max(0, blockSeconds - dt);
         walkSeconds = Math.max(0, walkSeconds - dt);
         if (boss.isDefeated() || foe.isDefeated()) {
@@ -103,12 +109,19 @@ final class BossAI {
             return;
         }
 
-        // 3. Lo atacan de cerca: escudo o teletransporte
+        // 3. Lo atacan de cerca: escudo o teletransporte; si ya aguanto mucho, contraataca
+        if (foeAttacking && distance < CLOSE_RANGE + 40 && guardedSeconds > 1.0) {
+            guardedSeconds = 0;
+            blockSeconds = 0;                              // suelta el escudo para poder atacar
+            if (blinkCooldown <= 0) blink(session, boss, foe, enraged);
+            else attackToPress = 0;                        // Psicocorte de respuesta
+            return;
+        }
         if (foeAttacking && distance < CLOSE_RANGE + 40) {
             if (blinkCooldown <= 0 && random.nextDouble() < (enraged ? 0.55 : 0.4)) {
                 blink(session, boss, foe, enraged);
-            } else if (random.nextDouble() < 0.6) {
-                blockSeconds = 0.45;
+            } else if (random.nextDouble() < (enraged ? 0.6 : 0.85)) {
+                blockSeconds = 0.45;                       // tranquilo se cubre mas seguido
             }
             return;
         }
@@ -120,6 +133,11 @@ final class BossAI {
     /** Fase 1: mantiene la distancia y dispara. */
     private void decideCalm(FightingGameSession session, Fighter boss, Fighter foe,
                             double distance, double towardFoe) {
+        // Si el rival se le acerca, a veces se pone en guardia antes de que ataque
+        if (distance < 260 && random.nextDouble() < 0.10) {
+            blockSeconds = 0.35;
+            return;
+        }
         if (distance < CLOSE_RANGE) {
             if (meleeCooldown <= 0 && random.nextDouble() < 0.55) {
                 attackToPress = 0;                         // Psicocorte
@@ -137,7 +155,7 @@ final class BossAI {
         }
         if (shotCooldown <= 0) {
             attackToPress = random.nextDouble() < 0.65 ? 1 : 2;   // Psiquico o Bola Sombra
-            shotCooldown = 1.15 + random.nextDouble() * 0.5;
+            shotCooldown = CALM_SHOT_SECONDS + random.nextDouble() * 0.35;
             return;
         }
         // Entre disparos camina un poquito para no quedarse quieto
