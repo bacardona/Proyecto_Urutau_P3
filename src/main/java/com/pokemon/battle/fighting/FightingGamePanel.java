@@ -181,7 +181,8 @@ public class FightingGamePanel extends JPanel {
             bindKey("F7", () -> debugDefeat(1));
             bindKey("F8", () -> session.debugFillActiveEnergy(0));
             bindKey("F9", () -> session.debugFillActiveEnergy(1));
-            bindKey("F10", this::debugStartBoss);
+            bindKey("F10", () -> debugStartBoss(false));
+            bindKey("F11", () -> debugStartBoss(true));
         }
 
         bindHeldKey("A", input::setPlayerOneLeft);
@@ -518,9 +519,12 @@ public class FightingGamePanel extends JPanel {
 
     private void activateResultOption() {
         if (selectedResultOption == 0) {
-            session = bossOffered || bossRetry ? createBossSession() : createSession();
+            if (hardOffered) bossHard = true;
+            if (bossOffered) bossHard = false;
+            session = bossOffered || bossRetry || hardOffered ? createBossSession() : createSession();
             bossOffered = false;
             bossRetry = false;
+            hardOffered = false;
             input.clear();
             frameIndex = 0;
             selectedResultOption = 0;
@@ -531,8 +535,10 @@ public class FightingGamePanel extends JPanel {
                 simulationTimer.start();
             }
         } else {
+            // "AHORA NO" o volver: se pierde la revancha (otra vez 3 victorias seguidas)
             bossOffered = false;
             bossRetry = false;
+            hardOffered = false;
             stopGameTimersAndClearInput();
             onBack.run();
         }
@@ -579,6 +585,10 @@ public class FightingGamePanel extends JPanel {
     private boolean bossOffered;
     // Mewtwo gano: se puede reintentar sin volver a ganar 3 seguidas
     private boolean bossRetry;
+    // Le ganaste a Mewtwo normal: te reta a la revancha dificil
+    private boolean hardOffered;
+    // La pelea de jefe que se crea (o reintenta) es la dificil
+    private boolean bossHard;
     private int bossChallenger = -1;
 
     /** Cuenta la racha del ganador; a la tercera victoria seguida Mewtwo lo desafia. */
@@ -589,6 +599,8 @@ public class FightingGamePanel extends JPanel {
             WIN_STREAKS.remove(session.getTrainerName(1 - session.getBossIndex()));
             bossChallenger = 1 - session.getBossIndex();
             bossRetry = !session.challengerWon();
+            bossHard = session.isHardBoss();
+            hardOffered = session.challengerWon() && !session.isHardBoss();
             return;
         }
         if (outcome == null || outcome == FightingGameSession.Outcome.DRAW) return;
@@ -610,15 +622,18 @@ public class FightingGamePanel extends JPanel {
         FightingStage stage = session.getStage();
         if (setup != null && setup.isComplete()) {
             var team = challenger == 0 ? setup.getTeamOne() : setup.getTeamTwo();
-            return FightingGameSession.bossFight(name, team, challenger == 1, stage);
+            return FightingGameSession.bossFight(name, team, challenger == 1, stage, bossHard);
         }
         return FightingGameSession.bossFightPrototype(name, new String[]{"PIKACHU", "BULBASAUR"},
-                challenger == 1, stage);
+                challenger == 1, stage, bossHard);
     }
 
-    /** F10 con -Dpokemon.fighting.debug=true: Mewtwo aparece ya (jugador 1 de retador). */
-    private void debugStartBoss() {
+    /** F10 / F11 con -Dpokemon.fighting.debug=true: Mewtwo (normal / dificil) aparece ya. */
+    private void debugStartBoss(boolean hard) {
         bossChallenger = 0;
+        bossHard = hard;
+        hardOffered = false;
+        bossRetry = false;
         session = createBossSession();
         bossOffered = false;
         input.clear();
@@ -711,7 +726,7 @@ public class FightingGamePanel extends JPanel {
         if (DEBUG_KO_ENABLED) {
             sceneGraphics.setFont(RetroStyle.font(16));
             sceneGraphics.setColor(new Color(0x7B2020));
-            sceneGraphics.drawString("HERRAMIENTA DE DEPURACION: F6 KO P1 | F7 KO P2 | F10 MEWTWO", 320, 700);
+            sceneGraphics.drawString("DEPURACION: F6 KO P1 | F7 KO P2 | F10 MEWTWO | F11 MEWTWO DIFICIL", 300, 700);
         }
 
         sceneGraphics.dispose();
@@ -755,7 +770,7 @@ public class FightingGamePanel extends JPanel {
                 drawPause(menuGraphics);
             } else {
                 renderer.drawWinnerBackdrop(menuGraphics, session);
-                renderer.drawResults(menuGraphics, session, selectedResultOption, bossOffered);
+                renderer.drawResults(menuGraphics, session, selectedResultOption, bossOffered, hardOffered);
             }
 
             menuGraphics.dispose();

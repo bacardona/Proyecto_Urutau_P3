@@ -28,6 +28,8 @@ public record CombatEvent(Type type, String moveId, int attackerIndex,
         BLOCK,
         /** The defender blocked right on time (parry): no damage and the attacker is stunned. */
         PARRY,
+        /** La barrera de Mewtwo devolvio un proyectil. */
+        REFLECT,
         /** A projectile disappears without hitting anyone (for example against a platform). */
         FIZZLE
     }

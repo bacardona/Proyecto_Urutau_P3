@@ -122,6 +122,11 @@ public class FightingCombatSystem {
             "TELEPORT", 109, AttackDefinition.Kind.DASH, 11,
             0.06, 0.18, 0.55, 64, 80, 620, 0, 0, 0, new Color(0xE6B8FF));
 
+    // Premonicion: el golpe que cae donde marco Mewtwo
+    private static final AttackDefinition FUTURE_SIGHT = new AttackDefinition(
+            "FUTURE_SIGHT", 60, AttackDefinition.Kind.HITBOX, 15,
+            0, 0.1, 0, 60, 300, 0, 0, 0, 0, new Color(0xFF6FD0));
+
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
             "TACKLE", 18, AttackDefinition.Kind.DASH, 12,
             0.08, 0.16, 0.40, 64, 82, 360, 0, 0, 0, new Color(0xF2C28B));
@@ -255,6 +260,11 @@ public class FightingCombatSystem {
             combos[i].remainingSeconds = 0;
             combos[i].target = null;
         }
+    }
+
+    /** Quita todos los proyectiles (antes de la escena de Mega Mewtwo). */
+    void clearProjectiles() {
+        projectiles.clear();
     }
 
     public void clearPendingInputs() {
@@ -742,6 +752,27 @@ public class FightingCombatSystem {
                 hitboxWidth, hitboxHeight);
     }
 
+    /** Cada bola de la triple Bola Sombra pega menos que una normal (son tres). */
+    static final int VOLLEY_BALL_DAMAGE = 10;
+
+    /** Una de las tres Bolas Sombra de Mewtwo, a la altura que se pida (sobre el suelo). */
+    void spawnBossShadowBall(int ownerIndex, Fighter boss, double heightAboveGround) {
+        double direction = boss.isFacingLeft() ? -1 : 1;
+        double originX = boss.getX() + direction * (PhysicsSystem.halfWidthFor(boss) + 18);
+        double originY = boss.getY() - heightAboveGround;
+        emit(CombatEvent.Type.PROJECTILE_FIRED, BOSS_SHADOW_BALL.moveId(), ownerIndex,
+                originX, originY, direction, 0);
+        projectiles.add(new FightingProjectile(BOSS_SHADOW_BALL.moveId(), originX, originY,
+                direction * BOSS_SHADOW_BALL.projectileSpeed(), BOSS_SHADOW_BALL.projectileSize(),
+                VOLLEY_BALL_DAMAGE, BOSS_SHADOW_BALL.projectileLifetime(),
+                BOSS_SHADOW_BALL.effectColor(), ownerIndex));
+    }
+
+    /** Cae la Premonicion: golpe normal (respeta escudo y parry no; solo esquivandolo). */
+    void bossFutureSightStrike(int attackerIndex, Fighter boss, Fighter target) {
+        applyHit(attackerIndex, boss, target, FUTURE_SIGHT);
+    }
+
     private void spawnProjectile(Fighter attacker, int ownerIndex, AttackDefinition definition) {
         double direction = attacker.isFacingLeft() ? -1 : 1;
         double originX;
@@ -917,11 +948,24 @@ public class FightingCombatSystem {
     private void updateProjectiles(List<Fighter> fighters, int arenaWidth,
                                    List<Platform> platforms, double deltaSeconds) {
         Iterator<FightingProjectile> iterator = projectiles.iterator();
+        List<FightingProjectile> reflected = new ArrayList<>();
         while (iterator.hasNext()) {
             FightingProjectile projectile = iterator.next();
             projectile.update(deltaSeconds);
             Fighter target = fighters.get(1 - projectile.getOwnerIndex());
             if (target.isDefeated()) {
+                iterator.remove();
+            } else if (target.hasBarrier() && projectile.getDamage() > 0
+                    && projectile.hitbox().intersects(target)) {
+                // Barrera de Mewtwo: el proyectil vuelve hacia el que lo lanzo
+                int newOwner = 1 - projectile.getOwnerIndex();
+                double back = -Math.signum(projectile.getVelocityX());
+                emit(CombatEvent.Type.REFLECT, projectile.getMoveId(), newOwner,
+                        projectile.getX(), projectile.getY(), back, 0);
+                reflected.add(new FightingProjectile(projectile.getMoveId(),
+                        projectile.getX() + back * (projectile.getSize() + 6), projectile.getY(),
+                        -projectile.getVelocityX() * 1.15, projectile.getSize(), projectile.getDamage(),
+                        2.0, projectile.getColor(), newOwner));
                 iterator.remove();
             } else if ("SLEEP_POWDER".equals(projectile.getMoveId())
                     && isBlockedByPlatform(projectile.hitbox(), platforms)) {
@@ -980,6 +1024,7 @@ public class FightingCombatSystem {
                 iterator.remove();
             }
         }
+        projectiles.addAll(reflected);
     }
 
     private void registerDamagingProjectileHit(int ownerIndex, Fighter target, String moveId) {

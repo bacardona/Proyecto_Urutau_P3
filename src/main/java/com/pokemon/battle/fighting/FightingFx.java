@@ -288,6 +288,7 @@ public final class FightingFx {
             director.startEnrage(session.getBoss());
             shake(10, 0.5);
         }
+        for (FightingGameSession.BossEvent e : session.consumeBossEvents()) bossEvent(session, e);
 
         // Quien perdio vida en este paso (puede que ya lo hayan cambiado por otro del equipo)
         Map<Fighter, Integer> damaged = new IdentityHashMap<>();
@@ -318,6 +319,12 @@ public final class FightingFx {
                     chipPopup(e.x(), e.y() - 40, e.damage());
                 }
                 case PARRY -> parry(e.x(), e.y(), e.direction());
+                case REFLECT -> {
+                    sound.play(FightingSound.Sfx.BLOCK, 1f);
+                    ring(e.x(), e.y(), 16, 110, 0.25, new Color(0xFF8FCB), 0, 4);
+                    sparks(e.x(), e.y(), 12, 360, Color.WHITE, new Color(0xFF8FCB));
+                    bossPopup("¡REFLEJADO!", e.x(), e.y() - 40, new Color(0xFF8FCB), 26);
+                }
                 case FIZZLE -> fizzle(e.x(), e.y());
                 default -> { }
             }
@@ -860,6 +867,59 @@ public final class FightingFx {
         p.maxLife = 0.9;
         p.size = 38;
         p.color = new Color(0xFFE45A);
+        popups.add(p);
+    }
+
+    /** Tecnicas del modo dificil de Mewtwo. */
+    private void bossEvent(FightingGameSession session, FightingGameSession.BossEvent e) {
+        Fighter boss = session.getBoss();
+        Color pink = new Color(0xFF8FCB);
+        Color purple = new Color(0xB78CFF);
+        switch (e.kind()) {
+            case RECOVER -> {
+                sound.play(FightingSound.Sfx.BUFF, 1f);
+                double midY = e.y() - (boss == null ? 100 : boss.getRenderHeight() * 0.5);
+                glow(e.x(), midY, 150, 0.6, new Color(0xB8FFC8), false);
+                ring(e.x(), e.y(), 20, 160, 0.5, new Color(0x7DFFA0), 0, 4);
+                sparks(e.x(), midY, 26, 260, Color.WHITE, new Color(0x7DFFA0));
+                bossPopup("¡RECUPERACION!", e.x(), midY - 110, new Color(0x7DFFA0), 30);
+            }
+            case MEGA -> director.startMega(session);
+            case BARRIER -> {
+                sound.play(FightingSound.Sfx.BUFF, 0.8f);
+                bossPopup("¡BARRERA!", e.x(), e.y() - 230, pink, 26);
+            }
+            case TELEKINESIS -> {
+                sound.play(FightingSound.Sfx.CUT_IN, 0.6f);
+                sound.play(FightingSound.Sfx.WHOOSH, 1f);
+                ring(e.x(), e.y() - 40, 20, 90, 0.35, purple, 0, 5);
+                glow(e.x(), e.y() - 40, 90, 0.4, purple, false);
+                bossPopup("¡TELEQUINESIS!", e.x(), e.y() - 130, purple, 26);
+            }
+            case FUTURE_SIGHT_MARK -> {
+                sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.4f);
+                bossPopup("¡PREMONICION!", e.x(), e.y() - 150, pink, 24);
+            }
+            case FUTURE_SIGHT_STRIKE -> {
+                sound.play(FightingSound.Sfx.THUNDER, 0.7f);
+                big.play(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, e.x(), e.y() - 150, 3, false);
+                ring(e.x(), e.y(), 20, 140, 0.3, pink, 0, 5);
+                sparks(e.x(), e.y() - 20, 18, 420, Color.WHITE, pink);
+                shake(6, 0.2);
+            }
+            case VOLLEY -> bossPopup("¡TRIPLE BOLA SOMBRA!", e.x(), e.y() - 240, purple, 22);
+        }
+    }
+
+    private void bossPopup(String text, double x, double y, Color color, int size) {
+        Popup p = new Popup();
+        p.text = text;
+        p.x = Math.max(150, Math.min(1130, x));
+        p.y = y;
+        p.life = 1.0;
+        p.maxLife = 1.0;
+        p.size = size;
+        p.color = color;
         popups.add(p);
     }
 

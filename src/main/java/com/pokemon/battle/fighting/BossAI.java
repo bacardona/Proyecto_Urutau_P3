@@ -10,6 +10,10 @@ import java.util.Random;
  * Fase 1 (mas de la mitad de vida): pelea de lejos con Psiquico y Bola Sombra; si lo
  * acorralan se teletransporta. Fase 2 (furioso): mas rapido, se teletransporta detras del
  * rival para atacar de cerca y carga solo su Psicoataque.
+ *
+ * Modo dificil (revancha): ademas pone una barrera que devuelve proyectiles, lanza la triple
+ * Bola Sombra, usa Telequinesis (te jala) y Premonicion (marca el suelo); en la fase 3, como
+ * Mega Mewtwo Y, piensa mas rapido y repite todo mas seguido.
  */
 final class BossAI {
 
@@ -42,8 +46,20 @@ final class BossAI {
     private boolean jumpToPress;
     private boolean ultimateToPress;
 
+    static final double THINK_SECONDS_MEGA = 0.11;
+    private final boolean hard;
+    private double barrierCooldown = 4.0;
+    private double volleyCooldown = 3.0;
+    private double telekinesisCooldown = 2.0;
+    private double futureSightCooldown = 1.5;
+
     BossAI(int bossIndex) {
+        this(bossIndex, false);
+    }
+
+    BossAI(int bossIndex, boolean hard) {
         this.me = bossIndex;
+        this.hard = hard;
     }
 
     /** Llamado al comienzo de cada paso de la simulacion. */
@@ -56,6 +72,15 @@ final class BossAI {
         blinkCooldown -= dt;
         meleeCooldown -= dt;
         ultimateCooldown -= dt;
+        barrierCooldown -= dt;
+        volleyCooldown -= dt;
+        telekinesisCooldown -= dt;
+        futureSightCooldown -= dt;
+        if (boss.isMegaPending()) {
+            // Transformandose: no hace nada hasta la explosion
+            press(input, 0, false, -1, false, false);
+            return;
+        }
         if (blockSeconds > 0) guardedSeconds += dt;
         else guardedSeconds = Math.max(0, guardedSeconds - dt * 0.5);
         blockSeconds = Math.max(0, blockSeconds - dt);
@@ -68,7 +93,8 @@ final class BossAI {
 
         think -= dt;
         if (think <= 0) {
-            think = boss.isEnraged() ? THINK_SECONDS_ENRAGED : THINK_SECONDS;
+            think = boss.isMega() ? THINK_SECONDS_MEGA
+                    : boss.isEnraged() ? THINK_SECONDS_ENRAGED : THINK_SECONDS;
             decide(session, boss, foe);
         }
 
@@ -95,8 +121,15 @@ final class BossAI {
         boolean enraged = boss.isEnraged();
         if (busy) return;
 
+        // 0. Modo dificil: si le disparan, a veces levanta la barrera que devuelve proyectiles
+        if (hard && barrierCooldown <= 0 && incomingProjectile(session, boss, 600)
+                && random.nextDouble() < 0.35) {
+            if (session.bossBarrier(1.8)) barrierCooldown = boss.isMega() ? 10 : 14;
+            return;
+        }
+
         // 1. Esquivar: si le viene un proyectil cerca, salta o se cubre
-        if (incomingProjectile(session, boss)) {
+        if (incomingProjectile(session, boss, 260)) {
             if (random.nextDouble() < (enraged ? 0.75 : 0.55)) jumpToPress = true;
             else blockSeconds = 0.35;
             return;
@@ -105,9 +138,12 @@ final class BossAI {
         // 2. Ultimate (solo furioso, cuando la barra esta llena)
         if (enraged && boss.isUltimateReady() && ultimateCooldown <= 0 && !foe.isBlocking()) {
             ultimateToPress = true;
-            ultimateCooldown = ULTIMATE_COOLDOWN_SECONDS;
+            ultimateCooldown = boss.isMega() ? 10 : ULTIMATE_COOLDOWN_SECONDS;
             return;
         }
+
+        // 2b. Tecnicas del modo dificil
+        if (hard && hardTechnique(session, boss, foe, distance, enraged)) return;
 
         // 3. Lo atacan de cerca: escudo o teletransporte; si ya aguanto mucho, contraataca
         if (foeAttacking && distance < CLOSE_RANGE + 40 && guardedSeconds > 1.0) {
@@ -128,6 +164,34 @@ final class BossAI {
 
         if (enraged) decideEnraged(session, boss, foe, distance, towardFoe);
         else decideCalm(session, boss, foe, distance, towardFoe);
+    }
+
+    /** Triple Bola Sombra (siempre), Telequinesis y Premonicion (furioso). True si uso una. */
+    private boolean hardTechnique(FightingGameSession session, Fighter boss, Fighter foe,
+                                  double distance, boolean enraged) {
+        double speedUp = boss.isMega() ? 0.65 : 1.0;
+        if (enraged && telekinesisCooldown <= 0 && distance > 240 && distance < 760
+                && random.nextDouble() < 0.4) {
+            if (session.bossTelekinesis()) {
+                telekinesisCooldown = 7 * speedUp;
+                meleeCooldown = 0;                         // apenas llega, Psicocorte
+                return true;
+            }
+        }
+        if (enraged && futureSightCooldown <= 0 && random.nextDouble() < 0.35) {
+            if (session.bossFutureSight()) {
+                futureSightCooldown = 5.5 * speedUp;
+                return true;
+            }
+        }
+        if (volleyCooldown <= 0 && distance > 220 && random.nextDouble() < 0.25) {
+            if (session.bossTripleShadowBall()) {
+                volleyCooldown = 8 * speedUp;
+                shotCooldown = 1.6;
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Fase 1: mantiene la distancia y dispara. */
@@ -211,12 +275,12 @@ final class BossAI {
         walkSeconds = seconds;
     }
 
-    private boolean incomingProjectile(FightingGameSession session, Fighter boss) {
+    private boolean incomingProjectile(FightingGameSession session, Fighter boss, double range) {
         for (FightingProjectile projectile : session.getProjectiles()) {
             if (projectile.getOwnerIndex() == me) continue;
             double dx = boss.getX() - projectile.getX();
             boolean coming = Math.signum(dx) == Math.signum(projectile.getVelocityX());
-            if (coming && Math.abs(dx) < 260) return true;
+            if (coming && Math.abs(dx) < range) return true;
         }
         return false;
     }
