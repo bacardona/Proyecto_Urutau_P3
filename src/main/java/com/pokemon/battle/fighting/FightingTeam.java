@@ -36,6 +36,17 @@ public final class FightingTeam {
         return new FightingTeam(trainerName, fighters, true);
     }
 
+    /** Equipo del jefe secreto: un solo Pokemon. */
+    static FightingTeam boss(String trainerName, Fighter boss) {
+        boss.markAsBoss();
+        return new FightingTeam(trainerName, List.of(boss));
+    }
+
+    private FightingTeam(String trainerName, List<Fighter> solo) {
+        this.trainerName = Objects.requireNonNull(trainerName);
+        this.members = List.copyOf(solo);
+    }
+
     private FightingTeam(String trainerName, List<Fighter> members, boolean prototype) {
         if (members.size() < MIN_SIZE || members.size() > MAX_SIZE) {
             throw new IllegalArgumentException("El equipo debe tener 2 o 3 miembros");

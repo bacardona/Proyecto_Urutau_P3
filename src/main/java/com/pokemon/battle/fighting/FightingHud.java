@@ -331,6 +331,10 @@ final class FightingHud {
         boolean pad = padConnected[player];
         String evolveKey = pad ? "LT" : player == 0 ? "R" : "P";
         String ultimateKey = pad ? "RT" : player == 0 ? "T" : "O";
+        if (fighter.isBoss()) {
+            // Mewtwo no evoluciona: su barra carga el Psicoataque
+            return fighter.isUltimateReady() ? "PSICOATAQUE LISTO" : "PSICOATAQUE";
+        }
         if (fighter.isEvolved()) {
             return fighter.isUltimateReady() ? "ULTI LISTA (" + ultimateKey + ")" : "ULTI";
         }

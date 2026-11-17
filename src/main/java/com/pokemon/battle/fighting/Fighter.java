@@ -54,6 +54,12 @@ public class Fighter {
     static final double PARRY_WINDOW_SECONDS = 0.15;
     static final double PARRY_REARM_SECONDS = 0.45;
     private double blockHeldSeconds;
+    // Jefe secreto (Mewtwo): aguanta el doble y en su segunda fase se enfurece
+    static final double BOSS_DAMAGE_TAKEN = 0.6;
+    static final double ENRAGED_DAMAGE_BONUS = 0.20;
+    static final double ENRAGED_SPEED_BONUS = 0.15;
+    private boolean boss;
+    private boolean enraged;
     private double parryRearmSeconds;
     private boolean parryArmed;
 
@@ -133,10 +139,15 @@ public class Fighter {
         return 1.0 - evolutionAnimationSeconds / EVOLUTION_ANIMATION_DURATION;
     }
     public EvolutionProfile getEvolutionProfile() { return evolutionProfile; }
-    public boolean isUltimateReady() { return evolved && isEvolutionReady(); }
+    public boolean isUltimateReady() { return (evolved || boss) && isEvolutionReady(); }
     public double getMovementSpeedMultiplier() {
+        if (enraged) return 1.0 + ENRAGED_SPEED_BONUS;
         return evolved ? 1.0 + EvolutionProfile.EVOLVED_MOVEMENT_SPEED_BONUS : 1.0;
     }
+    public boolean isBoss() { return boss; }
+    public boolean isEnraged() { return enraged; }
+    void markAsBoss() { boss = true; }
+    void enrage() { if (boss) enraged = true; }
     public boolean isOnGround() { return onGround; }
     public boolean isDefeated() { return defeated; }
     public boolean isUltimateStunned() { return ultimateStunCount > 0; }
@@ -174,10 +185,12 @@ public class Fighter {
     public double getOutgoingDamageMultiplier() {
         double multiplier = hasAttackBoost() ? 1.35 : 1.0;
         multiplier *= hasAttackReduction() ? 0.72 : 1.0;
+        multiplier *= enraged ? 1.0 + ENRAGED_DAMAGE_BONUS : 1.0;
         return multiplier * (evolved ? 1.0 + EvolutionProfile.EVOLVED_DAMAGE_BONUS : 1.0);
     }
     public double getIncomingDamageMultiplier() {
-        return hasDefenseReduction() ? 1.30 : 1.0;
+        double multiplier = hasDefenseReduction() ? 1.30 : 1.0;
+        return boss ? multiplier * BOSS_DAMAGE_TAKEN : multiplier;
     }
 
     void updateStatusEffects(double deltaSeconds) {
@@ -224,7 +237,7 @@ public class Fighter {
     }
 
     void refundInterruptedUltimate() {
-        if (evolved && !defeated) evolutionEnergy = 50;
+        if ((evolved || boss) && !defeated) evolutionEnergy = 50;
     }
 
     void returnToBaseAfterUltimate() {
@@ -278,7 +291,8 @@ public class Fighter {
 
     boolean applySleep(double durationSeconds) {
         if (isAsleep() || defeated) return false;
-        sleepSeconds = durationSeconds;
+        // El jefe se duerme la mitad de tiempo
+        sleepSeconds = boss ? durationSeconds * 0.5 : durationSeconds;
         return true;
     }
 
