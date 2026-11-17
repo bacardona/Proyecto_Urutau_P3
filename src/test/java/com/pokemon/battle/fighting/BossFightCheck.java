@@ -75,9 +75,77 @@ public final class BossFightCheck {
         }
         check(hammer.getState() == FightingGameSession.State.FINISHED, "A fight against a hammering challenger ends");
 
+        platforms();
         hardMode();
 
         System.out.println("PASS boss fight (shots=" + shots + ", blinks=" + blinks + ")");
+    }
+
+    /** Bosque: subirse a una plataforma ya no es un lugar seguro. */
+    private static void platforms() {
+        FightingGameSession forest = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.BOSQUE, true);
+        Fighter foe = forest.getFighters().get(0);
+        Fighter boss = forest.getBoss();
+        Platform high = null;
+        for (Platform p : forest.getPlatforms()) if (p.getTop() < forest.getGroundY() - 150) { high = p; break; }
+        check(high != null, "Forest has a high platform");
+        foe.setX(high.getX() + high.getWidth() / 2.0);
+        foe.setY(high.getTop());
+        foe.setOnGround(true);
+        boss.setX(foe.getX() + 380);
+        forest.update(new FightingInput(), DT);
+        foe.setX(high.getX() + high.getWidth() / 2.0);
+        foe.setY(high.getTop());
+        check(forest.isRivalAboveBoss() && boss.getAimUpAngle() > 0, "Mewtwo aims up at a rival on a platform");
+
+        // El disparo sube y alcanza al rival en la plataforma
+        FightingGameSession shot = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.BOSQUE, true);
+        Fighter up = shot.getFighters().get(0);
+        Fighter shooter = shot.getBoss();
+        up.setX(high.getX() + high.getWidth() / 2.0);
+        up.setY(high.getTop());
+        up.setOnGround(true);
+        shooter.setX(up.getX() + 350);
+        shooter.setFacingLeft(true);
+        shot.update(new FightingInput(), DT);
+        FightingInput press = new FightingInput();
+        press.setPlayerTwoAttackTwo(true);
+        int before = up.getHealth();
+        boolean rising = false;
+        for (int i = 0; i < 120; i++) {
+            up.setX(high.getX() + high.getWidth() / 2.0);
+            up.setY(high.getTop());
+            up.setOnGround(true);
+            up.setVelocityY(0);
+            shot.update(press, DT);
+            press.setPlayerTwoAttackTwo(false);
+            for (FightingProjectile p : shot.getProjectiles()) if (p.getOwnerIndex() == 1 && p.getVelocityY() < 0) rising = true;
+            shot.getCombatSystem().drainEvents();
+        }
+        check(rising, "Mewtwo's shot rises toward the platform");
+        check(up.getHealth() < before, "The rising shot reaches the rival on the platform");
+
+        // Teletransporte: aparece en la misma plataforma
+        FightingGameSession blink = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.BOSQUE, true);
+        Fighter onTop = blink.getFighters().get(0);
+        onTop.setX(high.getX() + high.getWidth() / 2.0);
+        onTop.setY(high.getTop());
+        onTop.setOnGround(true);
+        check(blink.bossBlink(onTop.getX() + 60), "Blink works");
+        check(blink.getBoss().getY() == high.getTop(), "Mewtwo teleports onto the rival's platform");
+
+        // Premonicion: la marca queda a la altura del rival
+        FightingGameSession mark = FightingGameSession.bossFightPrototype(
+                "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.BOSQUE, true);
+        Fighter marked = mark.getFighters().get(0);
+        marked.setX(high.getX() + high.getWidth() / 2.0);
+        marked.setY(high.getTop());
+        marked.setOnGround(true);
+        mark.bossFutureSight();
+        check(mark.getFutureSightMarks().get(0).y() == high.getTop(), "Future sight mark sits on the platform");
     }
 
     /** Revancha dificil: tecnicas nuevas y Mega Mewtwo Y. */

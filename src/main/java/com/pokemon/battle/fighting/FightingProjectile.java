@@ -7,8 +7,10 @@ public final class FightingProjectile {
 
     private final String moveId;
     private double x;
-    private final double y;
+    private double y;
     private final double velocityX;
+    // Solo los disparos de Mewtwo hacia una plataforma suben (los demas van rectos)
+    private final double velocityY;
     private final double size;
     private final int damage;
     private double remainingSeconds;
@@ -17,10 +19,16 @@ public final class FightingProjectile {
 
     FightingProjectile(String moveId, double x, double y, double velocityX, double size,
                        int damage, double lifetime, Color color, int ownerIndex) {
+        this(moveId, x, y, velocityX, 0, size, damage, lifetime, color, ownerIndex);
+    }
+
+    FightingProjectile(String moveId, double x, double y, double velocityX, double velocityY, double size,
+                       int damage, double lifetime, Color color, int ownerIndex) {
         this.moveId = moveId;
         this.x = x;
         this.y = y;
         this.velocityX = velocityX;
+        this.velocityY = velocityY;
         this.size = size;
         this.damage = damage;
         this.remainingSeconds = lifetime;
@@ -30,11 +38,12 @@ public final class FightingProjectile {
 
     void update(double deltaSeconds) {
         x += velocityX * deltaSeconds;
+        y += velocityY * deltaSeconds;
         remainingSeconds -= deltaSeconds;
     }
 
     boolean isExpired(int arenaWidth) {
-        return remainingSeconds <= 0 || x < -size || x > arenaWidth + size;
+        return remainingSeconds <= 0 || x < -size || x > arenaWidth + size || y < -size;
     }
 
     public Hitbox hitbox() {
@@ -45,6 +54,7 @@ public final class FightingProjectile {
     public String getMoveId() { return moveId; }
     public double getY() { return y; }
     public double getVelocityX() { return velocityX; }
+    public double getVelocityY() { return velocityY; }
     public double getSize() { return size; }
     public int getDamage() { return damage; }
     public Color getColor() { return color; }

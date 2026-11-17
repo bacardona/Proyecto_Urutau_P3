@@ -798,10 +798,17 @@ public class FightingCombatSystem {
         }
         // Mewtwo es muy alto: sus disparos salen a la altura de un Pokemon pequeno (se pueden saltar)
         if (attacker.isBoss()) originY = Math.max(originY, attacker.getY() - 62);
+        double aim = attacker.isBoss() ? attacker.getAimUpAngle() : 0;
+        if (aim > 0) {
+            // Rival en una plataforma: Mewtwo se inclina hacia arriba y el disparo sube hacia el
+            originY = attacker.getY() - attacker.getRenderHeight() * 0.62;
+            originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) * 0.7);
+        }
+        double speed = definition.projectileSpeed();
         emit(CombatEvent.Type.PROJECTILE_FIRED, definition.moveId(), ownerIndex,
                 originX, originY, direction, 0);
         projectiles.add(new FightingProjectile(definition.moveId(), originX, originY,
-                direction * definition.projectileSpeed(), definition.projectileSize(),
+                direction * speed * Math.cos(aim), -speed * Math.sin(aim), definition.projectileSize(),
                 definition.damage(), definition.projectileLifetime(), definition.effectColor(), ownerIndex));
     }
 
@@ -974,8 +981,8 @@ public class FightingCombatSystem {
                         projectile.getX(), projectile.getY(), back, 0);
                 reflected.add(new FightingProjectile(projectile.getMoveId(),
                         projectile.getX() + back * (projectile.getSize() + 6), projectile.getY(),
-                        -projectile.getVelocityX() * 1.15, projectile.getSize(), projectile.getDamage(),
-                        2.0, projectile.getColor(), newOwner));
+                        -projectile.getVelocityX() * 1.15, -projectile.getVelocityY(), projectile.getSize(),
+                        projectile.getDamage(), 2.0, projectile.getColor(), newOwner));
                 iterator.remove();
             } else if ("SLEEP_POWDER".equals(projectile.getMoveId())
                     && isBlockedByPlatform(projectile.hitbox(), platforms)) {

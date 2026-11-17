@@ -67,6 +67,8 @@ public class Fighter {
     private boolean megaPending;
     private boolean mega;
     private double barrierSeconds;
+    // Mewtwo apunta hacia arriba cuando el rival esta en una plataforma (radianes, 0 = recto)
+    private double aimUpAngle;
     // En la revancha dificil aguanta mas
     static final double HARD_BOSS_DAMAGE_TAKEN = 0.55;
     private boolean hardBoss;
@@ -175,6 +177,8 @@ public class Fighter {
     }
 
     public boolean hasBarrier() { return barrierSeconds > 0; }
+    public double getAimUpAngle() { return aimUpAngle; }
+    void setAimUpAngle(double radians) { aimUpAngle = radians; }
 
     /** Cura sin pasar del maximo (Mega Mewtwo recupera vida al transformarse). */
     void heal(int amount) {
