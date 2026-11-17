@@ -743,6 +743,7 @@ public class FightingRenderer {
     }
 
     private void drawBlockShield(Graphics2D g, Fighter fighter, FightingCombatSystem combat, boolean front) {
+        if (fighter.hasBarrier()) return;   // con la barrera puesta no se dibuja el escudo
         double opacity = fighter.getShieldOpacity();
         if (opacity <= 0 || fighter.isDefeated() || fighter.isHitStunned()
                 || fighter.isUltimateStunned() || fighter.isAsleep() || fighter.isEvolutionAnimating()) return;

@@ -52,6 +52,9 @@ final class BossAI {
     private double volleyCooldown = 3.0;
     private double telekinesisCooldown = 2.0;
     private double futureSightCooldown = 1.5;
+    // Respiro entre tecnicas especiales: una cosa a la vez para que se puedan ver venir
+    static final double SPECIAL_GAP_SECONDS = 1.5;
+    private double specialCooldown;
 
     BossAI(int bossIndex) {
         this(bossIndex, false);
@@ -76,6 +79,7 @@ final class BossAI {
         volleyCooldown -= dt;
         telekinesisCooldown -= dt;
         futureSightCooldown -= dt;
+        specialCooldown -= dt;
         if (boss.isMegaPending()) {
             // Transformandose: no hace nada hasta la explosion
             press(input, 0, false, -1, false, false);
@@ -104,7 +108,7 @@ final class BossAI {
             boss.setFacingLeft(foe.getX() < boss.getX());
         }
         double direction = walkSeconds > 0 && blockSeconds == 0 ? walkDirection : 0;
-        press(input, direction, blockSeconds > 0, attackToPress, jumpToPress, ultimateToPress);
+        press(input, direction, blockSeconds > 0 && !boss.hasBarrier(), attackToPress, jumpToPress, ultimateToPress);
         attackToPress = -1;
         jumpToPress = false;
         ultimateToPress = false;
@@ -113,6 +117,7 @@ final class BossAI {
     private void decide(FightingGameSession session, Fighter boss, Fighter foe) {
         FightingCombatSystem combat = session.getCombatSystem();
         boolean busy = combat.getAttackVisual(boss, session.getFighters()) != null
+                || !"IDLE".equals(combat.getUltimatePhaseName(me))       // en su Psicoataque no hace nada mas
                 || boss.isHitStunned() || boss.isAsleep() || !boss.isOnGround();
         double dx = foe.getX() - boss.getX();
         double distance = Math.abs(dx);
@@ -122,28 +127,37 @@ final class BossAI {
         if (busy) return;
 
         // 0. Modo dificil: si le disparan, a veces levanta la barrera que devuelve proyectiles
-        if (hard && barrierCooldown <= 0 && incomingProjectile(session, boss, 600)
-                && random.nextDouble() < 0.35) {
-            if (session.bossBarrier(1.8)) barrierCooldown = boss.isMega() ? 10 : 14;
+        // Escudo o barrera, nunca los dos: solo la levanta si no se esta cubriendo
+        if (hard && barrierCooldown <= 0 && specialCooldown <= 0 && blockSeconds == 0 && !boss.isBlocking()
+                && incomingProjectile(session, boss, 600) && random.nextDouble() < 0.35) {
+            if (session.bossBarrier(1.8)) {
+                barrierCooldown = boss.isMega() ? 10 : 14;
+                specialCooldown = SPECIAL_GAP_SECONDS;
+            }
             return;
         }
 
         // 1. Esquivar: si le viene un proyectil cerca, salta o se cubre
         if (incomingProjectile(session, boss, 260)) {
             if (random.nextDouble() < (enraged ? 0.75 : 0.55)) jumpToPress = true;
-            else blockSeconds = 0.35;
+            else guard(boss, 0.35);
             return;
         }
 
         // 2. Ultimate (solo furioso, cuando la barra esta llena)
-        if (enraged && boss.isUltimateReady() && ultimateCooldown <= 0 && !foe.isBlocking()) {
+        if (enraged && boss.isUltimateReady() && ultimateCooldown <= 0 && specialCooldown <= 0
+                && !foe.isBlocking()) {
             ultimateToPress = true;
             ultimateCooldown = boss.isMega() ? 10 : ULTIMATE_COOLDOWN_SECONDS;
+            specialCooldown = SPECIAL_GAP_SECONDS;
             return;
         }
 
-        // 2b. Tecnicas del modo dificil
-        if (hard && hardTechnique(session, boss, foe, distance, enraged)) return;
+        // 2b. Tecnicas del modo dificil (de a una, con respiro entre ellas)
+        if (hard && specialCooldown <= 0 && hardTechnique(session, boss, foe, distance, enraged)) {
+            specialCooldown = SPECIAL_GAP_SECONDS;
+            return;
+        }
 
         // 3. Lo atacan de cerca: escudo o teletransporte; si ya aguanto mucho, contraataca
         if (foeAttacking && distance < CLOSE_RANGE + 40 && guardedSeconds > 1.0) {
@@ -157,7 +171,7 @@ final class BossAI {
             if (blinkCooldown <= 0 && random.nextDouble() < (enraged ? 0.55 : 0.4)) {
                 blink(session, boss, foe, enraged);
             } else if (random.nextDouble() < (enraged ? 0.6 : 0.85)) {
-                blockSeconds = 0.45;                       // tranquilo se cubre mas seguido
+                guard(boss, 0.45);                       // tranquilo se cubre mas seguido
             }
             return;
         }
@@ -199,7 +213,7 @@ final class BossAI {
                             double distance, double towardFoe) {
         // Si el rival se le acerca, a veces se pone en guardia antes de que ataque
         if (distance < 260 && random.nextDouble() < 0.10) {
-            blockSeconds = 0.35;
+            guard(boss, 0.35);
             return;
         }
         if (distance < CLOSE_RANGE) {
@@ -234,7 +248,7 @@ final class BossAI {
                 attackToPress = 0;                         // Psicocorte
                 meleeCooldown = 0.55;
             } else if (random.nextDouble() < 0.3) {
-                blockSeconds = 0.3;
+                guard(boss, 0.3);
             }
             return;
         }
@@ -268,6 +282,11 @@ final class BossAI {
             target = foe.getX() < width / 2 ? width - 180 : 180;
         }
         if (session.bossBlink(target)) blinkCooldown = behind ? 2.4 : 3.2;
+    }
+
+    /** Cubrirse, salvo que tenga la barrera puesta (escudo o barrera, nunca los dos). */
+    private void guard(Fighter boss, double seconds) {
+        if (!boss.hasBarrier()) blockSeconds = seconds;
     }
 
     private void walk(double direction, double seconds) {
