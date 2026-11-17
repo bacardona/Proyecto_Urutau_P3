@@ -154,7 +154,7 @@ public class FightingGameSession {
     }
 
     public boolean isBossFight() { return bossIndex >= 0; }
-    /** Revancha dificil: barrera, ataques nuevos, Recuperacion y Mega Mewtwo Y. */
+    /** Revancha dificil: barrera, ataques nuevos y Mega Mewtwo Y. */
     public boolean isHardBoss() { return hardBoss; }
     /** 0 o 1 segun el lado de Mewtwo; -1 si no es pelea de jefe. */
     public int getBossIndex() { return bossIndex; }
@@ -205,13 +205,7 @@ public class FightingGameSession {
             return;
         }
         if (!hardBoss) return;
-        if (!bossRecovered && boss.getHealth() <= boss.getMaxHealth() * RECOVER_AT) {
-            bossRecovered = true;
-            boss.heal(RECOVER_AMOUNT);
-            bossEvents.add(new BossEvent(BossEvent.Kind.RECOVER, boss.getX(), boss.getY()));
-            return;
-        }
-        if (bossRecovered && !boss.isMega() && !boss.isMegaPending()
+        if (!boss.isMega() && !boss.isMegaPending()
                 && boss.getHealth() <= boss.getMaxHealth() * MEGA_AT) {
             boss.startMega();
             megaSceneLeft = MEGA_SCENE_SECONDS;
@@ -223,8 +217,6 @@ public class FightingGameSession {
     }
 
     // ------------------------------------------------------------ modo dificil
-    static final double RECOVER_AT = 0.25;
-    static final int RECOVER_AMOUNT = 50;
     static final double MEGA_AT = 0.20;
     /** Lo que dura la escena de Mega (el director la congela; esto es por si no hay director). */
     static final double MEGA_SCENE_SECONDS = 6.4;
@@ -234,7 +226,7 @@ public class FightingGameSession {
 
     /** Avisos para los efectos (FightingFx los consume). */
     public record BossEvent(Kind kind, double x, double y) {
-        public enum Kind { RECOVER, MEGA, BARRIER, TELEKINESIS, FUTURE_SIGHT_MARK, FUTURE_SIGHT_STRIKE, VOLLEY }
+        public enum Kind { MEGA, BARRIER, TELEKINESIS, FUTURE_SIGHT_MARK, FUTURE_SIGHT_STRIKE, VOLLEY }
     }
 
     /** Marca de Premonicion en el suelo: progress va de 0 a 1 hasta que cae el golpe. */
@@ -243,7 +235,6 @@ public class FightingGameSession {
     private final List<BossEvent> bossEvents = new ArrayList<>();
     private final List<double[]> futureSights = new ArrayList<>();   // {x, tiempo}
     private final List<double[]> pendingVolley = new ArrayList<>();  // {espera, altura}
-    private boolean bossRecovered;
     private double megaSceneLeft;
 
     public List<BossEvent> consumeBossEvents() {

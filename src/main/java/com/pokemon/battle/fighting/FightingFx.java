@@ -876,14 +876,6 @@ public final class FightingFx {
         Color pink = new Color(0xFF8FCB);
         Color purple = new Color(0xB78CFF);
         switch (e.kind()) {
-            case RECOVER -> {
-                sound.play(FightingSound.Sfx.BUFF, 1f);
-                double midY = e.y() - (boss == null ? 100 : boss.getRenderHeight() * 0.5);
-                glow(e.x(), midY, 150, 0.6, new Color(0xB8FFC8), false);
-                ring(e.x(), e.y(), 20, 160, 0.5, new Color(0x7DFFA0), 0, 4);
-                sparks(e.x(), midY, 26, 260, Color.WHITE, new Color(0x7DFFA0));
-                bossPopup("¡RECUPERACION!", e.x(), midY - 110, new Color(0x7DFFA0), 30);
-            }
             case MEGA -> director.startMega(session);
             case BARRIER -> {
                 sound.play(FightingSound.Sfx.BUFF, 0.8f);

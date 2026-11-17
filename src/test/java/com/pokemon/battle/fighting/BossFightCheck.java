@@ -80,7 +80,7 @@ public final class BossFightCheck {
         System.out.println("PASS boss fight (shots=" + shots + ", blinks=" + blinks + ")");
     }
 
-    /** Revancha dificil: tecnicas nuevas, Recuperacion y Mega Mewtwo Y. */
+    /** Revancha dificil: tecnicas nuevas y Mega Mewtwo Y. */
     private static void hardMode() {
         FightingGameSession hard = FightingGameSession.bossFightPrototype(
                 "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
@@ -146,16 +146,16 @@ public final class BossFightCheck {
         for (int i = 0; i < 90; i++) { mover.setX(i < 20 ? 500 : 300); dodge.update(new FightingInput(), DT); }
         check(mover.getHealth() == moverHealth, "Moving away dodges future sight");
 
-        // Recuperacion al 25 % y Mega al 20 %
+        // Mega al 20 %
         FightingGameSession phases = FightingGameSession.bossFightPrototype(
                 "ASH", new String[]{"PIKACHU", "BULBASAUR"}, false, FightingStage.TEMPLO, true);
         Fighter boss = phases.getBoss();
         boss.receiveDamage(boss.getMaxHealth() / 2 + 1);
         phases.update(new FightingInput(), DT);
         check(boss.isEnraged(), "Hard boss enrages");
-        boss.receiveDamage(boss.getHealth() - 49);          // queda en 49 (menos del 25 %)
+        boss.receiveDamage(boss.getHealth() - 49);          // 49: todavia no es Mega
         phases.update(new FightingInput(), DT);
-        check(boss.getHealth() == 49 + FightingGameSession.RECOVER_AMOUNT, "Recover heals once");
+        check(boss.getHealth() == 49 && !boss.isMegaPending(), "No heal and no Mega above 20%");
         boss.receiveDamage(boss.getHealth() - 39);          // 39 (menos del 20 %)
         phases.update(new FightingInput(), DT);
         check(boss.isMegaPending() && !boss.isMega(), "Mega transformation starts at 20%");
@@ -163,9 +163,6 @@ public final class BossFightCheck {
         check(boss.isMega() && Fighter.MEGA_FORM_ID.equals(boss.getPokemonId()), "Becomes Mega Mewtwo Y");
         check(UltimateDefinition.forEvolvedForm(Fighter.MEGA_FORM_ID) != null, "Mega has its Psystrike");
         check(FightingSpriteProfile.forSpecies(Fighter.MEGA_FORM_ID) != null, "Mega sprites exist");
-        boss.receiveDamage(boss.getHealth() - 20);
-        phases.update(new FightingInput(), DT);
-        check(boss.getHealth() <= 20, "Recover happens only once");
     }
 
     private static void check(boolean condition, String message) {
