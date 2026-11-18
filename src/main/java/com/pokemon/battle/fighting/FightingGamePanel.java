@@ -45,8 +45,16 @@ public class FightingGamePanel extends JPanel {
             "CONTINUAR",
             "CONTROLES",
             "RESUMEN",
+            "MANDO",          // el texto real lo da pauseOptionLabel (lado izquierdo o derecho)
             "VOLVER AL MENU"
     };
+
+    /**
+     * Lado que maneja el mando 1. Normal: mando 1 = jugador izquierdo, mando 2 = derecho.
+     * Cambiado: al reves, asi uno puede jugar con el teclado de la izquierda y el mando a la derecha.
+     * Es static para que se recuerde entre un combate y otro.
+     */
+    private static boolean padsSwapped;
 
     private static final int MENU_W = 380;
     private static final int MENU_X = (WIDTH - MENU_W) / 2;
@@ -362,7 +370,7 @@ public class FightingGamePanel extends JPanel {
     private void readGamepads() {
         if (gamepadSource == null) return;
         for (int player = 0; player < 2; player++) {
-            PadSnapshot pad = gamepadSource.apply(player);
+            PadSnapshot pad = gamepadSource.apply(padIndexFor(player));
             if (pad == null) pad = PadSnapshot.NONE;
             if (padConnected[player] != pad.connected()) {
                 padConnected[player] = pad.connected();
@@ -392,6 +400,28 @@ public class FightingGamePanel extends JPanel {
                 if (confirm) activateSelected();
             }
         }
+    }
+
+    /** Que mando (0 o 1) maneja a este jugador (0 = izquierda, 1 = derecha). */
+    int padIndexFor(int player) {
+        return padsSwapped ? 1 - player : player;
+    }
+
+    /** Cambia de lado los mandos. Primero suelta todo lo que tenian apretado. */
+    void togglePadSide() {
+        for (int player = 0; player < 2; player++) {
+            gamepadControls.apply(player, PadSnapshot.NONE, input);
+            padConnected[player] = false;
+            renderer.setPadConnected(player, false);
+        }
+        padsSwapped = !padsSwapped;
+        repaint();
+    }
+
+    /** Texto de cada boton de la pausa (el del mando dice a que lado esta). */
+    private String pauseOptionLabel(int index) {
+        if (index == 3) return padsSwapped ? "MANDO: LADO DERECHO" : "MANDO: LADO IZQUIERDO";
+        return PAUSE_OPTIONS[index];
     }
 
     private void updateSimulation() {
@@ -509,7 +539,9 @@ public class FightingGamePanel extends JPanel {
 
             case 2 -> pausePage = PausePage.SUMMARY;
 
-            case 3 -> {
+            case 3 -> togglePadSide();
+
+            case 4 -> {
                 stopGameTimersAndClearInput();
                 onBack.run();
             }
@@ -878,7 +910,7 @@ public class FightingGamePanel extends JPanel {
                 // Nombre de la opcion.
                 drawCentered(
                         g,
-                        PAUSE_OPTIONS[i],
+                        pauseOptionLabel(i),
                         centerX,
                         y + 29,
                         23,
