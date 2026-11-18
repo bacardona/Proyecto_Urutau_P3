@@ -13,7 +13,6 @@ import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
 import java.awt.Color;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -828,35 +827,14 @@ public class FightingGamePanel extends JPanel {
 
     private void drawPause(Graphics2D g) {
 
-        int panelWidth = 450;
         int panelHeight = 400;
 
-        int panelX = (WIDTH - panelWidth) / 2;
         int panelY = (HEIGHT - panelHeight) / 2;
 
         int centerX = WIDTH / 2;
 
-        // Borde del menu.
-        g.setColor(RetroStyle.OUTLINE);
-
-        g.fillRoundRect(
-                panelX,
-                panelY,
-                panelWidth,
-                panelHeight,
-                22, 22
-        );
-
-        // Fondo del menu.
-        g.setColor(new Color(0xF4F1E4));
-
-        g.fillRoundRect(
-                panelX + 7,
-                panelY + 7,
-                panelWidth - 14,
-                panelHeight - 14,
-                16, 16
-        );
+        // Estilo arcade: sin recuadro, el texto va directo sobre el fondo oscurecido
+        // (ver ArcadeMenuStyle). panelY solo sirve para ubicar los textos.
 
         // MENU PRINCIPAL.
         if (pausePage == PausePage.MAIN) {
@@ -877,45 +855,10 @@ public class FightingGamePanel extends JPanel {
                 int y = MENU_Y +
                         i * (OPTION_H + OPTION_GAP);
 
-                // Color del boton.
-                if (i == selectedOption) {
-
-                    g.setColor(new Color(0xBED7FF));
-
-                } else {
-
-                    g.setColor(Color.WHITE);
-                }
-
-                // Fondo del boton.
-                g.fillRoundRect(
-                        MENU_X,
-                        y,
-                        MENU_W,
-                        OPTION_H,
-                        8, 8
-                );
-
-                // Borde del boton.
-                g.setColor(RetroStyle.OUTLINE);
-
-                g.drawRoundRect(
-                        MENU_X,
-                        y,
-                        MENU_W,
-                        OPTION_H,
-                        8, 8
-                );
-
-                // Nombre de la opcion.
-                drawCentered(
-                        g,
-                        pauseOptionLabel(i),
-                        centerX,
-                        y + 29,
-                        23,
-                        RetroStyle.DARK
-                );
+                // Sin caja: la opcion elegida va en amarillo con flechas.
+                // El clic sigue usando el mismo rectangulo de cada opcion.
+                ArcadeMenuStyle.option(g, pauseOptionLabel(i), centerX, y + 29, 23,
+                        i == selectedOption);
             }
 
             drawCentered(
@@ -1072,19 +1015,7 @@ public class FightingGamePanel extends JPanel {
             int size,
             Color color
     ) {
-
-        g.setFont(RetroStyle.font(size));
-        g.setColor(color);
-
-        FontMetrics metrics = g.getFontMetrics();
-
-        int textWidth =
-                metrics.stringWidth(text);
-
-        g.drawString(
-                text,
-                centerX - textWidth / 2,
-                baseline
-        );
+        // Texto blanco con borde negro (estilo arcade del menu de pausa)
+        ArcadeMenuStyle.text(g, text, centerX, baseline, size, color);
     }
 }
