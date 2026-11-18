@@ -171,7 +171,11 @@ public final class FreeFightSpriteCheck {
                     if (visual == null) break;
                     sawActive |= visual.phase().equals("ACTIVE");
                     RENDERER.spriteFrame(f, FightingSpriteProfile.forSpecies(species), visual);
-                    if (slot == 0) check(f.getX() == initialX, "Placaje is moving " + species);
+                    // Placaje da un paso corto hacia adelante (como mucho 45 px), nunca hacia atras
+                    if (slot == 0) {
+                        double moved = (left ? -1 : 1) * (f.getX() - initialX);
+                        check(moved >= 0 && moved <= 45.5, "Placaje step out of range " + species + ": " + moved);
+                    }
                 }
                 check(sawActive && visual == null, "Attack does not complete " + species + "/" + slot);
                 check(f.getMaxHealth() == 200, "HP changed");
