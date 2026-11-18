@@ -918,11 +918,11 @@ public class FightingCombatSystem {
             applyHit(attackerIndex, attacker, target, definition);
             return;
         }
-        if (target.isInParryWindow() && isAttackerInFront(target, attacker)) {
+        if (target.isInParryWindow() && ShieldRules.blocks(target, attacker)) {
             parry(attackerIndex, attacker, target, definition, arenaWidth);
             return;
         }
-        if (target.isBlocking() && isAttackerInFront(target, attacker)) {
+        if (ShieldRules.blocks(target, attacker)) {
             // El escudo para casi todo el golpe, pero algo pasa (ver ShieldRules)
             int chip = blockedDamage(attacker, target, definition.damage(), definition.moveId());
             if (chip > 0) target.receiveDamage(chip);
@@ -1008,11 +1008,6 @@ public class FightingCombatSystem {
                 * target.getIncomingDamageMultiplier()));
         return ShieldRules.chipDamage(full,
                 ShieldRules.blockedFraction(moveId, target.getPokemon(), false));
-    }
-
-    private boolean isAttackerInFront(Fighter defender, Fighter attacker) {
-        return defender.isFacingLeft() ? attacker.getX() < defender.getX()
-                : attacker.getX() > defender.getX();
     }
 
     private void registerCombo(int owner, Fighter target) {
