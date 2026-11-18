@@ -193,12 +193,8 @@ public class FightingRenderer {
         int panelY = (session.getHeight() - panelHeight) / 2;
         int centerX = session.getWidth() / 2;
 
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 22, 22);
-        g.setColor(new Color(0xF4F1E4));
-        g.fillRoundRect(panelX + 7, panelY + 7, panelWidth - 14, panelHeight - 14, 16, 16);
-
-        drawCentered(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
+        // Estilo arcade: sin recuadro, solo texto blanco sobre el fondo oscurecido
+        ArcadeMenuStyle.text(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
         String result = switch (session.getOutcome()) {
             case PLAYER_ONE_WINS -> session.getTrainerName(0) + " GANA!";
             case PLAYER_TWO_WINS -> session.getTrainerName(1) + " GANA!";
@@ -206,12 +202,12 @@ public class FightingRenderer {
         };
         if (session.isBossFight()) result = session.challengerWon() ? "¡VENCISTE A MEWTWO!" : "MEWTWO GANA...";
         if (hardOffered) {
-            drawCentered(g, "REVANCHA: MEWTWO A TODO SU PODER", centerX, panelY + 180, 18, new Color(0xC8302A));
+            ArcadeMenuStyle.text(g, "REVANCHA: MEWTWO A TODO SU PODER", centerX, panelY + 180, 18, new Color(0xC8302A));
         }
-        drawCentered(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
+        ArcadeMenuStyle.text(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
         if (bossOffered) {
             boolean blink = ((int) (fx.time() * 3)) % 2 == 0;
-            drawCentered(g, "¡UN NUEVO RETADOR SE ACERCA!", centerX, panelY + 180, 22,
+            ArcadeMenuStyle.text(g, "¡UN NUEVO RETADOR SE ACERCA!", centerX, panelY + 180, 22,
                     blink ? new Color(0xC8302A) : new Color(0x7A2BD0));
         }
 
@@ -222,14 +218,11 @@ public class FightingRenderer {
         String[] options = {first, hardOffered ? "AHORA NO" : "VOLVER AL MENU"};
         for (int i = 0; i < options.length; i++) {
             int y = RESULT_OPTION_Y + i * (RESULT_OPTION_H + RESULT_OPTION_GAP);
-            g.setColor(i == selectedOption ? new Color(0xBED7FF) : Color.WHITE);
-            g.fillRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
-            g.setColor(RetroStyle.OUTLINE);
-            g.drawRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
-            drawCentered(g, options[i], centerX, y + 29, 23, RetroStyle.DARK);
+            // El clic sigue usando el mismo rectangulo, aunque ya no se dibuje la caja
+            ArcadeMenuStyle.option(g, options[i], centerX, y + 29, 23, i == selectedOption);
         }
 
-        drawCentered(g, "FLECHAS + ENTER / CLIC", centerX,
+        ArcadeMenuStyle.text(g, "FLECHAS + ENTER / CLIC", centerX,
                 panelY + panelHeight - 14, 17, RetroStyle.DARK);
     }
 
