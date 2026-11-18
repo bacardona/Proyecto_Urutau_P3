@@ -25,11 +25,12 @@ final class ShieldRules {
     private ShieldRules() {
     }
 
-    /** True when the defender holds the shield and looks at the attacker. */
+    /**
+     * True when the defender holds the shield. The shield is a bubble around the whole
+     * Pokemon, so it covers every side: front, back and from above.
+     */
     static boolean blocks(Fighter defender, Fighter attacker) {
-        if (defender == null || attacker == null || !defender.isBlocking()) return false;
-        return defender.isFacingLeft() ? attacker.getX() < defender.getX()
-                : attacker.getX() > defender.getX();
+        return defender != null && attacker != null && defender.isBlocking();
     }
 
     /** Fraction of the damage that the shield stops (0.5 to 0.9). */

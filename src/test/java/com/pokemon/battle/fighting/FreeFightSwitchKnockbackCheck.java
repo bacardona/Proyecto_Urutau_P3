@@ -187,7 +187,33 @@ public class FreeFightSwitchKnockbackCheck {
         body.setPlayerOneAttackFour(false);
         for (int i = 0; i < 40; i++) slam.update(body, 1 / 60.0);
         check(machop.getX() - 600 > 50, "Body Slam must dash forward even with the rival behind: " + (machop.getX() - 600));
+        // El escudo tapa por todos lados: un Placaje por la espalda solo hace dano de raspon
+        int backFull = backHitDamage(false);
+        int backBlocked = backHitDamage(true);
+        check(backFull > 0, "Back hit without shield must do damage");
+        check(backBlocked > 0 && backBlocked <= Math.ceil(backFull * 0.25),
+                "Shield must also cover the back: " + backBlocked + " of " + backFull);
         System.out.println("PASS switch/knockback");
+    }
+
+    /** Charmander pega un Placaje a Squirtle por la espalda, con o sin escudo. */
+    private static int backHitDamage(boolean shield) {
+        FightingGameSession back = new FightingGameSession(setup());
+        Fighter attacker = back.getFighters().get(0);
+        Fighter defender = back.getFighters().get(1);
+        defender.setX(600);
+        defender.setFacingLeft(false);       // mira a la derecha: el atacante queda detras
+        attacker.setX(600 - PhysicsSystem.halfWidthFor(attacker) - PhysicsSystem.halfWidthFor(defender) - 4);
+        attacker.setFacingLeft(false);
+        FightingInput in = new FightingInput();
+        in.setPlayerTwoBlock(shield);
+        for (int i = 0; i < 10; i++) { back.update(in, 1 / 60.0); defender.setFacingLeft(false); }
+        int before = defender.getHealth();
+        in.setPlayerOneAttackOne(true);
+        back.update(in, 1 / 60.0);
+        in.setPlayerOneAttackOne(false);
+        for (int i = 0; i < 40; i++) { back.update(in, 1 / 60.0); defender.setFacingLeft(false); }
+        return before - defender.getHealth();
     }
 
     private static FreeFightSetup setup() {
