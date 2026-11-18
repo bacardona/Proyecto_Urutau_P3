@@ -141,6 +141,52 @@ public class FreeFightSwitchKnockbackCheck {
         for (int i = 0; i < 30; i++) fox.update(quick, 1 / 60.0);
         check(Math.abs(vulpix.getX() - foxStart) > 80, "Vulpix Quick Attack must dash forward: "
                 + Math.abs(vulpix.getX() - foxStart));
+        // Placaje da un paso corto hacia adelante, aunque el rival este lejos
+        FightingGameSession step = new FightingGameSession(setup());
+        Fighter charm = step.getFighters().get(0);
+        Fighter far = step.getFighters().get(1);
+        charm.setFacingLeft(false);
+        charm.setX(300);
+        far.setX(1000);
+        FightingInput tackle = new FightingInput();
+        tackle.setPlayerOneAttackOne(true);
+        step.update(tackle, 1 / 60.0);
+        tackle.setPlayerOneAttackOne(false);
+        for (int i = 0; i < 40; i++) step.update(tackle, 1 / 60.0);
+        double stepped = charm.getX() - 300;
+        check(stepped > 30 && stepped <= 45.5, "Placaje must take a short step forward: " + stepped);
+
+        // De cerca, el paso se detiene al tocar al rival: pega y no lo atraviesa
+        FightingGameSession close = new FightingGameSession(setup());
+        Fighter c1 = close.getFighters().get(0);
+        Fighter c2 = close.getFighters().get(1);
+        c1.setFacingLeft(false);
+        c1.setX(500);
+        c2.setX(500 + PhysicsSystem.halfWidthFor(c1) + PhysicsSystem.halfWidthFor(c2) + 50);
+        int c2Before = c2.getHealth();
+        tackle.setPlayerOneAttackOne(true);
+        close.update(tackle, 1 / 60.0);
+        tackle.setPlayerOneAttackOne(false);
+        for (int i = 0; i < 40; i++) close.update(tackle, 1 / 60.0);
+        check(c2.getHealth() < c2Before, "The short step lets Placaje reach a rival just out of range");
+        check(c1.getX() < c2.getX(), "Placaje must not pass through the rival");
+
+        // Golpe Cuerpo (Machop) sale hacia adelante aunque el rival este detras
+        FreeFightSetup machopSetup = new FreeFightSetup();
+        machopSetup.setPlayerOne(new Player(1, "A", 0, 0), List.of(p("MACHOP", Type.FIGHTING), p("CHARMANDER", Type.FIRE)));
+        machopSetup.setPlayerTwo(new Player(2, "B", 0, 0), List.of(p("SQUIRTLE", Type.WATER), p("EEVEE", Type.NORMAL)));
+        FightingGameSession slam = new FightingGameSession(machopSetup);
+        Fighter machop = slam.getFighters().get(0);
+        Fighter behind = slam.getFighters().get(1);
+        machop.setX(600);
+        behind.setX(300);
+        machop.setFacingLeft(false);
+        FightingInput body = new FightingInput();
+        body.setPlayerOneAttackFour(true);
+        slam.update(body, 1 / 60.0);
+        body.setPlayerOneAttackFour(false);
+        for (int i = 0; i < 40; i++) slam.update(body, 1 / 60.0);
+        check(machop.getX() - 600 > 50, "Body Slam must dash forward even with the rival behind: " + (machop.getX() - 600));
         System.out.println("PASS switch/knockback");
     }
 

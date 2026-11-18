@@ -117,7 +117,7 @@ public final class FreeFightEvolutionCheck {
                     if(p.attacks.containsKey(def.moveId()))check(belongs(p.sprites().get(p.attacks.get(def.moveId())),frame,left),"Attack overwritten");
                     else check(p.species.equals("WARTORTLE")&&def.moveId().equals("BITE"),"Unexpected missing attack");
                 }
-                if(slot==0)check(a.getX()==start,"Placaje translates");
+                if(slot==0){double moved=(left?-1:1)*(a.getX()-start);check(moved>=0&&moved<=45.5,"Placaje step out of range: "+moved);}
                 if(tick%6==0)draw(a,s.getCombatSystem(),s.getFighters());
                 noOverlap(a,b);
             }

@@ -24,6 +24,11 @@ public class FightingCombatSystem {
     private static final double FLY_RETREAT_SPEED = 125;
     private static final double TAIL_LUNGE_SECONDS = 0.16;
     private static final double EEVEE_QUICK_ATTACK_MAX_DISTANCE = 120;
+    /** Lo que avanza una embestida cuando el rival no esta delante (igual que el Ataque Rapido). */
+    private static final double FREE_DASH_DISTANCE = EEVEE_QUICK_ATTACK_MAX_DISTANCE;
+    /** Paso corto hacia adelante de Placaje y los golpes cercanos (no llega a ser un Ataque Rapido). */
+    private static final double MELEE_STEP_DISTANCE = 45;
+    private static final double MELEE_STEP_SPEED = 450;
     private static final double INPUT_BUFFER_SECONDS = 0.18;
     private static final double BLOCK_STUN_SECONDS = 0.35;
     private static final double COMBO_STUN_RESET_SECONDS = 0.90;
@@ -462,6 +467,36 @@ public class FightingCombatSystem {
         };
     }
 
+    /** Golpes cuerpo a cuerpo que dan un pasito hacia adelante al pegar. */
+    private static boolean stepsForward(String moveId) {
+        return switch (moveId) {
+            case "TACKLE", "FIRE_FANG", "BITE", "LICK", "CLOSE_COMBAT", "ZEN_HEADBUTT" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Paso corto: avanza hasta MELEE_STEP_DISTANCE mientras el golpe esta activo, pero se
+     * detiene en cuanto el golpe alcanza al rival y nunca se mete dentro de su cuerpo.
+     */
+    private void moveMeleeStep(Fighter attacker, Fighter target, AttackState state,
+                               int arenaWidth, double deltaSeconds) {
+        double remaining = MELEE_STEP_DISTANCE - state.dashDistanceTravelled;
+        if (remaining <= 0 || attackHitbox(attacker, state.definition).intersects(target)) return;
+        double direction = attacker.isFacingLeft() ? -1 : 1;
+        double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        double step = Math.min(remaining, MELEE_STEP_SPEED * deltaSeconds);
+        if (direction * (target.getX() - attacker.getX()) > 0
+                && Math.abs(attacker.getY() - target.getY()) < 80) {
+            double gap = Math.abs(target.getX() - attacker.getX())
+                    - halfWidth - PhysicsSystem.halfWidthFor(target);
+            step = Math.min(step, Math.max(0, gap));
+        }
+        double startX = attacker.getX();
+        attacker.setX(Math.max(halfWidth, Math.min(arenaWidth - halfWidth, startX + direction * step)));
+        state.dashDistanceTravelled += Math.abs(attacker.getX() - startX);
+    }
+
     /** Ataque Rapido: siempre avanza su distancia fija (Eevee, Pikachu y Vulpix). */
     private static boolean usesQuickAttackDash(String basePokemonId) {
         return "EEVEE".equals(basePokemonId) || "PIKACHU".equals(basePokemonId)
@@ -556,8 +591,12 @@ public class FightingCombatSystem {
                         && "QUICK_ATTACK".equals(state.definition.moveId())) {
                     moveQuickAttack(attacker, state, arenaWidth, deltaSeconds);
                 } else {
-                    moveTowardTarget(attacker, target, state.definition, arenaWidth, deltaSeconds);
+                    moveTowardTarget(attacker, target, state, arenaWidth, deltaSeconds);
                 }
+            }
+            if (state.definition.kind() == AttackDefinition.Kind.HITBOX && !state.hasHit
+                    && stepsForward(state.definition.moveId())) {
+                moveMeleeStep(attacker, target, state, arenaWidth, deltaSeconds);
             }
 
             // Resolve dash/lunge movement before checking its independent offensive box.
@@ -704,11 +743,26 @@ public class FightingCombatSystem {
         return nextX - fighter.getX();
     }
 
+    /**
+     * Embestidas: si el rival esta delante avanza hasta tocarlo (sin atravesarlo); si esta
+     * detras o lejos del camino, igual sale impulsado hacia adelante, como el Ataque Rapido de Eevee.
+     */
     private void moveTowardTarget(Fighter attacker, Fighter target,
-                                  AttackDefinition definition, int arenaWidth,
+                                  AttackState state, int arenaWidth,
                                   double deltaSeconds) {
+        AttackDefinition definition = state.definition;
         double direction = attacker.isFacingLeft() ? -1 : 1;
         double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        boolean targetAhead = direction * (target.getX() - attacker.getX()) > 0;
+        if (!targetAhead) {
+            double remaining = FREE_DASH_DISTANCE - state.dashDistanceTravelled;
+            if (remaining <= 0) return;
+            double startX = attacker.getX();
+            double step = Math.min(remaining, definition.dashSpeed() * deltaSeconds);
+            attacker.setX(Math.max(halfWidth, Math.min(arenaWidth - halfWidth, startX + direction * step)));
+            state.dashDistanceTravelled += Math.abs(attacker.getX() - startX);
+            return;
+        }
         double targetHalfWidth = PhysicsSystem.halfWidthFor(target);
         double distanceToTarget = direction > 0
                 ? target.getX() - targetHalfWidth - (attacker.getX() + halfWidth)
