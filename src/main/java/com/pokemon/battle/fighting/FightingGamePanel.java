@@ -193,6 +193,8 @@ public class FightingGamePanel extends JPanel {
         // M: silenciar o activar los sonidos del combate
         // Silenciar con F1 (lejos de las teclas de ataque, para no tocarla sin querer)
         bindKey("F1", () -> FightingSound.get().setMuted(!FightingSound.get().isMuted()));
+        // Teclas de prueba, solo con -Dpokemon.fighting.debug=true (VM options de IntelliJ):
+        // F6/F7 K.O. al jugador 1/2, F8/F9 llenan su barra EVO, F10 Mewtwo normal, F11 Mewtwo dificil
         if (DEBUG_KO_ENABLED) {
             bindKey("F6", () -> debugDefeat(0));
             bindKey("F7", () -> debugDefeat(1));
@@ -765,11 +767,7 @@ public class FightingGamePanel extends JPanel {
         );
 
         renderer.draw(sceneGraphics, session, frameIndex, this::repaint);
-        if (DEBUG_KO_ENABLED) {
-            sceneGraphics.setFont(RetroStyle.font(16));
-            sceneGraphics.setColor(new Color(0x7B2020));
-            sceneGraphics.drawString("DEPURACION: F6 KO P1 | F7 KO P2 | F10 MEWTWO | F11 MEWTWO DIFICIL", 300, 700);
-        }
+        // Las teclas de prueba (F6 a F11) funcionan sin mostrar ningun aviso en pantalla
 
         sceneGraphics.dispose();
 
