@@ -341,7 +341,7 @@ public class FightingRenderer {
             } else if (visual.phase() == UltimateController.Phase.RELEASING) {
                 if (visual.definition().shape() == UltimateDefinition.Shape.RINGS) {
                     drawUltimateRings(g, visual, primary, secondary);
-                } else {
+                } else if (!hasDecorativeBeam(visual)) {
                     drawUltimateBeam(g, visual, primary, secondary, frameIndex);
                 }
                 if (visual.pulseFlash() > 0) {
@@ -360,6 +360,15 @@ public class FightingRenderer {
                 g.fillOval(ownerX - radius, ownerY - radius, radius * 2, radius * 2);
             }
         }
+    }
+
+    /**
+     * El Psicoataque de Mewtwo ya se ve con el rayo animado de FightingFx cuando los dos estan
+     * a la misma altura: ahi no se dibuja esta linea, para que no salgan dos rayos encimados.
+     */
+    private static boolean hasDecorativeBeam(UltimateController.Visual visual) {
+        return "PSYSTRIKE".equals(visual.definition().moveId())
+                && Math.abs(visual.owner().getY() - visual.target().getY()) < 40;
     }
 
     private void drawUltimateCharge(Graphics2D g, int x, int y, int height,
