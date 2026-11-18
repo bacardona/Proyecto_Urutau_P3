@@ -124,6 +124,23 @@ public class FreeFightSwitchKnockbackCheck {
         for (int i = 0; i < 72; i++) pika.update(wave, 1 / 60.0);   // 1.2 s
         check(pika.getCombatSystem().getAttackVisual(pikachu, pika.getFighters()) == null,
                 "Thunder Wave must not freeze Pikachu for seconds");
+        // Vulpix: su primer ataque es Ataque Rapido y avanza como el de Eevee
+        FreeFightSetup vulpixSetup = new FreeFightSetup();
+        vulpixSetup.setPlayerOne(new Player(1, "A", 0, 0), List.of(p("VULPIX", Type.FIRE), p("CHARMANDER", Type.FIRE)));
+        vulpixSetup.setPlayerTwo(new Player(2, "B", 0, 0), List.of(p("SQUIRTLE", Type.WATER), p("EEVEE", Type.NORMAL)));
+        FightingGameSession fox = new FightingGameSession(vulpixSetup);
+        Fighter vulpix = fox.getFighters().get(0);
+        double foxStart = vulpix.getX();
+        FightingInput quick = new FightingInput();
+        quick.setPlayerOneAttackOne(true);
+        fox.update(quick, 1 / 60.0);
+        quick.setPlayerOneAttackOne(false);
+        var foxVisual = fox.getCombatSystem().getAttackVisual(vulpix, fox.getFighters());
+        check(foxVisual != null && "QUICK_ATTACK".equals(foxVisual.definition().moveId()),
+                "Vulpix attack one must be Quick Attack");
+        for (int i = 0; i < 30; i++) fox.update(quick, 1 / 60.0);
+        check(Math.abs(vulpix.getX() - foxStart) > 80, "Vulpix Quick Attack must dash forward: "
+                + Math.abs(vulpix.getX() - foxStart));
         System.out.println("PASS switch/knockback");
     }
 

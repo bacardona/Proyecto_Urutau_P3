@@ -26,9 +26,9 @@ final class FightingSpriteProfile {
             Map.entry("FLAREON", new FightingSpriteProfile("FLAREON", "EEVEE", 4, 92, 36, "Idle", "Faint", Map.of(
                     "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip"))),
             Map.entry("VULPIX", new FightingSpriteProfile("VULPIX", 4, 72, 30, "Idle", Map.of(
-                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+                    "QUICK_ATTACK", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
             Map.entry("NINETALES", new FightingSpriteProfile("NINETALES", "VULPIX", 4, 96, 38, "Idle", "Faint", Map.of(
-                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+                    "QUICK_ATTACK", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
             Map.entry("SANDSHREW", new FightingSpriteProfile("SANDSHREW", 4, 72, 30, "Idle", Map.of(
                     "TACKLE", "Attack", "DIG", "Strike", "TAIL_WHIP", "Swing", "ROCK_SLIDE", "Shoot"))),
             Map.entry("SANDSLASH", new FightingSpriteProfile("SANDSLASH", "SANDSHREW", 4, 92, 36, "Idle", "Faint", Map.of(

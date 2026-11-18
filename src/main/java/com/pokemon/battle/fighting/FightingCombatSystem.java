@@ -407,7 +407,7 @@ public class FightingCombatSystem {
     private AttackDefinition attackFor(String pokemonId, int requestedAttack) {
         if (requestedAttack < 0) return null;
         AttackDefinition[] newMoves = switch (pokemonId) {
-            case "VULPIX" -> new AttackDefinition[]{TACKLE, EMBER, GROWL, FIRE_FANG};
+            case "VULPIX" -> new AttackDefinition[]{QUICK_ATTACK, EMBER, GROWL, FIRE_FANG};
             case "SANDSHREW" -> new AttackDefinition[]{TACKLE, DIG, TAIL_WHIP, ROCK_SLIDE};
             case "GASTLY" -> new AttackDefinition[]{LICK, SHADOW_BALL, SLEEP_POWDER, GROWL};
             case "MACHOP" -> new AttackDefinition[]{TACKLE, CLOSE_COMBAT, GROWL, BODY_SLAM};
@@ -460,6 +460,12 @@ public class FightingCombatSystem {
             };
             default -> null;
         };
+    }
+
+    /** Ataque Rapido: siempre avanza su distancia fija (Eevee, Pikachu y Vulpix). */
+    private static boolean usesQuickAttackDash(String basePokemonId) {
+        return "EEVEE".equals(basePokemonId) || "PIKACHU".equals(basePokemonId)
+                || "VULPIX".equals(basePokemonId);
     }
 
     private boolean isSelectableFreeFightPokemon(String pokemonId) {
@@ -546,7 +552,7 @@ public class FightingCombatSystem {
             if (state.definition.kind() == AttackDefinition.Kind.DASH
                     || (state.definition.kind() == AttackDefinition.Kind.LUNGE
                         && state.activeElapsed <= TAIL_LUNGE_SECONDS)) {
-                if (("EEVEE".equals(attacker.getBasePokemonId()) || "PIKACHU".equals(attacker.getBasePokemonId()))
+                if (usesQuickAttackDash(attacker.getBasePokemonId())
                         && "QUICK_ATTACK".equals(state.definition.moveId())) {
                     moveQuickAttack(attacker, state, arenaWidth, deltaSeconds);
                 } else {
