@@ -5,14 +5,20 @@ import com.pokemon.battle.model.Move;
 import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.model.Type;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class JdbcPokemonRepository implements PokemonRepository {
+
+    private static final String CALL_LOAD_ALL_POKEMON =
+            "{ call pokken__listar_todos(?) }";
 
     private final MoveRepository moveRepository;
 
@@ -23,83 +29,64 @@ public class JdbcPokemonRepository implements PokemonRepository {
     @Override
     public List<Pokemon> loadAll() {
         List<Move> allMoves = moveRepository.loadAll();
+        Map<String, Move> movesById = new HashMap<>();
+        for (Move m : allMoves) {
+            movesById.put(m.getId(), m);
+        }
+
         List<Pokemon> pokemons = new ArrayList<>();
 
-
-        String sql = "SELECT id_pokken, nombre_pokken, hp, atk, def, atk_sp, def_sp, spd, tipo1, tipo2, ataque1, ataque2,ataque3,ataque4 FROM POKKEN";
-
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+             CallableStatement stmt = conn.prepareCall(CALL_LOAD_ALL_POKEMON)) {
 
-            while (rs.next()) {
-                int id = rs.getInt("id_pokken");
-                String name = rs.getString("nombre_pokken");
-                int hp = rs.getInt("hp");
-                int attack = rs.getInt("atk");
-                int defense = rs.getInt("def");
-                int spAttack = rs.getInt("atk_sp");
-                int spDefense = rs.getInt("def_sp");
-                int speed = rs.getInt("spd");
-                Type primaryType = Type.valueOf(rs.getString("tipo1").toUpperCase());
+            stmt.registerOutParameter(1, Types.REF_CURSOR);
+            stmt.execute();
 
-                String rawSecondary = rs.getString("tipo2");
-                Type secondaryType = (rawSecondary != null && !rawSecondary.isBlank())
-                        ? Type.valueOf(rawSecondary.toUpperCase())
-                        : Type.NONE;
+            try (ResultSet rs = (ResultSet) stmt.getObject(1)) {
+                while (rs.next()) {
+                    int id = rs.getInt("id_pokken");
+                    String name = rs.getString("nombre_pokken");
+                    int hp = rs.getInt("hp");
+                    int attack = rs.getInt("atk");
+                    int defense = rs.getInt("def");
+                    int spAttack = rs.getInt("atk_sp");
+                    int spDefense = rs.getInt("def_sp");
+                    int speed = rs.getInt("spd");
+                    Type primaryType = Type.valueOf(rs.getString("tipo1").toUpperCase());
 
-                String attk1 = String.valueOf(rs.getInt("ataque1"))  ;
-                String attk2 = String.valueOf(rs.getInt("ataque2"));
-                String attk3 = String.valueOf(rs.getInt("ataque3"));
-                String attk4 = String.valueOf(rs.getInt("ataque4"));
+                    String rawSecondary = rs.getString("tipo2");
+                    Type secondaryType = (rawSecondary != null && !rawSecondary.isBlank())
+                            ? Type.valueOf(rawSecondary.toUpperCase())
+                            : Type.NONE;
 
-                List<Move> pokemonMoves = new ArrayList<>(); // o buscar en una tabla intermedia pokemon_moves
-                for (Move m : allMoves){
-                    if (m.getId().equals(attk1)
-                    || m.getId().equals(attk2)
-                    || m.getId().equals(attk3)
-                    || m.getId().equals(attk4)){
-                        pokemonMoves.add(m);
-                    }
+                    List<Move> pokemonMoves = new ArrayList<>(4);
+                    addMoveIfPresent(pokemonMoves, movesById, rs.getInt("ataque1"), rs.wasNull());
+                    addMoveIfPresent(pokemonMoves, movesById, rs.getInt("ataque2"), rs.wasNull());
+                    addMoveIfPresent(pokemonMoves, movesById, rs.getInt("ataque3"), rs.wasNull());
+                    addMoveIfPresent(pokemonMoves, movesById, rs.getInt("ataque4"), rs.wasNull());
+
+                    Pokemon pokemon = new Pokemon(
+                            id, name, hp, attack, defense, spAttack, spDefense, speed,
+                            primaryType, secondaryType, pokemonMoves
+                    );
+                    pokemon.setTotalStats(rs.getInt("total_stats"));
+
+                    pokemons.add(pokemon);
                 }
-
-
-                pokemons.add(new Pokemon(
-                        id, name, hp, attack, defense, spAttack, spDefense, speed,
-                        primaryType, secondaryType, pokemonMoves
-                ));
             }
 
         } catch (SQLException e) {
-            throw new PersistenceException("Error al consultar Pokémon en Oracle BD", e);
+            throw new PersistenceException("Error al consultar Pokémon en Oracle BD");
         }
 
-        loadTotalStats(pokemons);
         return pokemons;
     }
 
-    /**
-     * Asks the database for the total of the base stats of each Pokemon using the stored
-     * function func_stats_totales_pokken. If the function fails, the Pokemon still load
-     * and the total stays at -1 (the screens then show "--").
-     */
-    private void loadTotalStats(List<Pokemon> pokemons) {
-        String sql = "SELECT id_pokken, func_stats_totales_pokken(id_pokken) AS total_stats FROM POKKEN";
-        java.util.Map<Integer, Integer> totals = new java.util.HashMap<>();
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                totals.put(rs.getInt("id_pokken"), rs.getInt("total_stats"));
-            }
-        } catch (SQLException e) {
-            System.err.println("No se pudo usar func_stats_totales_pokken: " + e.getMessage());
-            return;
-        }
-        for (Pokemon p : pokemons) {
-            Integer total = totals.get(p.getId());
-            if (total != null) {
-                p.setTotalStats(total);
+    private void addMoveIfPresent(List<Move> target, Map<String, Move> movesById, int moveId, boolean wasNull) {
+        if (!wasNull) {
+            Move move = movesById.get(String.valueOf(moveId));
+            if (move != null) {
+                target.add(move);
             }
         }
     }
