@@ -9,9 +9,8 @@ public class PersistenceException extends GameException {
 
     /**
      * @param message description including file name and operation
-     * @param cause   original exception, kept for traceability
      */
-    public PersistenceException(String message, Throwable cause) {
-        super(message, "PERSISTENCE", cause);
+    public PersistenceException(String message) {
+        super(message, "PERSISTENCE");
     }
 }
