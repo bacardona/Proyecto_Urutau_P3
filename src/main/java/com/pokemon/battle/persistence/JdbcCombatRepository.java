@@ -21,10 +21,10 @@ import java.util.List;
 public class JdbcCombatRepository implements CombatRepository {
 
     private static final String CALL_REGISTER_COMBAT =
-            "{ call registrar_combate(?, ?, ?, ?, ?) }";
+            "{ call combate__registro(?, ?, ?, ?, ?) }";
 
     private static final String CALL_LOAD_HISTORY =
-            "{ call listar_historial(?, ?) }";
+            "{ call combate__lista_historial(?, ?) }";
 
     @Override
     public List<CombatHistoryEntry> loadHistory(int trainerId) {
