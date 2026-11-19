@@ -1,6 +1,6 @@
 package com.pokemon.battle.fighting;
 
-import com.pokemon.battle.MainGUI;
+import com.pokemon.battle.Main;
 import com.pokemon.battle.model.Player;
 import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.model.Type;
@@ -161,7 +161,7 @@ public final class FreeFightStageCheck {
         final GameWindow[] window = {null}; final FightingGamePanel[] panel = {null};
         final FightingGameSession[] session = {null}; final Throwable[] failure = {null};
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> { failure[0] = error; error.printStackTrace(); });
-        MainGUI.main(new String[0]); SwingUtilities.invokeAndWait(() -> {});
+        Main.main(new String[0]); SwingUtilities.invokeAndWait(() -> {});
         try {
             SwingUtilities.invokeAndWait(() -> {
                 try {
