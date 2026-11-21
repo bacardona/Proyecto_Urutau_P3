@@ -26,6 +26,26 @@ public class FightingCombatSystem {
     private static final double EEVEE_QUICK_ATTACK_MAX_DISTANCE = 120;
     /** Lo que avanza una embestida cuando el rival no esta delante (igual que el Ataque Rapido). */
     private static final double FREE_DASH_DISTANCE = EEVEE_QUICK_ATTACK_MAX_DISTANCE;
+
+    // ===== Doble golpe del ataque 1 =====
+    /** Tiempo despues del golpe en el que el segundo toque todavia encadena. */
+    static final double SECOND_HIT_WINDOW_SECONDS = 0.30;
+    /** El segundo golpe sale mas rapido, pega 2 mas y deja una espera un poco mas larga. */
+    private static final double SECOND_HIT_STARTUP_SECONDS = 0.05;
+    private static final double SECOND_HIT_EXTRA_RECOVERY = 0.14;
+    private static final int SECOND_HIT_EXTRA_DAMAGE = 2;
+    /** Coletazo al final del Ataque Rapido (Vulpix y Pikachu). El de Pikachu es flojo. */
+    private static final int TAIL_SWIPE_DAMAGE = 8;
+    private static final int PIKACHU_TAIL_SWIPE_DAMAGE = 5;
+    private static final double PIKACHU_TAIL_EXTRA_RECOVERY = 0.20;
+    private final java.util.Map<String, AttackDefinition> secondHits = new java.util.HashMap<>();
+
+    // ===== Picada: golpe cuerpo a cuerpo en el aire =====
+    private static final double AIR_DIVE_SPEED_X = 430;
+    private static final double AIR_DIVE_SPEED_Y = 820;
+    private static final double AIR_DIVE_BOUNCE = 430;
+    private static final double AIR_DIVE_LEAN = 0.85;
+    private static final double AIR_DIVE_MAX_SECONDS = 0.9;
     /** Paso corto hacia adelante de Placaje y los golpes cercanos (no llega a ser un Ataque Rapido). */
     private static final double MELEE_STEP_DISTANCE = 45;
     private static final double MELEE_STEP_SPEED = 450;
@@ -160,6 +180,10 @@ public class FightingCombatSystem {
         private boolean flyRetreatStarted;
         private double flyRetreatRemaining;
         private double dashDirection;
+        /** Este golpe ya es el segundo del doble golpe (no se encadena un tercero). */
+        private boolean secondHit;
+        /** Golpe cuerpo a cuerpo empezado en el aire: cae en picada. */
+        private boolean aerial;
         private double dashDistanceTravelled;
     }
 
@@ -389,6 +413,24 @@ public class FightingCombatSystem {
         boolean cancel = state.definition != null && state.hitConfirmed
                 && state.cancelWindowRemaining > 0 && state.definition != requested
                 && (state.phase == Phase.ACTIVE || state.phase == Phase.RECOVERY);
+        // Doble golpe: tocar otra vez el ataque 1 durante el golpe (o justo despues) da un segundo golpe
+        if (canChainSecondHit(state, requested, attacker)) {
+            if (state.phase == Phase.ACTIVE && isQuickAttack(requested)) {
+                // Ataque Rapido: el coletazo sale al terminar la carrera, se guarda el toque
+                bufferedAttackRemaining[player] = INPUT_BUFFER_SECONDS;
+                return;
+            }
+            AttackDefinition second = secondHitFor(requested, attacker);
+            resetAttackState(state);
+            if (startRequestedAttack(state, second, attacker, fighters.get(1 - player))) {
+                state.secondHit = true;
+                emit(CombatEvent.Type.ATTACK_START, second.moveId(), player,
+                        attacker.getX(), attacker.getY(), state.dashDirection, 0);
+            }
+            bufferedAttack[player] = -1;
+            bufferedAttackRemaining[player] = 0;
+            return;
+        }
         if (cooldown > 0 || (!ready && !cancel)) return;
         if (cancel) resetAttackState(state);
         if (startRequestedAttack(state, requested, attacker, fighters.get(1 - player))) {
@@ -469,6 +511,7 @@ public class FightingCombatSystem {
 
     /** Golpes cuerpo a cuerpo que dan un pasito hacia adelante al pegar. */
     private static boolean stepsForward(String moveId) {
+        moveId = baseMoveId(moveId);
         return switch (moveId) {
             case "TACKLE", "FIRE_FANG", "BITE", "LICK", "CLOSE_COMBAT", "ZEN_HEADBUTT" -> true;
             default -> false;
@@ -503,6 +546,82 @@ public class FightingCombatSystem {
                 || "VULPIX".equals(basePokemonId);
     }
 
+    /** Nombre del ataque sin el "_2" del segundo golpe (TACKLE_2 -> TACKLE). */
+    static String baseMoveId(String moveId) {
+        return moveId.endsWith("_2") ? moveId.substring(0, moveId.length() - 2) : moveId;
+    }
+
+    private static boolean isQuickAttack(AttackDefinition definition) {
+        return "QUICK_ATTACK".equals(definition.moveId());
+    }
+
+    private static boolean isPikachuLine(Fighter fighter) {
+        return "PIKACHU".equals(fighter.getBasePokemonId());
+    }
+
+    /**
+     * El segundo toque encadena si es el ataque 1 del Pokemon, el primero sigue en curso
+     * (pegando o en los primeros 0,30 s de la espera) y todavia no es el segundo golpe.
+     * Los golpes fuertes de los otros botones no se encadenan.
+     */
+    private boolean canChainSecondHit(AttackState state, AttackDefinition requested, Fighter attacker) {
+        if (attacker.isBoss() || state.definition == null || state.secondHit || state.aerial) return false;
+        if (state.definition != requested || requested != attackFor(attacker.getBasePokemonId(), 0)) return false;
+        if (requested.kind() != AttackDefinition.Kind.HITBOX && !isQuickAttack(requested)) return false;
+        if (state.phase == Phase.ACTIVE) return true;
+        return state.phase == Phase.RECOVERY
+                && state.remaining > state.definition.recoverySeconds() - SECOND_HIT_WINDOW_SECONDS;
+    }
+
+    /** Arma el segundo golpe a partir del primero (o el coletazo si el primero es el Ataque Rapido). */
+    private AttackDefinition secondHitFor(AttackDefinition first, Fighter attacker) {
+        if (isQuickAttack(first)) {
+            boolean pikachu = isPikachuLine(attacker);
+            return secondHits.computeIfAbsent(pikachu ? "QUICK_ATTACK_2_WEAK" : "QUICK_ATTACK_2",
+                    key -> new AttackDefinition("QUICK_ATTACK_2", first.oracleMoveId(), AttackDefinition.Kind.HITBOX,
+                            pikachu ? PIKACHU_TAIL_SWIPE_DAMAGE : TAIL_SWIPE_DAMAGE,
+                            0.06, 0.12, 0.50 + (pikachu ? PIKACHU_TAIL_EXTRA_RECOVERY : 0),
+                            70, 50, 0, 0, 0, 0, first.effectColor()));
+        }
+        return secondHits.computeIfAbsent(first.moveId(), key -> new AttackDefinition(
+                first.moveId() + "_2", first.oracleMoveId(), first.kind(),
+                first.damage() + SECOND_HIT_EXTRA_DAMAGE, SECOND_HIT_STARTUP_SECONDS,
+                first.activeSeconds(), first.recoverySeconds() + SECOND_HIT_EXTRA_RECOVERY,
+                first.hitboxWidth() + 8, first.hitboxHeight(), first.dashSpeed(),
+                first.projectileSpeed(), first.projectileLifetime(), first.projectileSize(),
+                first.effectColor()));
+    }
+
+    /** Picada: baja en diagonal hasta tocar el suelo (si no pego antes). */
+    private void updateAirDive(AttackState state, Fighter attacker, int attackerIndex,
+                               int arenaWidth, double deltaSeconds) {
+        double dir = attacker.isFacingLeft() ? -1 : 1;
+        double half = PhysicsSystem.halfWidthFor(attacker);
+        if (attacker.isOnGround() || state.activeElapsed > AIR_DIVE_MAX_SECONDS) {
+            if (attacker.isDiving()) {
+                // Fallo: choca con el suelo (nube de polvo) y le queda la espera normal
+                emit(CombatEvent.Type.FIZZLE, state.definition.moveId(), attackerIndex,
+                        attacker.getX(), attacker.getY() - 8, dir, 0);
+            }
+            state.aerial = false;
+            attacker.setDiving(false);
+            return;
+        }
+        attacker.setDiving(true);
+        attacker.setX(Math.max(half, Math.min(arenaWidth - half,
+                attacker.getX() + dir * AIR_DIVE_SPEED_X * deltaSeconds)));
+        attacker.setVelocityY(Math.max(attacker.getVelocityY(), AIR_DIVE_SPEED_Y));
+        state.remaining = Math.max(state.remaining, 0.05);   // sigue activo mientras cae
+    }
+
+    /** Si la picada pega, rebota hacia arriba y puede seguir atacando. */
+    private void bounceAfterDive(AttackState state, Fighter attacker) {
+        attacker.setDiving(false);
+        state.aerial = false;
+        attacker.setVelocityY(-AIR_DIVE_BOUNCE);
+        attacker.setOnGround(false);
+    }
+
     private boolean isSelectableFreeFightPokemon(String pokemonId) {
         return "BULBASAUR".equals(pokemonId) || "CHARMANDER".equals(pokemonId)
                 || "SQUIRTLE".equals(pokemonId) || "EEVEE".equals(pokemonId)
@@ -528,6 +647,9 @@ public class FightingCombatSystem {
         state.cancelWindowRemaining = 0;
         state.dashDirection = attacker.isFacingLeft() ? -1 : 1;
         state.dashDistanceTravelled = 0;
+        state.aerial = !attacker.isOnGround() && !attacker.isBoss()
+                && (requested.kind() == AttackDefinition.Kind.HITBOX
+                    || requested.kind() == AttackDefinition.Kind.DASH);
         return true;
     }
 
@@ -584,7 +706,9 @@ public class FightingCombatSystem {
             }
             state.activeElapsed += deltaSeconds;
 
-            if (state.definition.kind() == AttackDefinition.Kind.DASH
+            if (state.aerial) updateAirDive(state, attacker, attackerIndex, arenaWidth, deltaSeconds);
+
+            if (!state.aerial && state.definition.kind() == AttackDefinition.Kind.DASH
                     || (state.definition.kind() == AttackDefinition.Kind.LUNGE
                         && state.activeElapsed <= TAIL_LUNGE_SECONDS)) {
                 if (usesQuickAttackDash(attacker.getBasePokemonId())
@@ -594,7 +718,7 @@ public class FightingCombatSystem {
                     moveTowardTarget(attacker, target, state, arenaWidth, deltaSeconds);
                 }
             }
-            if (state.definition.kind() == AttackDefinition.Kind.HITBOX && !state.hasHit
+            if (!state.aerial && state.definition.kind() == AttackDefinition.Kind.HITBOX && !state.hasHit
                     && stepsForward(state.definition.moveId())) {
                 moveMeleeStep(attacker, target, state, arenaWidth, deltaSeconds);
             }
@@ -616,6 +740,7 @@ public class FightingCombatSystem {
                     if (attackHitbox(attacker, state.definition).intersects(target)) {
                         resolveContact(attackerIndex, attacker, target, state.definition, arenaWidth);
                         state.hasHit = true;
+                        if (attacker.isDiving()) bounceAfterDive(state, attacker);
                     }
                 }
             }
@@ -813,6 +938,14 @@ public class FightingCombatSystem {
                 ? attacker.getX() + halfWidth
                 : attacker.getX() - halfWidth - hitboxWidth;
         if (contact == null) hitboxTop = hitboxHeight;
+        if (attacker.isDiving()) {
+            // Picada: pega por debajo y por delante
+            double width = hitboxWidth + halfWidth;
+            double diveLeft = direction > 0 ? attacker.getX() - halfWidth * 0.4
+                    : attacker.getX() - width + halfWidth * 0.4;
+            return new Hitbox(diveLeft, attacker.getY() - attacker.getRenderHeight() * 0.55,
+                    width, attacker.getRenderHeight() * 0.55 + 26);
+        }
         return new Hitbox(left, attacker.getY() - hitboxTop,
                 hitboxWidth, hitboxHeight);
     }
@@ -1151,6 +1284,8 @@ public class FightingCombatSystem {
         state.activeEffectStarted = false;
         state.hitConfirmed = false;
         state.cancelWindowRemaining = 0;
+        state.secondHit = false;
+        state.aerial = false;
         state.flyTargetY = 0;
         state.flyLandingX = 0;
         state.flyDirection = 0;
