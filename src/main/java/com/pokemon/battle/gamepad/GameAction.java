@@ -8,5 +8,6 @@ public enum GameAction {
     PAGE_PREV,    // LB (solo LISTA y EQUIPO)
     PAGE_NEXT,    // RB (solo LISTA y EQUIPO)
     TOGGLE_VIEW,  // Y (solo LISTA y EQUIPO): barras / hexágono
+    START,        // START (solo EQUIPO): confirmar equipo
     ANY_BUTTON,    // solo perfil CUALQUIER_BOTON
 }

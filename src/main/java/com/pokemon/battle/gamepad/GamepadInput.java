@@ -40,6 +40,7 @@ public class GamepadInput {
         lista.add(GameAction.PAGE_NEXT);
         EnumSet<GameAction> equipo = EnumSet.copyOf(lista);
         equipo.add(GameAction.REMOVE_LAST);
+        equipo.add(GameAction.START);
 
         ALLOWED.put(InputProfile.CUALQUIER_BOTON, EnumSet.of(GameAction.ANY_BUTTON));
         ALLOWED.put(InputProfile.MENU, menu);
@@ -169,6 +170,7 @@ public class GamepadInput {
         if (allowed.contains(GameAction.PAGE_NEXT) && s.rbJustPressed) emit(GameAction.PAGE_NEXT);
         if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
         if (allowed.contains(GameAction.TOGGLE_VIEW) && s.yJustPressed) emit(GameAction.TOGGLE_VIEW);
+        if (allowed.contains(GameAction.START) && s.startJustPressed) emit(GameAction.START);
 
     }
 

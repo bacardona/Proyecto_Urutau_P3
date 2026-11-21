@@ -116,6 +116,7 @@ public class GameWindow extends JFrame {
             case PAGE_PREV -> "LEFT";
             case PAGE_NEXT -> "RIGHT";
             case TOGGLE_VIEW -> "H";
+            case START -> "F2";
             default -> null;
         };
         if (key != null) retro.pressKey(key);
