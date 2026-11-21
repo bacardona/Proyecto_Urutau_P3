@@ -93,12 +93,22 @@ public class FightingRenderer {
             fx.drawBehind(lg);
             drawAttackEffects(lg, session);
         });
+        drawFutureSightMarks(g, session);
+        drawPsychicWaves(g, session);
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), false);
         for (Fighter fighter : session.getFighters()) {
+            // Mewtwo aparece de a poco dentro de su columna de energia al llegar
+            float reveal = fighter.isBoss() ? (float) fx.director().bossReveal() : 1f;
+            if (fighter.isBoss() && fx.director().hidesBossForMega()) continue;
+            if (reveal <= 0) continue;
+            var oldComposite = g.getComposite();
+            if (reveal < 1) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, reveal));
             drawPokemon(g, fighter, fighter.getRenderHeight(), frameIndex, repaint,
                     session.getGroundY(), session.getCombatSystem(), session.getFighters());
+            g.setComposite(oldComposite);
         }
         for (Fighter fighter : session.getFighters()) drawBlockShield(g, fighter, session.getCombatSystem(), true);
+        drawBossBarrier(g, session);
         pixelLayer(g, session, lg -> {
             drawPhysicalImpacts(lg, session.getCombatSystem());
             drawUltimateEffects(lg, session, frameIndex);
@@ -109,6 +119,7 @@ public class FightingRenderer {
                 session.getGroundY());
         if (session.getStage() == FightingStage.TEMPLO) TempleStage.drawFront(g, fx.time());
         else if (session.getStage() == FightingStage.VOLCAN) VolcanoStage.drawFront(g, fx.time());
+        drawBossMood(g, session);
         drawFighterStatusIndicators(g, session);
         fx.drawPopups(g);
         fx.drawOverlay(g, session.getWidth(), session.getHeight());
@@ -165,36 +176,53 @@ public class FightingRenderer {
     }
 
     public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption) {
+        drawResults(g, session, selectedOption, false);
+    }
+
+    /** @param bossOffered true cuando el ganador lleva 3 victorias seguidas y Mewtwo lo desafia */
+    public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption, boolean bossOffered) {
+        drawResults(g, session, selectedOption, bossOffered, false);
+    }
+
+    /** @param hardOffered true cuando acabas de vencer a Mewtwo normal y te reta a la revancha */
+    public void drawResults(Graphics2D g, FightingGameSession session, int selectedOption, boolean bossOffered,
+                            boolean hardOffered) {
         int panelWidth = 500;
         int panelHeight = 390;
         int panelX = (session.getWidth() - panelWidth) / 2;
         int panelY = (session.getHeight() - panelHeight) / 2;
         int centerX = session.getWidth() / 2;
 
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 22, 22);
-        g.setColor(new Color(0xF4F1E4));
-        g.fillRoundRect(panelX + 7, panelY + 7, panelWidth - 14, panelHeight - 14, 16, 16);
-
-        drawCentered(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
+        // Estilo arcade: sin recuadro, solo texto blanco sobre el fondo oscurecido
+        ArcadeMenuStyle.text(g, "COMBATE FINALIZADO", centerX, panelY + 70, 36, RetroStyle.DARK);
         String result = switch (session.getOutcome()) {
             case PLAYER_ONE_WINS -> session.getTrainerName(0) + " GANA!";
             case PLAYER_TWO_WINS -> session.getTrainerName(1) + " GANA!";
             case DRAW -> "EMPATE!";
         };
-        drawCentered(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
-
-        String[] options = {"REVANCHA", "VOLVER AL MENU"};
-        for (int i = 0; i < options.length; i++) {
-            int y = RESULT_OPTION_Y + i * (RESULT_OPTION_H + RESULT_OPTION_GAP);
-            g.setColor(i == selectedOption ? new Color(0xBED7FF) : Color.WHITE);
-            g.fillRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
-            g.setColor(RetroStyle.OUTLINE);
-            g.drawRoundRect(RESULT_OPTION_X, y, RESULT_OPTION_W, RESULT_OPTION_H, 8, 8);
-            drawCentered(g, options[i], centerX, y + 29, 23, RetroStyle.DARK);
+        if (session.isBossFight()) result = session.challengerWon() ? "¡VENCISTE A MEWTWO!" : "MEWTWO GANA...";
+        if (hardOffered) {
+            ArcadeMenuStyle.text(g, "REVANCHA: MEWTWO A TODO SU PODER", centerX, panelY + 180, 18, new Color(0xC8302A));
+        }
+        ArcadeMenuStyle.text(g, result, centerX, panelY + 140, 32, RetroStyle.DARK);
+        if (bossOffered) {
+            boolean blink = ((int) (fx.time() * 3)) % 2 == 0;
+            ArcadeMenuStyle.text(g, "¡UN NUEVO RETADOR SE ACERCA!", centerX, panelY + 180, 22,
+                    blink ? new Color(0xC8302A) : new Color(0x7A2BD0));
         }
 
-        drawCentered(g, "FLECHAS + ENTER / CLIC", centerX,
+        String first = bossOffered ? "ACEPTAR DESAFIO"
+                : hardOffered ? "ACEPTAR"
+                : session.isBossFight() && !session.challengerWon() ? "REINTENTAR"
+                : session.isBossFight() ? "NUEVO COMBATE" : "REVANCHA";
+        String[] options = {first, hardOffered ? "AHORA NO" : "VOLVER AL MENU"};
+        for (int i = 0; i < options.length; i++) {
+            int y = RESULT_OPTION_Y + i * (RESULT_OPTION_H + RESULT_OPTION_GAP);
+            // El clic sigue usando el mismo rectangulo, aunque ya no se dibuje la caja
+            ArcadeMenuStyle.option(g, options[i], centerX, y + 29, 23, i == selectedOption);
+        }
+
+        ArcadeMenuStyle.text(g, "FLECHAS + ENTER / CLIC", centerX,
                 panelY + panelHeight - 14, 17, RetroStyle.DARK);
     }
 
@@ -306,7 +334,7 @@ public class FightingRenderer {
             } else if (visual.phase() == UltimateController.Phase.RELEASING) {
                 if (visual.definition().shape() == UltimateDefinition.Shape.RINGS) {
                     drawUltimateRings(g, visual, primary, secondary);
-                } else {
+                } else if (!hasDecorativeBeam(visual)) {
                     drawUltimateBeam(g, visual, primary, secondary, frameIndex);
                 }
                 if (visual.pulseFlash() > 0) {
@@ -325,6 +353,15 @@ public class FightingRenderer {
                 g.fillOval(ownerX - radius, ownerY - radius, radius * 2, radius * 2);
             }
         }
+    }
+
+    /**
+     * El Psicoataque de Mewtwo ya se ve con el rayo animado de FightingFx cuando los dos estan
+     * a la misma altura: ahi no se dibuja esta linea, para que no salgan dos rayos encimados.
+     */
+    private static boolean hasDecorativeBeam(UltimateController.Visual visual) {
+        return "PSYSTRIKE".equals(visual.definition().moveId())
+                && Math.abs(visual.owner().getY() - visual.target().getY()) < 40;
     }
 
     private void drawUltimateCharge(Graphics2D g, int x, int y, int height,
@@ -601,6 +638,112 @@ public class FightingRenderer {
         }
     }
 
+    /** Premonicion: circulo rosado en el suelo que se cierra hasta que cae el golpe. */
+    private void drawFutureSightMarks(Graphics2D g, FightingGameSession session) {
+        if (!session.isBossFight()) return;
+        for (FightingGameSession.FutureSightMark mark : session.getFutureSightMarks()) {
+            double p = mark.progress();
+            int x = (int) mark.x();
+            int ground = (int) mark.y();     // suelo o la plataforma donde estaba el rival
+            boolean blink = p > 0.7 && ((int) (fx.time() * 12)) % 2 == 0;
+            Color c = blink ? Color.WHITE : new Color(0xFF6FD0);
+            int rx = (int) (FightingGameSession.FUTURE_SIGHT_RADIUS + 30 * (1 - p));
+            g.setColor(new Color(255, 111, 208, (int) (40 + 60 * p)));
+            g.fillOval(x - rx, ground - 14, rx * 2, 28);
+            g.setColor(c);
+            g.setStroke(new java.awt.BasicStroke(3));
+            g.drawOval(x - rx, ground - 14, rx * 2, 28);
+            // Ojo en el centro (la vision del futuro)
+            g.drawOval(x - 16, ground - 7, 32, 14);
+            g.fillOval(x - 5, ground - 5, 10, 10);
+            // Columna fina que avisa
+            g.setColor(new Color(255, 111, 208, (int) (60 * p)));
+            g.fillRect(x - 3, ground - 420, 6, 420);
+        }
+    }
+
+    /** Onda mental: pared baja de energia rosada que corre por el suelo. */
+    private void drawPsychicWaves(Graphics2D g, FightingGameSession session) {
+        if (!session.isBossFight()) return;
+        int ground = session.getGroundY();
+        for (FightingGameSession.PsychicWave wave : session.getPsychicWaves()) {
+            int x = (int) wave.x();
+            int dir = (int) wave.direction();
+            for (int k = 0; k < 6; k++) {
+                int tx = x - dir * k * 16;
+                int height = 54 - k * 8;
+                int alpha = 220 - k * 35;
+                g.setColor(new Color(255, 95, 184, Math.max(20, alpha)));
+                g.fillRoundRect(tx - 7, ground - height, 14, height, 8, 8);
+            }
+            g.setColor(Color.WHITE);
+            g.fillRoundRect(x - 3, ground - 50, 6, 50, 4, 4);
+        }
+    }
+
+    /** Barrera de Mewtwo: domo hexagonal rosado. */
+    private void drawBossBarrier(Graphics2D g, FightingGameSession session) {
+        Fighter boss = session.getBoss();
+        if (boss == null || !boss.hasBarrier() || boss.isDefeated()) return;
+        double cx = boss.getX();
+        double cy = boss.getY() - boss.getRenderHeight() * 0.5;
+        double rx = boss.getBodyHalfWidth() + 46, ry = boss.getRenderHeight() * 0.62;
+        double pulse = 0.5 + 0.5 * Math.sin(fx.time() * 8);
+        var oldComposite = g.getComposite();
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) (0.18 + 0.08 * pulse)));
+        g.setColor(new Color(0xFF8FCB));
+        g.fill(new java.awt.geom.Ellipse2D.Double(cx - rx, cy - ry, rx * 2, ry * 2));
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.75f));
+        g.setStroke(new java.awt.BasicStroke(2));
+        // Rejilla de hexagonos dentro del domo
+        java.awt.Shape oldClip = g.getClip();
+        g.clip(new java.awt.geom.Ellipse2D.Double(cx - rx, cy - ry, rx * 2, ry * 2));
+        double size = 18;
+        for (double hy = cy - ry; hy < cy + ry; hy += size * 1.5) {
+            int row = (int) Math.round((hy - cy) / (size * 1.5));
+            for (double hx = cx - rx + (row % 2 == 0 ? 0 : size * 0.87); hx < cx + rx; hx += size * 1.74) {
+                java.awt.Polygon hex = new java.awt.Polygon();
+                for (int k = 0; k < 6; k++) {
+                    double a = Math.PI / 6 + k * Math.PI / 3;
+                    hex.addPoint((int) (hx + Math.cos(a) * size), (int) (hy + Math.sin(a) * size));
+                }
+                g.drawPolygon(hex);
+            }
+        }
+        g.setClip(oldClip);
+        g.setStroke(new java.awt.BasicStroke(4));
+        g.setColor(Color.WHITE);
+        g.draw(new java.awt.geom.Ellipse2D.Double(cx - rx, cy - ry, rx * 2, ry * 2));
+        g.setComposite(oldComposite);
+    }
+
+    /** Mewtwo furioso: el escenario se oscurece con un borde morado que late. */
+    private void drawBossMood(Graphics2D g, FightingGameSession session) {
+        Fighter boss = session.getBoss();
+        if (boss == null || !boss.isEnraged() || session.getState() == FightingGameSession.State.FINISHED) return;
+        int w = session.getWidth(), h = session.getHeight();
+        double pulse = 0.5 + 0.5 * Math.sin(fx.time() * 3.2);
+        if (boss.isMega()) {
+            // Fase final: todo el escenario en un rosado oscuro que late
+            java.awt.Composite oldMood = g.getComposite();
+            g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER,
+                    (float) (0.16 + 0.05 * pulse)));
+            g.setColor(new Color(0x3A0628));
+            g.fillRect(0, 0, w, h);
+            g.setComposite(oldMood);
+        }
+        float edge = (float) (0.30 + 0.15 * pulse);
+        java.awt.RadialGradientPaint vignette = new java.awt.RadialGradientPaint(
+                new java.awt.geom.Point2D.Double(w / 2.0, h / 2.0), w * 0.72f,
+                new float[]{0.45f, 1f},
+                new Color[]{new Color(40, 0, 60, 0), boss.isMega() ? new Color(120, 10, 70, (int) (255 * edge))
+                        : new Color(70, 10, 110, (int) (255 * edge))});
+        java.awt.Paint old = g.getPaint();
+        g.setPaint(vignette);
+        g.fillRect(0, 0, w, h);
+        g.setPaint(old);
+    }
+
     private void drawFighterStatusIndicators(Graphics2D g, FightingGameSession session) {
         for (int player = 0; player < session.getFighters().size(); player++) {
             Fighter fighter = session.getFighters().get(player);
@@ -632,6 +775,7 @@ public class FightingRenderer {
     }
 
     private void drawBlockShield(Graphics2D g, Fighter fighter, FightingCombatSystem combat, boolean front) {
+        if (fighter.hasBarrier()) return;   // con la barrera puesta no se dibuja el escudo
         double opacity = fighter.getShieldOpacity();
         if (opacity <= 0 || fighter.isDefeated() || fighter.isHitStunned()
                 || fighter.isUltimateStunned() || fighter.isAsleep() || fighter.isEvolutionAnimating()) return;
@@ -797,6 +941,15 @@ public class FightingRenderer {
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
                     (float) Math.max(0.15, 1 - fade)));
         }
+        // Mewtwo apuntando a una plataforma: se inclina hacia arriba mientras dispara
+        java.awt.geom.AffineTransform beforeLean = g.getTransform();
+        boolean aimingUp = fighter.isBoss() && fighter.getAimUpAngle() > 0 && (ultimate != null
+                || (visual != null && ("PSYCHIC".equals(visual.definition().moveId())
+                        || "SHADOW_BALL".equals(visual.definition().moveId()))));
+        if (aimingUp) {
+            double lean = fighter.getAimUpAngle() * 0.6 * (fighter.isFacingLeft() ? 1 : -1);
+            g.rotate(lean, centerX, fighter.getY());
+        }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         float flash = fx.whiteFlash(fighter);
         if (flash > 0) {
@@ -806,6 +959,7 @@ public class FightingRenderer {
                     x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         }
         g.setComposite(oldComposite);
+        g.setTransform(beforeLean);
         return true;
     }
 
@@ -829,6 +983,11 @@ public class FightingRenderer {
             return sprites.get("Hurt").frameAtTime(fighter.getDamageAnimationSeconds(), left, false);
         }
         if (fighter.isAsleep()) return sprites.get("Sleep").frameAtTime(elapsed, left, true);
+        if (fighter.isMegaPending() && fx.director().isMegaTired()) {
+            // Cansado antes de transformarse: jadea
+            var breath = sprites.get("DeepBreath");
+            if (breath != null) return breath.frameAtTime(fx.time(), left, true);
+        }
         if (ultimate != null && profile.isEvolution()) {
             switch (ultimate.phase()) {
                 case CHARGING -> { return sprites.get("Charge").frameAtProgress(ultimate.progress(), left); }

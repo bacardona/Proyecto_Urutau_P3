@@ -55,7 +55,9 @@ public class GameWindow extends JFrame {
     public GameWindow() {
         setTitle("Pokken Battle");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setResizable(false);
+        // Se puede maximizar con el boton de la ventana: cada pantalla ya se escala sola
+        setResizable(true);
+        setMinimumSize(new Dimension(640, 427));
         container.setPreferredSize(new Dimension(960, 640));
         add(container);
         addScreen("loading", loading);
@@ -77,6 +79,12 @@ public class GameWindow extends JFrame {
         container.setPreferredSize(
                 new Dimension(width, height)
         );
+
+        // Si esta maximizada se queda asi; si no, vuelve al tamano normal y se centra
+        if ((getExtendedState() & MAXIMIZED_BOTH) == MAXIMIZED_BOTH) {
+            container.revalidate();
+            return;
+        }
 
         pack();
 

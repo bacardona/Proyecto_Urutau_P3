@@ -26,9 +26,9 @@ final class FightingSpriteProfile {
             Map.entry("FLAREON", new FightingSpriteProfile("FLAREON", "EEVEE", 4, 92, 36, "Idle", "Faint", Map.of(
                     "TACKLE", "Swing", "QUICK_ATTACK", "Charge", "GROWL", "Shoot", "TAIL_WHIP", "TailWhip"))),
             Map.entry("VULPIX", new FightingSpriteProfile("VULPIX", 4, 72, 30, "Idle", Map.of(
-                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+                    "QUICK_ATTACK", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
             Map.entry("NINETALES", new FightingSpriteProfile("NINETALES", "VULPIX", 4, 96, 38, "Idle", "Faint", Map.of(
-                    "TACKLE", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
+                    "QUICK_ATTACK", "Attack", "EMBER", "Shoot", "GROWL", "Charge", "FIRE_FANG", "Strike"))),
             Map.entry("SANDSHREW", new FightingSpriteProfile("SANDSHREW", 4, 72, 30, "Idle", Map.of(
                     "TACKLE", "Attack", "DIG", "Strike", "TAIL_WHIP", "Swing", "ROCK_SLIDE", "Shoot"))),
             Map.entry("SANDSLASH", new FightingSpriteProfile("SANDSLASH", "SANDSHREW", 4, 92, 36, "Idle", "Faint", Map.of(
@@ -48,7 +48,14 @@ final class FightingSpriteProfile {
             Map.entry("PIKACHU", new FightingSpriteProfile("PIKACHU", 4, 78, 30, "Idle", Map.of(
                     "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
             Map.entry("RAICHU", new FightingSpriteProfile("RAICHU", "PIKACHU", 4, 96, 34, "Idle", "Faint", Map.of(
-                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))));
+                    "QUICK_ATTACK", "QuickStrike", "THUNDER_SHOCK", "Shoot", "TAIL_WHIP", "Swing", "THUNDER_WAVE", "Charge"))),
+            // Jefe secreto
+            Map.entry("MEWTWO", new FightingSpriteProfile("MEWTWO", 6, 200, 52, "Idle", Map.of(
+                    "PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge", "TELEPORT", "Rotate"))),
+            // Fase 3 del modo dificil (paquete Evolucion de MEWTWO = forma 0002 de SpriteCollab)
+            Map.entry("MEGA_MEWTWO_Y", new FightingSpriteProfile("MEGA_MEWTWO_Y", "MEWTWO", 7, 235, 60, "Idle",
+                    "Hurt", Map.of("PSYCHO_CUT", "Attack", "PSYCHIC", "Shoot", "SHADOW_BALL", "Charge",
+                            "TELEPORT", "Rotate"))));
 
     final String species;
     final int scale;

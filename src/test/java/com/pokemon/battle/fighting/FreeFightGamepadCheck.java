@@ -139,6 +139,20 @@ public class FreeFightGamepadCheck {
         current[1] = pad().left(true).build();
         FightingWindowChecks.awaitCondition(() -> two.getX() < before - 20, "Pad 2 must walk in the real panel");
         current[1] = PadSnapshot.NONE;
+        // MANDO: LADO DERECHO -> el mando 1 maneja al Pokemon de la derecha
+        check(panel[0].padIndexFor(0) == 0 && panel[0].padIndexFor(1) == 1, "Pads start on their own side");
+        javax.swing.SwingUtilities.invokeAndWait(() -> panel[0].togglePadSide());
+        check(panel[0].padIndexFor(1) == 0, "After the switch pad 1 must drive the right player");
+        Thread.sleep(100);
+        double rightBefore = two.getX();
+        double leftBefore = one.getX();
+        current[0] = pad().left(true).build();
+        FightingWindowChecks.awaitCondition(() -> two.getX() < rightBefore - 20,
+                "Pad 1 must walk the right Pokemon after the switch");
+        check(Math.abs(one.getX() - leftBefore) < 1, "Left Pokemon stays for the keyboard");
+        current[0] = PadSnapshot.NONE;
+        javax.swing.SwingUtilities.invokeAndWait(() -> panel[0].togglePadSide());
+        check(panel[0].padIndexFor(0) == 0, "Switching again goes back to normal");
         javax.swing.SwingUtilities.invokeAndWait(() -> frame[0].dispose());
     }
 

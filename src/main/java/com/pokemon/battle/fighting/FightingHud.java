@@ -139,7 +139,7 @@ final class FightingHud {
         }
 
         // Nombre
-        String name = f.getName().toUpperCase();
+        String name = f.isMega() ? "MEGA MEWTWO Y" : f.getName().toUpperCase();
         g.setFont(RetroStyle.font(36));
         FontMetrics m = g.getFontMetrics();
         int nameX = left ? barX + P : barX + barW - P - m.stringWidth(name);
@@ -159,6 +159,8 @@ final class FightingHud {
         int barH = 8 * P;
         frame(g, barX, barY, barW, barH, null);
         Color full = ratio > 0.5 ? new Color(0x58D660) : ratio > 0.25 ? new Color(0xFAC83C) : new Color(0xF05046);
+        // Mega Mewtwo Y: barra rosada para que se note que es la fase final
+        if (f.isMega()) full = ratio > 0.25 ? new Color(0xFF5FB8) : new Color(0xFF2E7A);
         boolean blink = ratio <= 0.25 && (frameIndex / 3) % 2 == 0;
         int innerX = barX + 2 * P;
         int innerY = barY + 2 * P;
@@ -331,6 +333,10 @@ final class FightingHud {
         boolean pad = padConnected[player];
         String evolveKey = pad ? "LT" : player == 0 ? "R" : "P";
         String ultimateKey = pad ? "RT" : player == 0 ? "T" : "O";
+        if (fighter.isBoss()) {
+            // Mewtwo no evoluciona: su barra carga el Psicoataque
+            return fighter.isUltimateReady() ? "PSICOATAQUE LISTO" : "PSICOATAQUE";
+        }
         if (fighter.isEvolved()) {
             return fighter.isUltimateReady() ? "ULTI LISTA (" + ultimateKey + ")" : "ULTI";
         }

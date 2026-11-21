@@ -13,7 +13,6 @@ import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
 import java.awt.Color;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -45,8 +44,16 @@ public class FightingGamePanel extends JPanel {
             "CONTINUAR",
             "CONTROLES",
             "RESUMEN",
+            "MANDO",          // el texto real lo da pauseOptionLabel (lado izquierdo o derecho)
             "VOLVER AL MENU"
     };
+
+    /**
+     * Lado que maneja el mando 1. Normal: mando 1 = jugador izquierdo, mando 2 = derecho.
+     * Cambiado: al reves, asi uno puede jugar con el teclado de la izquierda y el mando a la derecha.
+     * Es static para que se recuerde entre un combate y otro.
+     */
+    private static boolean padsSwapped;
 
     private static final int MENU_W = 380;
     private static final int MENU_X = (WIDTH - MENU_W) / 2;
@@ -75,6 +82,7 @@ public class FightingGamePanel extends JPanel {
     private final Timer simulationTimer;
     // Mando: se lee aparte de la simulacion para que tambien funcione en pausa y resultados
     private final Timer gamepadTimer;
+    private final Timer resultsTimer;
     private final GamepadFightControls gamepadControls = new GamepadFightControls();
     private IntFunction<PadSnapshot> gamepadSource;
     private final boolean[] padConnected = new boolean[2];
@@ -117,6 +125,15 @@ public class FightingGamePanel extends JPanel {
 
         simulationTimer = new Timer(8, e -> updateSimulation());
         gamepadTimer = new Timer(16, e -> readGamepads());
+        // Despues del combate: sigue animando la pantalla final (dialogo, confeti, risa)
+        resultsTimer = new Timer(33, e -> {
+            if (session.getState() != FightingGameSession.State.FINISHED || !isShowing()) {
+                ((Timer) e.getSource()).stop();
+                return;
+            }
+            renderer.fx().tickResults(0.033);
+            repaint();
+        });
 
         // Iniciar o detener las animaciones
         // cuando se muestra u oculta la pantalla.
@@ -176,11 +193,15 @@ public class FightingGamePanel extends JPanel {
         // M: silenciar o activar los sonidos del combate
         // Silenciar con F1 (lejos de las teclas de ataque, para no tocarla sin querer)
         bindKey("F1", () -> FightingSound.get().setMuted(!FightingSound.get().isMuted()));
+        // Teclas de prueba, solo con -Dpokemon.fighting.debug=true (VM options de IntelliJ):
+        // F6/F7 K.O. al jugador 1/2, F8/F9 llenan su barra EVO, F10 Mewtwo normal, F11 Mewtwo dificil
         if (DEBUG_KO_ENABLED) {
             bindKey("F6", () -> debugDefeat(0));
             bindKey("F7", () -> debugDefeat(1));
             bindKey("F8", () -> session.debugFillActiveEnergy(0));
             bindKey("F9", () -> session.debugFillActiveEnergy(1));
+            bindKey("F10", () -> debugStartBoss(false));
+            bindKey("F11", () -> debugStartBoss(true));
         }
 
         bindHeldKey("A", input::setPlayerOneLeft);
@@ -350,7 +371,7 @@ public class FightingGamePanel extends JPanel {
     private void readGamepads() {
         if (gamepadSource == null) return;
         for (int player = 0; player < 2; player++) {
-            PadSnapshot pad = gamepadSource.apply(player);
+            PadSnapshot pad = gamepadSource.apply(padIndexFor(player));
             if (pad == null) pad = PadSnapshot.NONE;
             if (padConnected[player] != pad.connected()) {
                 padConnected[player] = pad.connected();
@@ -382,6 +403,28 @@ public class FightingGamePanel extends JPanel {
         }
     }
 
+    /** Que mando (0 o 1) maneja a este jugador (0 = izquierda, 1 = derecha). */
+    int padIndexFor(int player) {
+        return padsSwapped ? 1 - player : player;
+    }
+
+    /** Cambia de lado los mandos. Primero suelta todo lo que tenian apretado. */
+    void togglePadSide() {
+        for (int player = 0; player < 2; player++) {
+            gamepadControls.apply(player, PadSnapshot.NONE, input);
+            padConnected[player] = false;
+            renderer.setPadConnected(player, false);
+        }
+        padsSwapped = !padsSwapped;
+        repaint();
+    }
+
+    /** Texto de cada boton de la pausa (el del mando dice a que lado esta). */
+    private String pauseOptionLabel(int index) {
+        if (index == 3) return padsSwapped ? "MANDO: LADO DERECHO" : "MANDO: LADO IZQUIERDO";
+        return PAUSE_OPTIONS[index];
+    }
+
     private void updateSimulation() {
         if (session.getState() != FightingGameSession.State.RUNNING) return;
         long now = System.nanoTime();
@@ -396,6 +439,7 @@ public class FightingGamePanel extends JPanel {
             if (session.getState() == FightingGameSession.State.FINISHED) {
                 stopGameTimersAndClearInput();
                 simulationAccumulatorNanos = 0;
+                onMatchFinished();
                 break;
             }
         }
@@ -496,7 +540,9 @@ public class FightingGamePanel extends JPanel {
 
             case 2 -> pausePage = PausePage.SUMMARY;
 
-            case 3 -> {
+            case 3 -> togglePadSide();
+
+            case 4 -> {
                 stopGameTimersAndClearInput();
                 onBack.run();
             }
@@ -516,7 +562,12 @@ public class FightingGamePanel extends JPanel {
 
     private void activateResultOption() {
         if (selectedResultOption == 0) {
-            session = createSession();
+            if (hardOffered) bossHard = true;
+            if (bossOffered) bossHard = false;
+            session = bossOffered || bossRetry || hardOffered ? createBossSession() : createSession();
+            bossOffered = false;
+            bossRetry = false;
+            hardOffered = false;
             input.clear();
             frameIndex = 0;
             selectedResultOption = 0;
@@ -527,6 +578,10 @@ public class FightingGamePanel extends JPanel {
                 simulationTimer.start();
             }
         } else {
+            // "AHORA NO" o volver: se pierde la revancha (otra vez 3 victorias seguidas)
+            bossOffered = false;
+            bossRetry = false;
+            hardOffered = false;
             stopGameTimersAndClearInput();
             onBack.run();
         }
@@ -565,6 +620,78 @@ public class FightingGamePanel extends JPanel {
         input.clear();
     }
 
+    // ------------------------------------------------------------ jefe secreto
+    /** Victorias seguidas en Combate Libre para que aparezca Mewtwo. */
+    static final int BOSS_WIN_STREAK = 3;
+    // Rachas por entrenador mientras el juego esta abierto
+    private static final java.util.Map<String, Integer> WIN_STREAKS = new java.util.HashMap<>();
+    private boolean bossOffered;
+    // Mewtwo gano: se puede reintentar sin volver a ganar 3 seguidas
+    private boolean bossRetry;
+    // Le ganaste a Mewtwo normal: te reta a la revancha dificil
+    private boolean hardOffered;
+    // La pelea de jefe que se crea (o reintenta) es la dificil
+    private boolean bossHard;
+    private int bossChallenger = -1;
+
+    /** Cuenta la racha del ganador; a la tercera victoria seguida Mewtwo lo desafia. */
+    private void onMatchFinished() {
+        resultsTimer.start();
+        FightingGameSession.Outcome outcome = session.getOutcome();
+        if (session.isBossFight()) {
+            // Gane o pierda contra Mewtwo, la racha vuelve a cero; si perdio puede reintentar
+            WIN_STREAKS.remove(session.getTrainerName(1 - session.getBossIndex()));
+            bossChallenger = 1 - session.getBossIndex();
+            bossRetry = !session.challengerWon();
+            bossHard = session.isHardBoss();
+            hardOffered = session.challengerWon() && !session.isHardBoss();
+            return;
+        }
+        if (outcome == null || outcome == FightingGameSession.Outcome.DRAW) return;
+        int winner = outcome == FightingGameSession.Outcome.PLAYER_ONE_WINS ? 0 : 1;
+        String winnerName = session.getTrainerName(winner);
+        WIN_STREAKS.remove(session.getTrainerName(1 - winner));
+        int streak = WIN_STREAKS.merge(winnerName, 1, Integer::sum);
+        if (streak >= BOSS_WIN_STREAK) {
+            bossOffered = true;
+            bossChallenger = winner;
+        }
+    }
+
+    /** El ganador (con su equipo y la vida llena) contra Mewtwo, en el mismo mapa. */
+    private FightingGameSession createBossSession() {
+        renderer.reset();
+        int challenger = Math.max(0, bossChallenger);
+        String name = session.getTrainerName(challenger);
+        FightingStage stage = session.getStage();
+        if (setup != null && setup.isComplete()) {
+            var team = challenger == 0 ? setup.getTeamOne() : setup.getTeamTwo();
+            return FightingGameSession.bossFight(name, team, challenger == 1, stage, bossHard);
+        }
+        return FightingGameSession.bossFightPrototype(name, new String[]{"PIKACHU", "BULBASAUR"},
+                challenger == 1, stage, bossHard);
+    }
+
+    /** F10 / F11 con -Dpokemon.fighting.debug=true: Mewtwo (normal / dificil) aparece ya. */
+    private void debugStartBoss(boolean hard) {
+        bossChallenger = 0;
+        bossHard = hard;
+        hardOffered = false;
+        bossRetry = false;
+        session = createBossSession();
+        bossOffered = false;
+        input.clear();
+        frameIndex = 0;
+        selectedResultOption = 0;
+        simulationAccumulatorNanos = 0;
+        lastSimulationNanos = System.nanoTime();
+        if (isShowing()) {
+            animationTimer.start();
+            simulationTimer.start();
+        }
+        repaint();
+    }
+
     private FightingGameSession createSession() {
         renderer.reset();
         return setup != null && setup.isComplete()
@@ -575,7 +702,10 @@ public class FightingGamePanel extends JPanel {
     private void debugDefeat(int playerIndex) {
         if (!DEBUG_KO_ENABLED || session.getState() != FightingGameSession.State.RUNNING) return;
         session.debugDefeatActiveFighter(playerIndex);
-        if (session.getState() == FightingGameSession.State.FINISHED) stopGameTimersAndClearInput();
+        if (session.getState() == FightingGameSession.State.FINISHED) {
+            stopGameTimersAndClearInput();
+            onMatchFinished();
+        }
         repaint();
     }
 
@@ -637,11 +767,7 @@ public class FightingGamePanel extends JPanel {
         );
 
         renderer.draw(sceneGraphics, session, frameIndex, this::repaint);
-        if (DEBUG_KO_ENABLED) {
-            sceneGraphics.setFont(RetroStyle.font(16));
-            sceneGraphics.setColor(new Color(0x7B2020));
-            sceneGraphics.drawString("HERRAMIENTA DE DEPURACION: F6 KO P1 | F7 KO P2", 350, 700);
-        }
+        // Las teclas de prueba (F6 a F11) funcionan sin mostrar ningun aviso en pantalla
 
         sceneGraphics.dispose();
 
@@ -684,7 +810,7 @@ public class FightingGamePanel extends JPanel {
                 drawPause(menuGraphics);
             } else {
                 renderer.drawWinnerBackdrop(menuGraphics, session);
-                renderer.drawResults(menuGraphics, session, selectedResultOption);
+                renderer.drawResults(menuGraphics, session, selectedResultOption, bossOffered, hardOffered);
             }
 
             menuGraphics.dispose();
@@ -699,35 +825,14 @@ public class FightingGamePanel extends JPanel {
 
     private void drawPause(Graphics2D g) {
 
-        int panelWidth = 450;
         int panelHeight = 400;
 
-        int panelX = (WIDTH - panelWidth) / 2;
         int panelY = (HEIGHT - panelHeight) / 2;
 
         int centerX = WIDTH / 2;
 
-        // Borde del menu.
-        g.setColor(RetroStyle.OUTLINE);
-
-        g.fillRoundRect(
-                panelX,
-                panelY,
-                panelWidth,
-                panelHeight,
-                22, 22
-        );
-
-        // Fondo del menu.
-        g.setColor(new Color(0xF4F1E4));
-
-        g.fillRoundRect(
-                panelX + 7,
-                panelY + 7,
-                panelWidth - 14,
-                panelHeight - 14,
-                16, 16
-        );
+        // Estilo arcade: sin recuadro, el texto va directo sobre el fondo oscurecido
+        // (ver ArcadeMenuStyle). panelY solo sirve para ubicar los textos.
 
         // MENU PRINCIPAL.
         if (pausePage == PausePage.MAIN) {
@@ -748,45 +853,10 @@ public class FightingGamePanel extends JPanel {
                 int y = MENU_Y +
                         i * (OPTION_H + OPTION_GAP);
 
-                // Color del boton.
-                if (i == selectedOption) {
-
-                    g.setColor(new Color(0xBED7FF));
-
-                } else {
-
-                    g.setColor(Color.WHITE);
-                }
-
-                // Fondo del boton.
-                g.fillRoundRect(
-                        MENU_X,
-                        y,
-                        MENU_W,
-                        OPTION_H,
-                        8, 8
-                );
-
-                // Borde del boton.
-                g.setColor(RetroStyle.OUTLINE);
-
-                g.drawRoundRect(
-                        MENU_X,
-                        y,
-                        MENU_W,
-                        OPTION_H,
-                        8, 8
-                );
-
-                // Nombre de la opcion.
-                drawCentered(
-                        g,
-                        PAUSE_OPTIONS[i],
-                        centerX,
-                        y + 29,
-                        23,
-                        RetroStyle.DARK
-                );
+                // Sin caja: la opcion elegida va en amarillo con flechas.
+                // El clic sigue usando el mismo rectangulo de cada opcion.
+                ArcadeMenuStyle.option(g, pauseOptionLabel(i), centerX, y + 29, 23,
+                        i == selectedOption);
             }
 
             drawCentered(
@@ -918,7 +988,7 @@ public class FightingGamePanel extends JPanel {
             case "CHARMANDER" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "VUELO"; }
             case "SQUIRTLE" -> { moveOne = "PLACAJE"; moveTwo = "PISTOLA AGUA"; moveThree = "LATIGO"; moveFour = "MORDISCO"; }
             case "EEVEE" -> { moveOne = "PLACAJE"; moveTwo = "RAPIDO"; moveThree = "GRUNIDO"; moveFour = "LATIGO"; }
-            case "VULPIX" -> { moveOne = "PLACAJE"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "COLMILLO IGNEO"; }
+            case "VULPIX" -> { moveOne = "RAPIDO"; moveTwo = "ASCUAS"; moveThree = "GRUNIDO"; moveFour = "COLMILLO IGNEO"; }
             case "SANDSHREW" -> { moveOne = "PLACAJE"; moveTwo = "EXCAVAR"; moveThree = "LATIGO"; moveFour = "AVALANCHA"; }
             case "GASTLY" -> { moveOne = "LENGUETAZO"; moveTwo = "BOLA SOMBRA"; moveThree = "HIPNOSIS"; moveFour = "CARA SUSTO"; }
             case "MACHOP" -> { moveOne = "PLACAJE"; moveTwo = "A BOCAJARRO"; moveThree = "GRUNIDO"; moveFour = "GOLPE CUERPO"; }
@@ -943,19 +1013,7 @@ public class FightingGamePanel extends JPanel {
             int size,
             Color color
     ) {
-
-        g.setFont(RetroStyle.font(size));
-        g.setColor(color);
-
-        FontMetrics metrics = g.getFontMetrics();
-
-        int textWidth =
-                metrics.stringWidth(text);
-
-        g.drawString(
-                text,
-                centerX - textWidth / 2,
-                baseline
-        );
+        // Texto blanco con borde negro (estilo arcade del menu de pausa)
+        ArcadeMenuStyle.text(g, text, centerX, baseline, size, color);
     }
 }
