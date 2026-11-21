@@ -54,6 +54,24 @@ public class Fighter {
     static final double PARRY_WINDOW_SECONDS = 0.15;
     static final double PARRY_REARM_SECONDS = 0.45;
     private double blockHeldSeconds;
+    // Jefe secreto (Mewtwo): aguanta el doble y en su segunda fase se enfurece
+    static final double BOSS_DAMAGE_TAKEN = 0.6;
+    static final double ENRAGED_DAMAGE_BONUS = 0.20;
+    static final double ENRAGED_SPEED_BONUS = 0.15;
+    private boolean boss;
+    private boolean enraged;
+    // Modo dificil: Mega Mewtwo Y (fase 3) y barrera que refleja proyectiles
+    static final double MEGA_DAMAGE_BONUS = 0.15;
+    static final double MEGA_SPEED_BONUS = 0.25;
+    static final String MEGA_FORM_ID = "MEGA_MEWTWO_Y";
+    private boolean megaPending;
+    private boolean mega;
+    private double barrierSeconds;
+    // Mewtwo apunta hacia arriba cuando el rival esta en una plataforma (radianes, 0 = recto)
+    private double aimUpAngle;
+    // En la revancha dificil aguanta mas
+    static final double HARD_BOSS_DAMAGE_TAKEN = 0.55;
+    private boolean hardBoss;
     private double parryRearmSeconds;
     private boolean parryArmed;
 
@@ -77,6 +95,7 @@ public class Fighter {
 
     /** Current visual species, used by sprite lookup and team indicators. */
     public String getPokemonId() {
+        if (mega) return MEGA_FORM_ID;
         return evolved && evolutionProfile != null
                 ? evolutionProfile.evolvedPokemonId() : basePokemonId;
     }
@@ -133,10 +152,42 @@ public class Fighter {
         return 1.0 - evolutionAnimationSeconds / EVOLUTION_ANIMATION_DURATION;
     }
     public EvolutionProfile getEvolutionProfile() { return evolutionProfile; }
-    public boolean isUltimateReady() { return evolved && isEvolutionReady(); }
+    public boolean isUltimateReady() { return (evolved || boss) && isEvolutionReady(); }
     public double getMovementSpeedMultiplier() {
+        if (mega) return 1.0 + MEGA_SPEED_BONUS;
+        if (enraged) return 1.0 + ENRAGED_SPEED_BONUS;
         return evolved ? 1.0 + EvolutionProfile.EVOLVED_MOVEMENT_SPEED_BONUS : 1.0;
     }
+    public boolean isBoss() { return boss; }
+    public boolean isEnraged() { return enraged; }
+    void markAsBoss() { boss = true; }
+    void markAsHardBoss() { boss = true; hardBoss = true; }
+    void enrage() { if (boss) enraged = true; }
+
+    /** Fase 3: se esta transformando (cansado, escena). Durante la escena no hace nada. */
+    public boolean isMegaPending() { return megaPending; }
+    public boolean isMega() { return mega; }
+    void startMega() { if (boss && !mega) megaPending = true; }
+    /** La explosion de energia: desde aqui ya es Mega Mewtwo Y. */
+    void completeMega() {
+        if (!megaPending) return;
+        megaPending = false;
+        mega = true;
+        enraged = true;
+    }
+
+    public boolean hasBarrier() { return barrierSeconds > 0; }
+    public double getAimUpAngle() { return aimUpAngle; }
+    void setAimUpAngle(double radians) { aimUpAngle = radians; }
+
+    /** Cura sin pasar del maximo (Mega Mewtwo recupera vida al transformarse). */
+    void heal(int amount) {
+        if (defeated || amount <= 0) return;
+        health = Math.min(MAX_HEALTH, health + amount);
+    }
+    void raiseBarrier(double seconds) { if (boss) barrierSeconds = Math.max(barrierSeconds, seconds); }
+
+
     public boolean isOnGround() { return onGround; }
     public boolean isDefeated() { return defeated; }
     public boolean isUltimateStunned() { return ultimateStunCount > 0; }
@@ -174,13 +225,17 @@ public class Fighter {
     public double getOutgoingDamageMultiplier() {
         double multiplier = hasAttackBoost() ? 1.35 : 1.0;
         multiplier *= hasAttackReduction() ? 0.72 : 1.0;
+        multiplier *= mega ? 1.0 + MEGA_DAMAGE_BONUS : enraged ? 1.0 + ENRAGED_DAMAGE_BONUS : 1.0;
         return multiplier * (evolved ? 1.0 + EvolutionProfile.EVOLVED_DAMAGE_BONUS : 1.0);
     }
     public double getIncomingDamageMultiplier() {
-        return hasDefenseReduction() ? 1.30 : 1.0;
+        double multiplier = hasDefenseReduction() ? 1.30 : 1.0;
+        if (!boss) return multiplier;
+        return multiplier * (hardBoss ? HARD_BOSS_DAMAGE_TAKEN : BOSS_DAMAGE_TAKEN);
     }
 
     void updateStatusEffects(double deltaSeconds) {
+        barrierSeconds = Math.max(0, barrierSeconds - deltaSeconds);
         damageAnimationSeconds += deltaSeconds;
         damageVisualRemaining = Math.max(0, damageVisualRemaining - deltaSeconds);
         sleepSeconds = Math.max(0, sleepSeconds - deltaSeconds);
@@ -224,7 +279,7 @@ public class Fighter {
     }
 
     void refundInterruptedUltimate() {
-        if (evolved && !defeated) evolutionEnergy = 50;
+        if ((evolved || boss) && !defeated) evolutionEnergy = 50;
     }
 
     void returnToBaseAfterUltimate() {
@@ -278,7 +333,8 @@ public class Fighter {
 
     boolean applySleep(double durationSeconds) {
         if (isAsleep() || defeated) return false;
-        sleepSeconds = durationSeconds;
+        // El jefe se duerme la mitad de tiempo
+        sleepSeconds = boss ? durationSeconds * 0.5 : durationSeconds;
         return true;
     }
 

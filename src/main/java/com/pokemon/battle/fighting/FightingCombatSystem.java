@@ -24,6 +24,11 @@ public class FightingCombatSystem {
     private static final double FLY_RETREAT_SPEED = 125;
     private static final double TAIL_LUNGE_SECONDS = 0.16;
     private static final double EEVEE_QUICK_ATTACK_MAX_DISTANCE = 120;
+    /** Lo que avanza una embestida cuando el rival no esta delante (igual que el Ataque Rapido). */
+    private static final double FREE_DASH_DISTANCE = EEVEE_QUICK_ATTACK_MAX_DISTANCE;
+    /** Paso corto hacia adelante de Placaje y los golpes cercanos (no llega a ser un Ataque Rapido). */
+    private static final double MELEE_STEP_DISTANCE = 45;
+    private static final double MELEE_STEP_SPEED = 450;
     private static final double INPUT_BUFFER_SECONDS = 0.18;
     private static final double BLOCK_STUN_SECONDS = 0.35;
     private static final double COMBO_STUN_RESET_SECONDS = 0.90;
@@ -107,6 +112,30 @@ public class FightingCombatSystem {
     private static final AttackDefinition TELEPORT = new AttackDefinition(
             "TELEPORT", 109, AttackDefinition.Kind.DASH, 8,
             0.06, 0.18, 0.60, 56, 70, 520, 0, 0, 0, new Color(0xE6B8FF));
+
+    // Jefe secreto Mewtwo: mismas animaciones de los ataques psiquicos, pero mas fuertes
+    private static final AttackDefinition PSYCHO_CUT = new AttackDefinition(
+            "PSYCHO_CUT", 63, AttackDefinition.Kind.HITBOX, 13,
+            0.09, 0.12, 0.46, 64, 70, 0, 0, 0, 0, new Color(0xB78CFF));
+    private static final AttackDefinition BOSS_PSYCHIC = new AttackDefinition(
+            "PSYCHIC", 60, AttackDefinition.Kind.PROJECTILE, 12,
+            0.18, 0.06, 0.55, 0, 0, 0, 540, 1.8, 28, new Color(0xB78CFF));
+    private static final AttackDefinition BOSS_SHADOW_BALL = new AttackDefinition(
+            "SHADOW_BALL", 59, AttackDefinition.Kind.PROJECTILE, 14,
+            0.24, 0.06, 0.70, 0, 0, 0, 420, 2.0, 34, new Color(0x7B4FC4));
+    private static final AttackDefinition BOSS_TELEPORT = new AttackDefinition(
+            "TELEPORT", 109, AttackDefinition.Kind.DASH, 11,
+            0.06, 0.18, 0.55, 64, 80, 620, 0, 0, 0, new Color(0xE6B8FF));
+
+    // Onda mental de Mega Mewtwo: recorre el suelo, hay que saltarla
+    private static final AttackDefinition MIND_WAVE = new AttackDefinition(
+            "MIND_WAVE", 60, AttackDefinition.Kind.HITBOX, 14,
+            0, 0.1, 0, 60, 60, 0, 0, 0, 0, new Color(0xFF5FB8));
+
+    // Premonicion: el golpe que cae donde marco Mewtwo
+    private static final AttackDefinition FUTURE_SIGHT = new AttackDefinition(
+            "FUTURE_SIGHT", 60, AttackDefinition.Kind.HITBOX, 15,
+            0, 0.1, 0, 60, 300, 0, 0, 0, 0, new Color(0xFF6FD0));
 
     private static final AttackDefinition CHARIZARD_TACKLE = new AttackDefinition(
             "TACKLE", 18, AttackDefinition.Kind.DASH, 12,
@@ -202,7 +231,7 @@ public class FightingCombatSystem {
     public boolean hasAttackProfile(String pokemonId) {
         return switch (pokemonId) {
             case "PIKACHU", "CHARIZARD", "BULBASAUR", "CHARMANDER", "SQUIRTLE", "EEVEE",
-                 "VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA" -> true;
+                 "VULPIX", "SANDSHREW", "GASTLY", "MACHOP", "ABRA", "MEWTWO" -> true;
             default -> false;
         };
     }
@@ -241,6 +270,11 @@ public class FightingCombatSystem {
             combos[i].remainingSeconds = 0;
             combos[i].target = null;
         }
+    }
+
+    /** Quita todos los proyectiles (antes de la escena de Mega Mewtwo). */
+    void clearProjectiles() {
+        projectiles.clear();
     }
 
     public void clearPendingInputs() {
@@ -378,11 +412,12 @@ public class FightingCombatSystem {
     private AttackDefinition attackFor(String pokemonId, int requestedAttack) {
         if (requestedAttack < 0) return null;
         AttackDefinition[] newMoves = switch (pokemonId) {
-            case "VULPIX" -> new AttackDefinition[]{TACKLE, EMBER, GROWL, FIRE_FANG};
+            case "VULPIX" -> new AttackDefinition[]{QUICK_ATTACK, EMBER, GROWL, FIRE_FANG};
             case "SANDSHREW" -> new AttackDefinition[]{TACKLE, DIG, TAIL_WHIP, ROCK_SLIDE};
             case "GASTLY" -> new AttackDefinition[]{LICK, SHADOW_BALL, SLEEP_POWDER, GROWL};
             case "MACHOP" -> new AttackDefinition[]{TACKLE, CLOSE_COMBAT, GROWL, BODY_SLAM};
             case "ABRA" -> new AttackDefinition[]{ZEN_HEADBUTT, PSYCHIC, GROWTH, TELEPORT};
+            case "MEWTWO" -> new AttackDefinition[]{PSYCHO_CUT, BOSS_PSYCHIC, BOSS_SHADOW_BALL, BOSS_TELEPORT};
             default -> null;
         };
         if (newMoves != null) return requestedAttack < newMoves.length ? newMoves[requestedAttack] : null;
@@ -430,6 +465,42 @@ public class FightingCombatSystem {
             };
             default -> null;
         };
+    }
+
+    /** Golpes cuerpo a cuerpo que dan un pasito hacia adelante al pegar. */
+    private static boolean stepsForward(String moveId) {
+        return switch (moveId) {
+            case "TACKLE", "FIRE_FANG", "BITE", "LICK", "CLOSE_COMBAT", "ZEN_HEADBUTT" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Paso corto: avanza hasta MELEE_STEP_DISTANCE mientras el golpe esta activo, pero se
+     * detiene en cuanto el golpe alcanza al rival y nunca se mete dentro de su cuerpo.
+     */
+    private void moveMeleeStep(Fighter attacker, Fighter target, AttackState state,
+                               int arenaWidth, double deltaSeconds) {
+        double remaining = MELEE_STEP_DISTANCE - state.dashDistanceTravelled;
+        if (remaining <= 0 || attackHitbox(attacker, state.definition).intersects(target)) return;
+        double direction = attacker.isFacingLeft() ? -1 : 1;
+        double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        double step = Math.min(remaining, MELEE_STEP_SPEED * deltaSeconds);
+        if (direction * (target.getX() - attacker.getX()) > 0
+                && Math.abs(attacker.getY() - target.getY()) < 80) {
+            double gap = Math.abs(target.getX() - attacker.getX())
+                    - halfWidth - PhysicsSystem.halfWidthFor(target);
+            step = Math.min(step, Math.max(0, gap));
+        }
+        double startX = attacker.getX();
+        attacker.setX(Math.max(halfWidth, Math.min(arenaWidth - halfWidth, startX + direction * step)));
+        state.dashDistanceTravelled += Math.abs(attacker.getX() - startX);
+    }
+
+    /** Ataque Rapido: siempre avanza su distancia fija (Eevee, Pikachu y Vulpix). */
+    private static boolean usesQuickAttackDash(String basePokemonId) {
+        return "EEVEE".equals(basePokemonId) || "PIKACHU".equals(basePokemonId)
+                || "VULPIX".equals(basePokemonId);
     }
 
     private boolean isSelectableFreeFightPokemon(String pokemonId) {
@@ -516,12 +587,16 @@ public class FightingCombatSystem {
             if (state.definition.kind() == AttackDefinition.Kind.DASH
                     || (state.definition.kind() == AttackDefinition.Kind.LUNGE
                         && state.activeElapsed <= TAIL_LUNGE_SECONDS)) {
-                if (("EEVEE".equals(attacker.getBasePokemonId()) || "PIKACHU".equals(attacker.getBasePokemonId()))
+                if (usesQuickAttackDash(attacker.getBasePokemonId())
                         && "QUICK_ATTACK".equals(state.definition.moveId())) {
                     moveQuickAttack(attacker, state, arenaWidth, deltaSeconds);
                 } else {
-                    moveTowardTarget(attacker, target, state.definition, arenaWidth, deltaSeconds);
+                    moveTowardTarget(attacker, target, state, arenaWidth, deltaSeconds);
                 }
+            }
+            if (state.definition.kind() == AttackDefinition.Kind.HITBOX && !state.hasHit
+                    && stepsForward(state.definition.moveId())) {
+                moveMeleeStep(attacker, target, state, arenaWidth, deltaSeconds);
             }
 
             // Resolve dash/lunge movement before checking its independent offensive box.
@@ -668,11 +743,26 @@ public class FightingCombatSystem {
         return nextX - fighter.getX();
     }
 
+    /**
+     * Embestidas: si el rival esta delante avanza hasta tocarlo (sin atravesarlo); si esta
+     * detras o lejos del camino, igual sale impulsado hacia adelante, como el Ataque Rapido de Eevee.
+     */
     private void moveTowardTarget(Fighter attacker, Fighter target,
-                                  AttackDefinition definition, int arenaWidth,
+                                  AttackState state, int arenaWidth,
                                   double deltaSeconds) {
+        AttackDefinition definition = state.definition;
         double direction = attacker.isFacingLeft() ? -1 : 1;
         double halfWidth = PhysicsSystem.halfWidthFor(attacker);
+        boolean targetAhead = direction * (target.getX() - attacker.getX()) > 0;
+        if (!targetAhead) {
+            double remaining = FREE_DASH_DISTANCE - state.dashDistanceTravelled;
+            if (remaining <= 0) return;
+            double startX = attacker.getX();
+            double step = Math.min(remaining, definition.dashSpeed() * deltaSeconds);
+            attacker.setX(Math.max(halfWidth, Math.min(arenaWidth - halfWidth, startX + direction * step)));
+            state.dashDistanceTravelled += Math.abs(attacker.getX() - startX);
+            return;
+        }
         double targetHalfWidth = PhysicsSystem.halfWidthFor(target);
         double distanceToTarget = direction > 0
                 ? target.getX() - targetHalfWidth - (attacker.getX() + halfWidth)
@@ -727,6 +817,32 @@ public class FightingCombatSystem {
                 hitboxWidth, hitboxHeight);
     }
 
+    /** Cada bola de la triple Bola Sombra pega menos que una normal (son tres). */
+    static final int VOLLEY_BALL_DAMAGE = 10;
+
+    /** Una de las tres Bolas Sombra de Mewtwo, a la altura que se pida (sobre el suelo). */
+    void spawnBossShadowBall(int ownerIndex, Fighter boss, double heightAboveGround) {
+        double direction = boss.isFacingLeft() ? -1 : 1;
+        double originX = boss.getX() + direction * (PhysicsSystem.halfWidthFor(boss) + 18);
+        double originY = boss.getY() - heightAboveGround;
+        emit(CombatEvent.Type.PROJECTILE_FIRED, BOSS_SHADOW_BALL.moveId(), ownerIndex,
+                originX, originY, direction, 0);
+        projectiles.add(new FightingProjectile(BOSS_SHADOW_BALL.moveId(), originX, originY,
+                direction * BOSS_SHADOW_BALL.projectileSpeed(), BOSS_SHADOW_BALL.projectileSize(),
+                VOLLEY_BALL_DAMAGE, BOSS_SHADOW_BALL.projectileLifetime(),
+                BOSS_SHADOW_BALL.effectColor(), ownerIndex));
+    }
+
+    /** Cae la Premonicion: golpe normal (respeta escudo y parry no; solo esquivandolo). */
+    void bossFutureSightStrike(int attackerIndex, Fighter boss, Fighter target) {
+        applyHit(attackerIndex, boss, target, FUTURE_SIGHT);
+    }
+
+    /** La Onda mental alcanza al rival en el suelo. */
+    void bossMindWaveHit(int attackerIndex, Fighter boss, Fighter target) {
+        applyHit(attackerIndex, boss, target, MIND_WAVE);
+    }
+
     private void spawnProjectile(Fighter attacker, int ownerIndex, AttackDefinition definition) {
         double direction = attacker.isFacingLeft() ? -1 : 1;
         double originX;
@@ -740,10 +856,19 @@ public class FightingCombatSystem {
             originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) + 12);
             originY = attacker.getY() - 82;
         }
+        // Mewtwo es muy alto: sus disparos salen a la altura de un Pokemon pequeno (se pueden saltar)
+        if (attacker.isBoss()) originY = Math.max(originY, attacker.getY() - 62);
+        double aim = attacker.isBoss() ? attacker.getAimUpAngle() : 0;
+        if (aim > 0) {
+            // Rival en una plataforma: Mewtwo se inclina hacia arriba y el disparo sube hacia el
+            originY = attacker.getY() - attacker.getRenderHeight() * 0.62;
+            originX = attacker.getX() + direction * (PhysicsSystem.halfWidthFor(attacker) * 0.7);
+        }
+        double speed = definition.projectileSpeed();
         emit(CombatEvent.Type.PROJECTILE_FIRED, definition.moveId(), ownerIndex,
                 originX, originY, direction, 0);
         projectiles.add(new FightingProjectile(definition.moveId(), originX, originY,
-                direction * definition.projectileSpeed(), definition.projectileSize(),
+                direction * speed * Math.cos(aim), -speed * Math.sin(aim), definition.projectileSize(),
                 definition.damage(), definition.projectileLifetime(), definition.effectColor(), ownerIndex));
     }
 
@@ -793,11 +918,11 @@ public class FightingCombatSystem {
             applyHit(attackerIndex, attacker, target, definition);
             return;
         }
-        if (target.isInParryWindow() && isAttackerInFront(target, attacker)) {
+        if (target.isInParryWindow() && ShieldRules.blocks(target, attacker)) {
             parry(attackerIndex, attacker, target, definition, arenaWidth);
             return;
         }
-        if (target.isBlocking() && isAttackerInFront(target, attacker)) {
+        if (ShieldRules.blocks(target, attacker)) {
             // El escudo para casi todo el golpe, pero algo pasa (ver ShieldRules)
             int chip = blockedDamage(attacker, target, definition.damage(), definition.moveId());
             if (chip > 0) target.receiveDamage(chip);
@@ -885,11 +1010,6 @@ public class FightingCombatSystem {
                 ShieldRules.blockedFraction(moveId, target.getPokemon(), false));
     }
 
-    private boolean isAttackerInFront(Fighter defender, Fighter attacker) {
-        return defender.isFacingLeft() ? attacker.getX() < defender.getX()
-                : attacker.getX() > defender.getX();
-    }
-
     private void registerCombo(int owner, Fighter target) {
         ComboState combo = combos[owner];
         combo.hits = combo.target == target && combo.remainingSeconds > 0 ? combo.hits + 1 : 1;
@@ -900,11 +1020,24 @@ public class FightingCombatSystem {
     private void updateProjectiles(List<Fighter> fighters, int arenaWidth,
                                    List<Platform> platforms, double deltaSeconds) {
         Iterator<FightingProjectile> iterator = projectiles.iterator();
+        List<FightingProjectile> reflected = new ArrayList<>();
         while (iterator.hasNext()) {
             FightingProjectile projectile = iterator.next();
             projectile.update(deltaSeconds);
             Fighter target = fighters.get(1 - projectile.getOwnerIndex());
             if (target.isDefeated()) {
+                iterator.remove();
+            } else if (target.hasBarrier() && projectile.getDamage() > 0
+                    && projectile.hitbox().intersects(target)) {
+                // Barrera de Mewtwo: el proyectil vuelve hacia el que lo lanzo
+                int newOwner = 1 - projectile.getOwnerIndex();
+                double back = -Math.signum(projectile.getVelocityX());
+                emit(CombatEvent.Type.REFLECT, projectile.getMoveId(), newOwner,
+                        projectile.getX(), projectile.getY(), back, 0);
+                reflected.add(new FightingProjectile(projectile.getMoveId(),
+                        projectile.getX() + back * (projectile.getSize() + 6), projectile.getY(),
+                        -projectile.getVelocityX() * 1.15, -projectile.getVelocityY(), projectile.getSize(),
+                        projectile.getDamage(), 2.0, projectile.getColor(), newOwner));
                 iterator.remove();
             } else if ("SLEEP_POWDER".equals(projectile.getMoveId())
                     && isBlockedByPlatform(projectile.hitbox(), platforms)) {
@@ -963,6 +1096,7 @@ public class FightingCombatSystem {
                 iterator.remove();
             }
         }
+        projectiles.addAll(reflected);
     }
 
     private void registerDamagingProjectileHit(int ownerIndex, Fighter target, String moveId) {

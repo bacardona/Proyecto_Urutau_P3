@@ -166,6 +166,7 @@ public final class FightingFx {
         lastActive[1] = null;
         projectileOrigins.clear();
         decals.clear();
+        fallingColumns.clear();
         zoom = 0;
         speedLines = 0;
         impactFrame = 0;
@@ -182,6 +183,7 @@ public final class FightingFx {
      */
     public void step(FightingGameSession session, FightingInput input, double dt) {
         time += dt;
+        if (session.isBossFight()) director.useBossIntro();
         director.tick(dt);
         tick(dt);
         if (director.freezesSimulation()) {
@@ -198,7 +200,13 @@ public final class FightingFx {
         simTime += sdt;
         react(session, sdt);
         followCamera(session, dt);
-        if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished();
+        if (session.getState() == FightingGameSession.State.FINISHED) director.onFinished(session);
+    }
+
+    /** Pantalla de resultados: solo avanzan las animaciones (texto, confeti, risa). */
+    public void tickResults(double dt) {
+        time += dt;
+        director.tickResults(dt);
     }
 
     FightingDirector director() {
@@ -237,6 +245,7 @@ public final class FightingFx {
         }
         bolts.removeIf(b -> (b.life -= dt) <= 0);
         decals.removeIf(d -> (d.life -= dt) <= 0);
+        fallingColumns.removeIf(c -> (c[1] += dt) > COLUMN_FALL_SECONDS + 0.3);
         zoom = Math.max(0, zoom - dt * 0.35);
         speedLines = Math.max(0, speedLines - dt);
         impactFrame = Math.max(0, impactFrame - dt);
@@ -280,6 +289,14 @@ public final class FightingFx {
             lastActive[i] = now;
             if (session.consumeEntranceLanding(i)) entranceLanding(now);
         }
+        // Jefe secreto: teletransporte y furia
+        double blinkFrom = session.consumeBossBlink();
+        if (!Double.isNaN(blinkFrom) && session.getBoss() != null) bossBlink(session.getBoss(), blinkFrom);
+        if (session.consumeBossEnraged() && session.getBoss() != null) {
+            director.startEnrage(session.getBoss());
+            shake(10, 0.5);
+        }
+        for (FightingGameSession.BossEvent e : session.consumeBossEvents()) bossEvent(session, e);
 
         // Quien perdio vida en este paso (puede que ya lo hayan cambiado por otro del equipo)
         Map<Fighter, Integer> damaged = new IdentityHashMap<>();
@@ -310,6 +327,12 @@ public final class FightingFx {
                     chipPopup(e.x(), e.y() - 40, e.damage());
                 }
                 case PARRY -> parry(e.x(), e.y(), e.direction());
+                case REFLECT -> {
+                    sound.play(FightingSound.Sfx.BLOCK, 1f);
+                    ring(e.x(), e.y(), 16, 110, 0.25, new Color(0xFF8FCB), 0, 4);
+                    sparks(e.x(), e.y(), 12, 360, Color.WHITE, new Color(0xFF8FCB));
+                    bossPopup("¡REFLEJADO!", e.x(), e.y() - 40, new Color(0xFF8FCB), 26);
+                }
                 case FIZZLE -> fizzle(e.x(), e.y());
                 default -> { }
             }
@@ -441,7 +464,7 @@ public final class FightingFx {
         double backX = attacker.getX() - dir * attacker.getBodyHalfWidth() * 0.6;
         switch (e.moveId()) {
             case "TACKLE", "QUICK_ATTACK", "TAIL_WHIP", "BITE", "FIRE_FANG", "DIG", "LICK",
-                 "CLOSE_COMBAT", "BODY_SLAM", "ZEN_HEADBUTT", "TELEPORT" -> {
+                 "CLOSE_COMBAT", "BODY_SLAM", "ZEN_HEADBUTT", "PSYCHO_CUT", "TELEPORT" -> {
                 sound.play(FightingSound.Sfx.WHOOSH, 0.8f);
                 dust(backX, feetY, -dir, 7, 1.0);
             }
@@ -611,7 +634,7 @@ public final class FightingFx {
             }
             case "ROCK_SLIDE" -> big.play(PvfxEffects.Effect.IMPACTS_ROCK_SHATTER, x, y + 20, 3, flip);
             case "LICK", "SHADOW_BALL" -> big.play(PvfxEffects.Effect.SHADOW_VOID_IMPLOSION, x, y, 2, flip);
-            case "PSYCHIC", "ZEN_HEADBUTT" -> big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, y, 2, flip);
+            case "PSYCHIC", "ZEN_HEADBUTT", "PSYCHO_CUT" -> big.play(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, x, y, 2, flip);
             case "CLOSE_COMBAT", "BODY_SLAM" -> big.play(PvfxEffects.Effect.IMPACTS_CRIT_HIT, x, y, 2, flip);
             default -> big.play(heavy ? PvfxEffects.Effect.IMPACTS_CRIT_HIT : PvfxEffects.Effect.IMPACTS_PUNCH_HIT,
                     x, y, heavy ? 2 : 3, flip);
@@ -852,7 +875,134 @@ public final class FightingFx {
         p.maxLife = 0.9;
         p.size = 38;
         p.color = new Color(0xFFE45A);
+        addPopup(p);
+    }
+
+    /** Tecnicas del modo dificil de Mewtwo. */
+    private void bossEvent(FightingGameSession session, FightingGameSession.BossEvent e) {
+        Fighter boss = session.getBoss();
+        Color pink = new Color(0xFF8FCB);
+        Color purple = new Color(0xB78CFF);
+        switch (e.kind()) {
+            case MEGA -> director.startMega(session);
+            case BARRIER -> {
+                sound.play(FightingSound.Sfx.BUFF, 0.8f);
+                bossPopup("¡BARRERA!", e.x(), e.y() - 230, pink, 26);
+            }
+            case TELEKINESIS -> {
+                sound.play(FightingSound.Sfx.CUT_IN, 0.6f);
+                sound.play(FightingSound.Sfx.WHOOSH, 1f);
+                ring(e.x(), e.y() - 40, 20, 90, 0.35, purple, 0, 5);
+                glow(e.x(), e.y() - 40, 90, 0.4, purple, false);
+                bossPopup("¡TELEQUINESIS!", e.x(), e.y() - 130, purple, 26);
+            }
+            case FUTURE_SIGHT_MARK -> {
+                sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.4f);
+                bossPopup("¡PREMONICION!", e.x(), e.y() - 150, pink, 24);
+            }
+            case FUTURE_SIGHT_FALL -> {
+                // La columna empieza a caer desde arriba de la pantalla
+                fallingColumns.add(new double[]{e.x(), 0, e.y()});
+                sound.play(FightingSound.Sfx.WHOOSH, 0.9f);
+            }
+            case FUTURE_SIGHT_STRIKE -> {
+                sound.play(FightingSound.Sfx.THUNDER, 0.7f);
+                sound.play(FightingSound.Sfx.HIT_HEAVY, 0.6f);
+                ring(e.x(), e.y(), 20, 130, 0.3, pink, 0, 5);
+                ring(e.x(), e.y(), 10, 80, 0.22, Color.WHITE, 0, 3);
+                sparks(e.x(), e.y() - 10, 12, 420, Color.WHITE, pink);
+                if (Math.abs(e.y() - groundY) < 2) decal("crack", e.x(), 110, 3.5);
+                shake(7, 0.22);
+            }
+            case WAVE_CHARGE -> {
+                sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.6f);
+                ring(e.x(), e.y(), 10, 120, 0.45, pink, 0, 4);
+                glow(e.x(), e.y() - 40, 110, 0.45, pink, false);
+                bossPopup("¡ONDA MENTAL!", e.x(), e.y() - 260, pink, 26);
+            }
+            case WAVE -> {
+                sound.play(FightingSound.Sfx.THUNDER, 0.5f);
+                sound.play(FightingSound.Sfx.WHOOSH, 1f);
+                shake(5, 0.25);
+            }
+            case TRIPLE_BLINK -> bossPopup("¡TELETRANSPORTE TRIPLE!", e.x(), e.y() - 260, purple, 24);
+            case VOLLEY -> bossPopup("¡TRIPLE BOLA SOMBRA!", e.x(), e.y() - 240, purple, 22);
+        }
+    }
+
+    // Columnas de Premonicion cayendo: {x, edad}
+    static final double COLUMN_FALL_SECONDS = 0.15;
+    private final List<double[]> fallingColumns = new ArrayList<>();
+
+    /** Columna de energia que baja del cielo hasta el suelo y luego se desvanece. */
+    private void drawFallingColumns(Graphics2D g) {
+        for (double[] column : fallingColumns) {
+            double age = column[1];
+            int x = (int) column[0];
+            double fall = Math.min(1, age / COLUMN_FALL_SECONDS);
+            int bottom = (int) (column[2] * fall);
+            float alpha = (float) (age <= COLUMN_FALL_SECONDS ? 1 : Math.max(0, 1 - (age - COLUMN_FALL_SECONDS) / 0.3));
+            var old = g.getComposite();
+            g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha));
+            g.setColor(new Color(255, 111, 208, 150));
+            g.fillRect(x - 30, 0, 60, bottom);
+            g.setColor(new Color(0xFFD6F0));
+            g.fillRect(x - 12, 0, 24, bottom);
+            g.setColor(Color.WHITE);
+            g.fillRect(x - 4, 0, 8, bottom);
+            // Punta brillante mientras cae
+            if (fall < 1) g.fillOval(x - 22, bottom - 22, 44, 44);
+            g.setComposite(old);
+        }
+    }
+
+    // Solo un efecto grande de Mewtwo a la vez: si hay otro en curso, este sale en tamano pequeno
+    private double bossBigBusyUntil;
+
+    private void bigLimited(PvfxEffects.Effect effect, double x, double y, boolean flip) {
+        boolean busy = time < bossBigBusyUntil;
+        big.play(effect, x, y, busy ? 1 : 2, flip);
+        if (!busy) bossBigBusyUntil = time + effect.seconds();
+    }
+
+    /** Agrega un texto; si hay otro reciente en el mismo lugar, este sube para no encimarse. */
+    private void addPopup(Popup p) {
+        for (int tries = 0; tries < 5; tries++) {
+            boolean moved = false;
+            for (Popup other : popups) {
+                boolean recent = other.life > other.maxLife - 0.6;
+                if (recent && Math.abs(other.x - p.x) < 150 && Math.abs(other.y - p.y) < (other.size + p.size) * 0.6) {
+                    p.y = other.y - (other.size + p.size) * 0.7;
+                    moved = true;
+                }
+            }
+            if (!moved) break;
+        }
         popups.add(p);
+    }
+
+    private void bossPopup(String text, double x, double y, Color color, int size) {
+        Popup p = new Popup();
+        p.text = text;
+        p.x = Math.max(150, Math.min(1130, x));
+        p.y = y;
+        p.life = 1.0;
+        p.maxLife = 1.0;
+        p.size = size;
+        p.color = color;
+        addPopup(p);
+    }
+
+    /** Mewtwo desaparece en un destello morado y aparece en otro lado. */
+    private void bossBlink(Fighter boss, double fromX) {
+        Color purple = new Color(0xB78CFF);
+        double midY = boss.getY() - boss.getRenderHeight() * 0.5;
+        sound.play(FightingSound.Sfx.WHOOSH, 1f);
+        sound.play(FightingSound.Sfx.BUFF, 0.5f);
+        // Efecto corto: un anillo donde desaparece y un destello pequeno donde aparece
+        ring(fromX, midY, 14, 70, 0.2, purple, 0, 3);
+        bigLimited(PvfxEffects.Effect.EXPLOSIONS_ARCANE_BURST, boss.getX(), midY, boss.isFacingLeft());
+        sparks(boss.getX(), midY, 8, 300, Color.WHITE, purple);
     }
 
     /** El Pokemon que entra cae al suelo: onda de choque y polvo. */
@@ -1093,8 +1243,12 @@ public final class FightingFx {
         double startX = owner.getX() + dir * owner.getBodyHalfWidth() * 0.8;
         double mouthY = owner.getY() - owner.getRenderHeight() * 0.45;
         double distance = Math.max(80, Math.abs(target.getX() - startX));
+        // Los rayos decorativos son horizontales: si el rival esta en una plataforma (mas alto
+        // o mas bajo) no se dibujan, para que solo se vea el rayo real que apunta hacia el
+        boolean level = Math.abs(owner.getY() - target.getY()) < 40;
         switch (d.moveId()) {
             case "FIRE_BLAST" -> {
+                if (!level) break;
                 double step = 128 * 3 * 0.8;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.FIRE_FLAMETHROWER, startX + dir * k * step, mouthY, 3, flip,
@@ -1109,6 +1263,7 @@ public final class FightingFx {
                 }
             }
             case "LEAF_STORM" -> {
+                if (!level) break;
                 double step = 80 * 3 * 0.8;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.NATURE_LEAF_STORM, startX + dir * k * step, mouthY, 3, flip,
@@ -1134,6 +1289,7 @@ public final class FightingFx {
                     3, false, 0, seconds);
             case "PSYSTRIKE" -> {
                 big.play(PvfxEffects.Effect.ARCANE_MAGIC_CIRCLE, owner.getX(), owner.getY() + 6, 3, false);
+                if (!level) break;
                 double step = 168 * 3 * 0.85;
                 for (int k = 0; k * step < distance; k++) {
                     big.play(PvfxEffects.Effect.ARCANE_ARCANE_BEAM, startX + dir * k * step, mouthY, 3, flip,
@@ -1196,6 +1352,7 @@ public final class FightingFx {
     /** Draws the PVFX effects at full resolution (outside the posterized layer). */
     public void drawBig(Graphics2D g) {
         big.draw(g);
+        drawFallingColumns(g);
     }
 
     // ------------------------------------------------------------------ ayudantes para crear efectos
@@ -1408,7 +1565,7 @@ public final class FightingFx {
         p.maxLife = 0.7;
         p.size = damage >= 11 ? 30 : 24;
         p.color = damage >= 11 ? new Color(0xFFB13B) : Color.WHITE;
-        popups.add(p);
+        addPopup(p);
     }
 
     private void switchEffect(Fighter incoming) {
@@ -1425,7 +1582,7 @@ public final class FightingFx {
         p.maxLife = 0.9;
         p.size = 30;
         p.color = new Color(0xFFE45A);
-        popups.add(p);
+        addPopup(p);
     }
 
     private void chipPopup(double x, double y, int damage) {
@@ -1438,7 +1595,7 @@ public final class FightingFx {
         p.maxLife = 0.6;
         p.size = 20;
         p.color = new Color(0xA7E8FF);
-        popups.add(p);
+        addPopup(p);
     }
 
     private void shake(double magnitude, double duration) {
