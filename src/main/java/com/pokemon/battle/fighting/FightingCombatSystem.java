@@ -1051,6 +1051,13 @@ public class FightingCombatSystem {
             applyHit(attackerIndex, attacker, target, definition);
             return;
         }
+        if (target.isPerfectDodge()) {
+            // Esquiva justo a tiempo: el golpe falla
+            states[attackerIndex].hasHit = true;
+            emit(CombatEvent.Type.DODGE, definition.moveId(), attackerIndex, target.getX(),
+                    target.getY() - target.getRenderHeight() * 0.6, target.getDodgeDirection(), 0);
+            return;
+        }
         if (target.isInParryWindow() && ShieldRules.blocks(target, attacker)) {
             parry(attackerIndex, attacker, target, definition, arenaWidth);
             return;
@@ -1178,6 +1185,12 @@ public class FightingCombatSystem {
                         projectile.getX(), projectile.getY(), Math.signum(projectile.getVelocityX()), 0);
                 impactEffects.add(new ImpactEffect(projectile.getX(), projectile.getY(), 0.22));
                 iterator.remove();
+            } else if (projectile.hitbox().intersects(target) && dodgedProjectiles.contains(projectile)) {
+                // Ya lo esquivaron: sigue de largo
+            } else if (projectile.hitbox().intersects(target) && target.isPerfectDodge()) {
+                dodgedProjectiles.add(projectile);
+                emit(CombatEvent.Type.DODGE, projectile.getMoveId(), projectile.getOwnerIndex(), target.getX(),
+                        target.getY() - target.getRenderHeight() * 0.6, target.getDodgeDirection(), 0);
             } else if (projectile.hitbox().intersects(target)) {
                 Fighter attacker = fighters.get(projectile.getOwnerIndex());
                 if ("SLEEP_POWDER".equals(projectile.getMoveId())) {
@@ -1230,7 +1243,12 @@ public class FightingCombatSystem {
             }
         }
         projectiles.addAll(reflected);
+        dodgedProjectiles.retainAll(projectiles);
     }
+
+    /** Proyectiles que alguien ya esquivo: lo atraviesan sin pegarle. */
+    private final java.util.Set<FightingProjectile> dodgedProjectiles =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private void registerDamagingProjectileHit(int ownerIndex, Fighter target, String moveId) {
         if (target.isDefeated()) return;

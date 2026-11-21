@@ -524,9 +524,12 @@ public class FightingGameSession {
         Fighter playerTwo = fighters.get(1);
         playerOne.updateStatusEffects(deltaSeconds);
         playerTwo.updateStatusEffects(deltaSeconds);
-        playerOne.setBlocking(input.isPlayerOneBlockingRequested()
+        // Esquiva: con el escudo puesto, tocar una direccion (A/D, flechas o la palanca)
+        tryDodge(0, input.isPlayerOneBlockingRequested(), input.getPlayerOneDirection());
+        tryDodge(1, input.isPlayerTwoBlockingRequested(), input.getPlayerTwoDirection());
+        playerOne.setBlocking(input.isPlayerOneBlockingRequested() && !playerOne.isDodging()
                 && combatSystem.canBlock(0, fighters));
-        playerTwo.setBlocking(input.isPlayerTwoBlockingRequested()
+        playerTwo.setBlocking(input.isPlayerTwoBlockingRequested() && !playerTwo.isDodging()
                 && combatSystem.canBlock(1, fighters));
         boolean playerOneJump = input.consumePlayerOneJump();
         boolean playerTwoJump = input.consumePlayerTwoJump();
@@ -537,10 +540,13 @@ public class FightingGameSession {
         combatSystem.beginUltimateRequests(fighters, playerOneUltimate, playerTwoUltimate);
         var beforeOne = PhysicsSystem.positionOf(playerOne);
         var beforeTwo = PhysicsSystem.positionOf(playerTwo);
-        boolean walkingOne = updateFighter(playerOne, 0, input.getPlayerOneDirection(), playerOneJump,
-                input.isPlayerOneJumpHeld(), deltaSeconds);
-        boolean walkingTwo = updateFighter(playerTwo, 1, input.getPlayerTwoDirection(), playerTwoJump,
-                input.isPlayerTwoJumpHeld(), deltaSeconds);
+        // Mientras esquiva no camina (la direccion solo eligio hacia donde esquivar)
+        boolean walkingOne = updateFighter(playerOne, 0, playerOne.isDodging() ? 0 : input.getPlayerOneDirection(),
+                playerOneJump && !playerOne.isDodging(), input.isPlayerOneJumpHeld(), deltaSeconds);
+        boolean walkingTwo = updateFighter(playerTwo, 1, playerTwo.isDodging() ? 0 : input.getPlayerTwoDirection(),
+                playerTwoJump && !playerTwo.isDodging(), input.isPlayerTwoJumpHeld(), deltaSeconds);
+        moveDodger(playerOne, deltaSeconds);
+        moveDodger(playerTwo, deltaSeconds);
         PhysicsSystem.resolveBodies(playerOne, playerTwo, beforeOne, beforeTwo, width);
         updateMotion(playerOne, walkingOne && Math.abs(playerOne.getX() - beforeOne.x()) > 0.01, deltaSeconds);
         updateMotion(playerTwo, walkingTwo && Math.abs(playerTwo.getX() - beforeTwo.x()) > 0.01, deltaSeconds);
@@ -597,6 +603,33 @@ public class FightingGameSession {
 
     // Cambio de Pokemon tocando la pared (Q jugador 1, U jugador 2)
     static final double SWITCH_COOLDOWN_SECONDS = 4.0;
+
+    /** Direccion que cada jugador tenia el paso anterior (para notar cuando la toca de nuevo). */
+    private final double[] previousDirection = new double[2];
+
+    /**
+     * Esquiva rapida: con el escudo puesto, tocar una direccion la lanza hacia ese lado.
+     * Solo cuenta si la direccion se toca estando ya cubierto (mantenerla antes no esquiva).
+     */
+    private void tryDodge(int index, boolean shieldHeld, double direction) {
+        double before = previousDirection[index];
+        previousDirection[index] = direction;
+        if (!shieldHeld || direction == 0 || direction == before) return;
+        Fighter fighter = fighters.get(index);
+        if (fighter.isBoss() || !fighter.canDodge()
+                || combatSystem.getAttackVisual(fighter, fighters) != null) return;
+        fighter.startDodge(direction > 0 ? 1 : -1);
+        fighter.setBlocking(false);
+    }
+
+    /** Mueve al que esquiva (rapido, en linea recta, sin salirse del mapa). */
+    private void moveDodger(Fighter fighter, double deltaSeconds) {
+        fighter.advanceDodge(deltaSeconds);
+        if (!fighter.isDodging()) return;
+        double half = PhysicsSystem.halfWidthFor(fighter);
+        fighter.setX(Math.max(half, Math.min(width - half,
+                fighter.getX() + fighter.getDodgeDirection() * Fighter.DODGE_SPEED * deltaSeconds)));
+    }
     static final double WALL_TOUCH_MARGIN = 8;
     private final double[] switchCooldown = new double[2];
 

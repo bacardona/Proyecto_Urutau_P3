@@ -18,6 +18,8 @@ public record CombatEvent(Type type, String moveId, int attackerIndex,
     public enum Type {
         /** The attacker starts preparing a move. */
         ATTACK_START,
+        /** A hit or a projectile was dodged just in time. */
+        DODGE,
         /** The move reaches its active part (the hit or the shot happens now). */
         ATTACK_ACTIVE,
         /** A projectile leaves the attacker's mouth. */

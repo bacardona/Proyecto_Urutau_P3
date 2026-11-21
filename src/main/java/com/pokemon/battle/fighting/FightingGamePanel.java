@@ -903,7 +903,7 @@ public class FightingGamePanel extends JPanel {
                     centerX, panelY + 166, 16, RetroStyle.DARK);
             drawCentered(g, "JUGADOR 1: T ULTI  |  JUGADOR 2: O ULTI",
                     centerX, panelY + 188, 16, RetroStyle.DARK);
-            drawCentered(g, "J1 S BLOQUEAR  |  J2 FLECHA ABAJO BLOQUEAR",
+            drawCentered(g, "ESCUDO: J1 S  |  J2 ABAJO   (ESCUDO + LADO = ESQUIVA)",
                     centerX, panelY + 210, 16, RetroStyle.DARK);
 
             Fighter playerOne = session.getFighters().get(0);
@@ -915,7 +915,7 @@ public class FightingGamePanel extends JPanel {
             drawCentered(g, playerTwoAttacks[0], centerX, panelY + 282, 15, RetroStyle.DARK);
             drawCentered(g, playerTwoAttacks[1], centerX, panelY + 304, 15, RetroStyle.DARK);
 
-            drawCentered(g, "MANDO: A SALTO  X Y B RB ATAQUES  LB ESCUDO  LT EVO  RT ULTI  SELECT CAMBIO",
+            drawCentered(g, "MANDO: A SALTO  X Y B RB ATAQUES  LB ESCUDO (+ LADO ESQUIVA)  LT EVO  RT ULTI  SELECT CAMBIO",
                     centerX, panelY + 328, 14, RetroStyle.DARK);
             drawCentered(g, "ESC O ENTER PARA VOLVER  |  F1 SONIDO", centerX,
                     panelY + 348, 16, RetroStyle.DARK);

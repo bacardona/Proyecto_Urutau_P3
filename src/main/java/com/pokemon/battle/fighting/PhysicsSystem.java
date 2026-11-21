@@ -83,6 +83,7 @@ public class PhysicsSystem {
     static void resolveBodies(Fighter first, Fighter second, Position firstBefore,
                               Position secondBefore, int arenaWidth) {
         if (first.isDefeated() || second.isDefeated()) return;
+        if (first.isDodging() || second.isDodging()) return;   // la esquiva pasa a traves del rival
         first.setX(clampX(first.getX(), first, arenaWidth));
         second.setX(clampX(second.getX(), second, arenaWidth));
         double halfWidths = halfWidthFor(first) + halfWidthFor(second);
