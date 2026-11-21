@@ -31,7 +31,6 @@ public class TeamSelectScreen extends RetroScreen {
     private static final Rectangle SPRITE_BOX = new Rectangle(336, 148, 210, 220);
     private static final Rectangle STATS_BOX = new Rectangle(558, 148, 382, 220);
     private static final Rectangle MOVES_BOX = new Rectangle(336, 380, 604, 200);
-
     // Botones de la barra gris (tambien se pueden pulsar con el mouse)
     private static final Rectangle ADD_BUTTON = new Rectangle(374, 598, 190, 36);
     private static final Rectangle REMOVE_BUTTON = new Rectangle(574, 598, 190, 36);
@@ -58,6 +57,7 @@ public class TeamSelectScreen extends RetroScreen {
     private int firstVisible = 0;
     private int frame = 0;
     private String message = "";
+    private boolean hexStats = false;
 
     /**
      * @param onDone que hacer con el equipo de 3 cuando se confirma
@@ -83,6 +83,7 @@ public class TeamSelectScreen extends RetroScreen {
         bindKey("ENTER", this::enter);
         bindKey("BACK_SPACE", this::removeLast);
         bindKey("DELETE", this::removeLast);
+        bindKey("H", this::toggleStats);
 
         animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
             frame++;
@@ -185,6 +186,11 @@ public class TeamSelectScreen extends RetroScreen {
         }
     }
 
+    private void toggleStats() {   // <-- NUEVO
+        hexStats = !hexStats;
+        repaint();
+    }
+
     private void confirm() {
         if (chosen.size() != teamSize) {
             message = "ELIGE " + teamSize + " POKEMON";
@@ -201,6 +207,10 @@ public class TeamSelectScreen extends RetroScreen {
 
     @Override
     protected void onBoardClick(int x, int y, int clickCount) {
+        if (STATS_BOX.contains(x, y)) {
+            toggleStats();
+            return;
+        }
         if (ADD_BUTTON.contains(x, y)) {
             enter();
             return;
@@ -379,6 +389,23 @@ public class TeamSelectScreen extends RetroScreen {
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
+        // Pista de la tecla, a la derecha del titulo
+        g.setFont(RetroStyle.font(18));
+        String hint = hexStats ? "H / Y  BARRAS" : "H / Y  HEXAGONO";
+        int hw = g.getFontMetrics().stringWidth(hint);
+        RetroStyle.shadowText(g, hint, r.x + r.width - 14 - hw, r.y + 28, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        if (hexStats) {
+            String[] hexLabels = {"PS", "ATAQUE", "DEFENSA", "VELOC.", "DEF.ESP.", "AT.ESP."};
+            int[] hexValues = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpeed(),
+                    p.getSpecialDefense(), p.getSpecialAttack()};
+            RetroStyle.drawStatRadar(g, r.x + 191, r.y + 126, 60, hexLabels, hexValues, MAX_STAT);
+            g.setFont(RetroStyle.font(20));
+            String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
+            RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
+                    RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+            return;
+        }
         int rowH = 25;
         int top = r.y + 40;
         int lineX = r.x + 150;

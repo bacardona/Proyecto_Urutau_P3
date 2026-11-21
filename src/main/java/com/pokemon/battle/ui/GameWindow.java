@@ -112,8 +112,11 @@ public class GameWindow extends JFrame {
             case RIGHT -> "RIGHT";
             case CONFIRM, ANY_BUTTON -> "ENTER";
             case BACK -> "ESCAPE";
-            case REMOVE_LAST -> "BACK_SPACE";   // X en armar equipo: quita el ultimo
-            default -> null;   // PAGE_PREV, PAGE_NEXT: pendientes
+            case REMOVE_LAST -> "BACK_SPACE";
+            case PAGE_PREV -> "LEFT";
+            case PAGE_NEXT -> "RIGHT";
+            case TOGGLE_VIEW -> "H";
+            default -> null;
         };
         if (key != null) retro.pressKey(key);
     }

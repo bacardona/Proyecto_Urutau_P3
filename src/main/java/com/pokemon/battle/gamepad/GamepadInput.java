@@ -36,6 +36,7 @@ public class GamepadInput {
                 GameAction.LEFT, GameAction.RIGHT, GameAction.CONFIRM, GameAction.BACK);
         EnumSet<GameAction> lista = EnumSet.copyOf(menu);
         lista.add(GameAction.PAGE_PREV);
+        lista.add(GameAction.TOGGLE_VIEW);
         lista.add(GameAction.PAGE_NEXT);
         EnumSet<GameAction> equipo = EnumSet.copyOf(lista);
         equipo.add(GameAction.REMOVE_LAST);
@@ -160,12 +161,15 @@ public class GamepadInput {
             return;
         }
 
+
         directions(s, now);
         if (SWAP_AB ? s.bJustPressed : s.aJustPressed) emit(GameAction.CONFIRM);
         if (SWAP_AB ? s.aJustPressed : s.bJustPressed) emit(GameAction.BACK);
         if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
         if (allowed.contains(GameAction.PAGE_NEXT) && s.rbJustPressed) emit(GameAction.PAGE_NEXT);
         if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
+        if (allowed.contains(GameAction.TOGGLE_VIEW) && s.yJustPressed) emit(GameAction.TOGGLE_VIEW);
+
     }
 
     private void directions(ControllerState s, long now) {
