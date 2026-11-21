@@ -25,6 +25,7 @@ replay_pid*
 
 # Maven build output
 /pokken-battle-p3/target/
-.idea/
+.idea/*
+!.idea/runConfigurations/
 target/
 /dependency-reduced-pom.xml
