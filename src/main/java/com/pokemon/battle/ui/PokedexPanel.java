@@ -167,7 +167,9 @@ public class PokedexPanel extends RetroScreen {
             firstVisible = selected - VISIBLE_ROWS + 1;
         }
         repaint();
+
     }
+
 
     // Pide el GIF del Pokemon seleccionado; si no esta en memoria se lee en el otro hilo
     private void requestSprite(String name) {

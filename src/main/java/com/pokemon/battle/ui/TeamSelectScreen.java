@@ -35,7 +35,7 @@ public class TeamSelectScreen extends RetroScreen {
     private static final Rectangle ADD_BUTTON = new Rectangle(374, 598, 190, 36);
     private static final Rectangle REMOVE_BUTTON = new Rectangle(574, 598, 190, 36);
     private static final Rectangle DONE_BUTTON = new Rectangle(774, 598, 160, 36);
-    private static final boolean CONFIRM_ON_ADD = true;
+    private static final boolean CONFIRM_ON_ADD = false;
     private static final boolean CONFIRM_ON_FINISH = true;
     private static final Rectangle DIALOG = new Rectangle(280, 250, 400, 160);
     private static final Rectangle YES_BUTTON = new Rectangle(310, 348, 150, 44);
@@ -105,6 +105,9 @@ public class TeamSelectScreen extends RetroScreen {
             @Override
             public void componentShown(ComponentEvent e) {
                 animationTimer.start();
+                setFocusable(true);                                         // <-- NUEVO
+                javax.swing.SwingUtilities.invokeLater(
+                        TeamSelectScreen.this::requestFocusInWindow);       // <-- NUEVO
             }
 
             @Override
@@ -129,21 +132,28 @@ public class TeamSelectScreen extends RetroScreen {
         firstVisible = 0;
         frame = 0;
         message = "";
+        javax.swing.SwingUtilities.invokeLater(this::requestFocusInWindow);
         repaint();
     }
 
     // ------------------------------------------------------------------ acciones
 
     private void moveSelection(int delta) {
-        if (dialog != Dialog.NONE) {   // <-- NUEVO
+        if (dialog != Dialog.NONE) {
             dialogYes = !dialogYes;
             repaint();
             return;
         }
+        if (catalog.isEmpty()) {
+            return;
+        }
+        select(Math.max(0, Math.min(catalog.size() - 1, selected + delta)));
     }
 
     private void select(int index) {
         selected = index;
+        System.out.println("select -> selected=" + selected + " first=" + firstVisible
+                + " catalog=" + catalog.size() + " visible=" + isShowing());
         frame = 0;
         message = "";
         if (selected < firstVisible) {
