@@ -36,6 +36,7 @@ public final class RetroStyle {
     public static final Color WHITE = Color.WHITE;
     public static final Color PANEL_BOTTOM = new Color(0xE4E0D2);
     public static final Color SHADOW_LIGHT = new Color(0xB9B4A2);
+    public static final int[] RADAR_MAX = {250, 150, 230, 150, 250, 150};
 
     private static final Map<Type, Color> TYPE_COLORS = new EnumMap<>(Type.class);
     private static final Map<Type, String> TYPE_NAMES = new EnumMap<>(Type.class);
@@ -414,7 +415,7 @@ public final class RetroStyle {
      * Los valores se normalizan a maxValue.
      */
     public static void drawStatRadar(Graphics2D g, int cx, int cy, int radius,
-                                     String[] labels, int[] values, int maxValue) {
+                                     String[] labels, int[] values, int[] maxValues) {
         // Anillos de fondo (1/3, 2/3 y el borde)
         for (int ring = 3; ring >= 1; ring--) {
             Polygon p = hexagon(cx, cy, radius * ring / 3.0);
@@ -435,8 +436,7 @@ public final class RetroStyle {
         int[] xs = new int[6];
         int[] ys = new int[6];
         for (int i = 0; i < 6; i++) {
-            double k = Math.min(values[i], maxValue) / (double) maxValue;
-            double a = Math.toRadians(-90 + 60 * i);
+            double k = Math.min(values[i], maxValues[i]) / (double) maxValues[i];            double a = Math.toRadians(-90 + 60 * i);
             xs[i] = (int) Math.round(cx + Math.cos(a) * radius * k);
             ys[i] = (int) Math.round(cy + Math.sin(a) * radius * k);
         }
