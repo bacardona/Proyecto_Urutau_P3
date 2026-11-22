@@ -112,22 +112,24 @@ public class GamepadInput {
         }
         try {
             while (running) {
-                ControllerState s = controllers.getState(0);
                 // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
+                ControllerState[] states = new ControllerState[MAX_PADS];
+                ControllerState menuPad = null;   // el primer mando conectado maneja los menus
                 boolean any = false;
                 for (int i = 0; i < MAX_PADS; i++) {
-                    ControllerState pad = i == 0 ? s : controllers.getState(i);
-                    PadSnapshot snap = toSnapshot(pad);
+                    states[i] = controllers.getState(i);
+                    PadSnapshot snap = toSnapshot(states[i]);
                     synchronized (snapshots) {
                         snapshots[i] = snap;
                     }
                     any |= snap.connected();
+                    if (menuPad == null && states[i].isConnected) menuPad = states[i];
                 }
                 if (!any) {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                if (s.isConnected) poll(s, System.nanoTime());   // menus: mando 1
+                if (menuPad != null) poll(menuPad, System.nanoTime());   // menus
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
