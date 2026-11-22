@@ -375,7 +375,14 @@ public class PokedexPanel extends RetroScreen {
             String[] hexLabels = {"PS", "ATAQUE", "DEFENSA", "VELOC.", "DEF.ESP.", "AT.ESP."};
             int[] hexValues = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpeed(),
                     p.getSpecialDefense(), p.getSpecialAttack()};
-            RetroStyle.drawStatRadar(g, r.x + 191, r.y + 126, 60, hexLabels, hexValues, RetroStyle.RADAR_MAX);            g.setFont(RetroStyle.font(20));
+
+            Color typeA = RetroStyle.typeColor(p.getPrimaryType());
+            boolean twoTypes = p.getSecondaryType() != null && p.getSecondaryType() != Type.NONE;
+            Color typeB = twoTypes ? RetroStyle.typeColor(p.getSecondaryType()) : typeA;
+            RetroStyle.drawStatRadar(g, r.x + 191, r.y + 126, 60, hexLabels, hexValues,
+                    RetroStyle.RADAR_MAX, typeA, typeB);
+
+            g.setFont(RetroStyle.font(20));
             String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
             RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
                     RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);

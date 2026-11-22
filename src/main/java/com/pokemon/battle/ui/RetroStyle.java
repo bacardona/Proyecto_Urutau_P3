@@ -410,12 +410,19 @@ public final class RetroStyle {
         return new Polygon(xs, ys, 6);
     }
 
+    private static Color blend(Color a, Color b) {
+        return new Color((a.getRed() + b.getRed()) / 2,
+                (a.getGreen() + b.getGreen()) / 2,
+                (a.getBlue() + b.getBlue()) / 2);
+    }
+
     /**
      * Grafico de radar de 6 estadisticas, en el sentido del reloj desde arriba.
      * Los valores se normalizan a maxValue.
      */
     public static void drawStatRadar(Graphics2D g, int cx, int cy, int radius,
-                                     String[] labels, int[] values, int[] maxValues) {
+                                     String[] labels, int[] values, int[] maxValues,
+                                     Color colorA, Color colorB) {
         // Anillos de fondo (1/3, 2/3 y el borde)
         for (int ring = 3; ring >= 1; ring--) {
             Polygon p = hexagon(cx, cy, radius * ring / 3.0);
@@ -440,9 +447,15 @@ public final class RetroStyle {
             xs[i] = (int) Math.round(cx + Math.cos(a) * radius * k);
             ys[i] = (int) Math.round(cy + Math.sin(a) * radius * k);
         }
-        g.setColor(new Color(BLUE.getRed(), BLUE.getGreen(), BLUE.getBlue(), 150));
+        // Relleno: degradado entre los colores de los dos tipos (o uno solo)
+        Color fillA = new Color(colorA.getRed(), colorA.getGreen(), colorA.getBlue(), 170);
+        Color fillB = new Color(colorB.getRed(), colorB.getGreen(), colorB.getBlue(), 170);
+        g.setPaint(new GradientPaint(cx - radius, cy - radius, fillA, cx + radius, cy + radius, fillB));
         g.fillPolygon(xs, ys, 6);
-        g.setColor(BLUE_DARK);
+
+        // Borde y puntos: color intermedio, mas oscuro
+        Color edge = blend(colorA, colorB).darker();
+        g.setColor(edge);
         g.setStroke(new BasicStroke(3));
         g.drawPolygon(xs, ys, 6);
         g.setStroke(new BasicStroke(1));
