@@ -52,7 +52,6 @@ public class GamepadInput {
     // ---- Compartido entre hilos
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
     private volatile Consumer<GameAction> listener = a -> {};
-    private volatile ControllerState lastState;   // para el modo LIBRE
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
 
@@ -90,8 +89,6 @@ public class GamepadInput {
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
     /** Para el modo LIBRE: ultimo estado crudo del mando (puede ser null). */
-    public ControllerState raw() { return lastState; }
-
     /**
      * Combate libre: foto del mando de un jugador (0 = mando 1, 1 = mando 2).
      * Nunca devuelve null; si no hay mando, todo sale suelto.
@@ -107,13 +104,8 @@ public class GamepadInput {
 
     private void run() {
         try {
-            long t0 = System.nanoTime();
             controllers = new ControllerManager();
-            System.out.println("ControllerManager: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
-
-            long t1 = System.nanoTime();
             controllers.initSDLGamepad();
-            System.out.println("initSDLGamepad: " + (System.nanoTime() - t1) / 1_000_000 + " ms");
         } catch (Throwable t) {
             t.printStackTrace();   // el juego sigue con teclado y mouse
             return;
@@ -121,7 +113,6 @@ public class GamepadInput {
         try {
             while (running) {
                 ControllerState s = controllers.getState(0);
-                lastState = s;
                 // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
                 boolean any = false;
                 for (int i = 0; i < MAX_PADS; i++) {
