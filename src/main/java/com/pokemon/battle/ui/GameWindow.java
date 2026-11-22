@@ -103,8 +103,12 @@ public class GameWindow extends JFrame {
 
     private void onGamepadAction(GameAction action) {
         JComponent screen = screens.get(currentScreen);
+        if (screen instanceof IntroScreen intro) {
+            if (action == GameAction.ANY_BUTTON) intro.skip();
+            return;
+        }
         if (!(screen instanceof RetroScreen retro)) return;
-
+        if (action == GameAction.ANY_BUTTON && !"loading".equals(currentScreen)) return;
         String key = switch (action) {
             case UP -> "UP";
             case DOWN -> "DOWN";

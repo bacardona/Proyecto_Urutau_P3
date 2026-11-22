@@ -49,6 +49,10 @@ public class IntroScreen extends JPanel {
         requestFocusInWindow();
     }
 
+    public void skip() {
+        finish();
+    }
+
     private void finish() {
         if (finished) return;
         finished = true;
@@ -90,7 +94,7 @@ public class IntroScreen extends JPanel {
         g2.fillRect(barX + 3, barY + 3, (int) ((barW - 6) * (tick / (float) TOTAL_TICKS)), 12);
 
         g2.setFont(PixelFont.get(11));
-        drawCentered(g2, "PRESIONA ENTER PARA SALTAR", w, barY + 48);
+        drawCentered(g2, "PRESIONA ENTER O CUALQUIER BOTON PARA OMITIR", w, barY + 48);
         g2.dispose();
     }
 
