@@ -47,8 +47,36 @@ public class GamepadInput {
         ALLOWED.put(InputProfile.LIBRE, EnumSet.noneOf(GameAction.class)); // la pantalla lee raw()
     }
 
+    /**
+     * Mandos cambiados de lado (opcion "MANDO: LADO DERECHO" de la pausa del combate).
+     * Normal: mando 1 = jugador 1, mando 2 = jugador 2. Cambiado: al reves.
+     */
+    private static volatile boolean padsSwapped;
+
+    public static boolean arePadsSwapped() { return padsSwapped; }
+
+    public static void setPadsSwapped(boolean swapped) { padsSwapped = swapped; }
+
+    /** Que mando (0 o 1) maneja a este jugador (0 = jugador 1, 1 = jugador 2). */
+    public static int padForPlayer(int player) {
+        return padsSwapped ? 1 - player : player;
+    }
+
+    /**
+     * Si este mando puede mover el menu. Sin jugador (activePlayer < 0) sirven los dos.
+     * En las pantallas de un jugador solo sirve su mando; si ese mando no esta conectado,
+     * sirve el otro, para que con un solo mando se pueda elegir igual.
+     */
+    static boolean padMayNavigate(int pad, int activePlayer, boolean ownerConnected) {
+        if (activePlayer < 0) return true;
+        int owner = padForPlayer(activePlayer);
+        return pad == owner || !ownerConnected;
+    }
+
     // ---- Compartido entre hilos
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
+    /** Jugador que esta eligiendo en la pantalla actual (-1 = cualquiera de los dos). */
+    private volatile int activePlayer = -1;
     private volatile Consumer<GameAction> listener = a -> {};
     private volatile ControllerState lastState;   // para el modo LIBRE
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
@@ -58,8 +86,8 @@ public class GamepadInput {
     private Thread thread;
     private ControllerManager controllers;
     private InputProfile seenProfile;
-    private GameAction heldDir;
-    private long nextRepeat;
+    private final GameAction[] heldDir = new GameAction[MAX_PADS];
+    private final long[] nextRepeat = new long[MAX_PADS];
 
     /** Arranca el hilo del mando. Vuelve al instante: no bloquea la ventana. */
     public void start() {
@@ -84,6 +112,9 @@ public class GamepadInput {
     }
 
     public void setProfile(InputProfile p) { this.profile = p; }
+
+    /** Pantallas de un solo jugador (elegir entrenador y equipo): solo responde su mando. */
+    public void setActivePlayer(int player) { this.activePlayer = player; }
 
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
@@ -122,8 +153,10 @@ public class GamepadInput {
                 lastState = s;
                 // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
                 boolean any = false;
+                ControllerState[] pads = new ControllerState[MAX_PADS];
                 for (int i = 0; i < MAX_PADS; i++) {
                     ControllerState pad = i == 0 ? s : controllers.getState(i);
+                    pads[i] = pad;
                     PadSnapshot snap = toSnapshot(pad);
                     synchronized (snapshots) {
                         snapshots[i] = snap;
@@ -134,7 +167,19 @@ public class GamepadInput {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                if (s.isConnected) poll(s, System.nanoTime());   // menus: mando 1
+                // Menus: los dos mandos por igual, salvo en las pantallas de un solo jugador
+                int player = activePlayer;
+                int owner = player < 0 ? -1 : padForPlayer(player);
+                boolean ownerConnected = owner >= 0 && pads[owner] != null && pads[owner].isConnected;
+                long now = System.nanoTime();
+                resetHeldOnScreenChange();
+                for (int i = 0; i < MAX_PADS; i++) {
+                    if (pads[i] != null && pads[i].isConnected && padMayNavigate(i, player, ownerConnected)) {
+                        poll(pads[i], i, now);
+                    } else {
+                        heldDir[i] = null;
+                    }
+                }
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
@@ -146,12 +191,17 @@ public class GamepadInput {
         }
     }
 
-    private void poll(ControllerState s, long now) {
+    /** Cambio de pantalla: olvidar la direccion sostenida de los dos mandos. */
+    private void resetHeldOnScreenChange() {
         InputProfile p = profile;
-        if (p != seenProfile) {          // cambio de pantalla: olvidar direccion sostenida
+        if (p != seenProfile) {
             seenProfile = p;
-            heldDir = null;
+            java.util.Arrays.fill(heldDir, null);
         }
+    }
+
+    private void poll(ControllerState s, int pad, long now) {
+        InputProfile p = profile;
         EnumSet<GameAction> allowed = ALLOWED.get(p);
         if (allowed.isEmpty()) return;
 
@@ -160,7 +210,7 @@ public class GamepadInput {
             return;
         }
 
-        directions(s, now);
+        directions(s, pad, now);
         if (SWAP_AB ? s.bJustPressed : s.aJustPressed) emit(GameAction.CONFIRM);
         if (SWAP_AB ? s.aJustPressed : s.bJustPressed) emit(GameAction.BACK);
         if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
@@ -168,7 +218,7 @@ public class GamepadInput {
         if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
     }
 
-    private void directions(ControllerState s, long now) {
+    private void directions(ControllerState s, int pad, long now) {
         double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
         GameAction dir = null;
         if (s.dpadUp    || stickY > DEADZONE)          dir = GameAction.UP;
@@ -176,13 +226,13 @@ public class GamepadInput {
         else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
         else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
 
-        if (dir == null) { heldDir = null; return; }
-        if (dir != heldDir) {
-            heldDir = dir;
-            nextRepeat = now + REPEAT_DELAY_NS;
+        if (dir == null) { heldDir[pad] = null; return; }
+        if (dir != heldDir[pad]) {
+            heldDir[pad] = dir;
+            nextRepeat[pad] = now + REPEAT_DELAY_NS;
             emit(dir);
-        } else if (now >= nextRepeat) {
-            nextRepeat = now + REPEAT_RATE_NS;
+        } else if (now >= nextRepeat[pad]) {
+            nextRepeat[pad] = now + REPEAT_RATE_NS;
             emit(dir);
         }
     }
