@@ -68,6 +68,7 @@ public class FightingGameSession {
                 ? FightingTeam.prototype(playerTwoName,
                     new String[]{"CHARIZARD", "SQUIRTLE", "CHARMANDER"}, 1050, groundY, true)
                 : new FightingTeam(playerTwoName, secondTeam, 1050, groundY, true);
+        markMirrorColors(playerOneTeam, playerTwoTeam);
         this.fighters = new ArrayList<>(List.of(playerOneTeam.getActive(), playerTwoTeam.getActive()));
         this.bossIndex = -1;
         this.hardBoss = false;
@@ -484,6 +485,18 @@ public class FightingGameSession {
     public int getGroundY() { return groundY; }
     public FightingStage getStage() { return stage; }
     public List<Fighter> getFighters() { return List.copyOf(fighters); }
+    /**
+     * Si los dos jugadores tienen el mismo Pokemon, el del jugador 2 usa colores alternos
+     * (variocolor) para que no se confundan. Tambien aplica a su evolucion.
+     */
+    static void markMirrorColors(FightingTeam one, FightingTeam two) {
+        java.util.Set<String> firstSpecies = new java.util.HashSet<>();
+        for (Fighter f : one.getMembers()) firstSpecies.add(f.getBasePokemonId());
+        for (Fighter f : two.getMembers()) {
+            f.setAltColors(firstSpecies.contains(f.getBasePokemonId()));
+        }
+    }
+
     public FightingTeam getPlayerOneTeam() { return playerOneTeam; }
     public FightingTeam getPlayerTwoTeam() { return playerTwoTeam; }
     public List<Platform> getPlatforms() { return platforms; }
