@@ -617,6 +617,7 @@ public class FightingCombatSystem {
     /** Si la picada pega, rebota hacia arriba y puede seguir atacando. */
     private void bounceAfterDive(AttackState state, Fighter attacker) {
         attacker.setDiving(false);
+        attacker.setBouncingAfterDive(true);
         state.aerial = false;
         attacker.setVelocityY(-AIR_DIVE_BOUNCE);
         attacker.setOnGround(false);

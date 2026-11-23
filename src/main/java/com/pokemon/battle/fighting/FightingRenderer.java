@@ -1010,6 +1010,11 @@ public class FightingRenderer {
                 default -> { }
             }
         }
+        if (visual != null && fighter.isBouncingAfterDive()) {
+            // Rebote tras la picada: animacion de salto, no la de ataque (que trae su propio
+            // movimiento y hacia ver un tiron a mitad del rebote)
+            visual = null;
+        }
         if (visual != null) {
             String move = visual.definition().moveId();
             String name = profile.attacks.get(move);

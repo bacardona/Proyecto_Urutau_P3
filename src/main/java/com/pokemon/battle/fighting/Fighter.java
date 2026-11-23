@@ -211,6 +211,14 @@ public class Fighter {
         }
     }
 
+    /**
+     * Va rebotando hacia arriba despues de pegar en picada. Mientras tanto se dibuja con la
+     * animacion de salto (no la de ataque), para que el rebote se vea parejo. Se borra al tocar suelo.
+     */
+    private boolean bouncingAfterDive;
+    public boolean isBouncingAfterDive() { return bouncingAfterDive && !onGround; }
+    void setBouncingAfterDive(boolean bouncing) { bouncingAfterDive = bouncing; }
+
     /** Cae en picada (golpe cuerpo a cuerpo empezado en el aire). */
     private boolean diving;
     public boolean isDiving() { return diving; }
@@ -486,7 +494,10 @@ public class Fighter {
     public double getKnockbackVelocity() { return knockbackVelocity; }
     void setY(double y) { this.y = y; }
     void setVelocityY(double velocityY) { this.velocityY = velocityY; }
-    void setOnGround(boolean onGround) { this.onGround = onGround; }
+    void setOnGround(boolean onGround) {
+        this.onGround = onGround;
+        if (onGround) bouncingAfterDive = false;   // el rebote de la picada termina al tocar suelo
+    }
     boolean isPlayerJumpRising() { return playerJumpRising; }
     void setPlayerJumpRising(boolean rising) { this.playerJumpRising = rising; }
 
