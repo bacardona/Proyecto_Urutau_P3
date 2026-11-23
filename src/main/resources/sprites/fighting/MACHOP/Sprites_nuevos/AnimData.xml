@@ -3,6 +3,23 @@
   <ShadowSize>1</ShadowSize>
   <Anims>
     <Anim>
+      <Name>Punch2</Name>
+      <Index>90</Index>
+      <FrameWidth>64</FrameWidth>
+      <FrameHeight>80</FrameHeight>
+      <RushFrame>0</RushFrame>
+      <HitFrame>1</HitFrame>
+      <ReturnFrame>4</ReturnFrame>
+      <Durations>
+        <Duration>1</Duration>
+        <Duration>2</Duration>
+        <Duration>3</Duration>
+        <Duration>3</Duration>
+        <Duration>2</Duration>
+        <Duration>4</Duration>
+      </Durations>
+    </Anim>
+    <Anim>
       <Name>Walk</Name>
       <Index>0</Index>
       <FrameWidth>24</FrameWidth>

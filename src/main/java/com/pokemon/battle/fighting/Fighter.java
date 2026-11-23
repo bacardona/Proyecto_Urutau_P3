@@ -177,6 +177,11 @@ public class Fighter {
     }
 
     public boolean hasBarrier() { return barrierSeconds > 0; }
+    /** Cae en picada (golpe cuerpo a cuerpo empezado en el aire). */
+    private boolean diving;
+    public boolean isDiving() { return diving; }
+    void setDiving(boolean diving) { this.diving = diving; }
+
     public double getAimUpAngle() { return aimUpAngle; }
     void setAimUpAngle(double radians) { aimUpAngle = radians; }
 

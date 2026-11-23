@@ -949,6 +949,10 @@ public class FightingRenderer {
         if (aimingUp) {
             double lean = fighter.getAimUpAngle() * 0.6 * (fighter.isFacingLeft() ? 1 : -1);
             g.rotate(lean, centerX, fighter.getY());
+        } else if (fighter.isDiving()) {
+            // Picada: se inclina hacia abajo, hacia adelante
+            double lean = 0.7 * (fighter.isFacingLeft() ? -1 : 1);
+            g.rotate(lean, centerX, fighter.getY() - fighter.getRenderHeight() * 0.5);
         }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         float flash = fx.whiteFlash(fighter);
@@ -999,6 +1003,10 @@ public class FightingRenderer {
         if (visual != null) {
             String move = visual.definition().moveId();
             String name = profile.attacks.get(move);
+            if (name == null && move.endsWith("_2")) {
+                name = secondHitAnimation(sprites, move, profile.attacks.get(FightingCombatSystem.baseMoveId(move)));
+                move = "SECOND_HIT";
+            }
             var animation = name == null ? null : sprites.get(name);
             if (animation != null) {
                 if ("TACKLE".equals(move) && !"SQUIRTLE".equals(profile.species)) {
@@ -1032,6 +1040,20 @@ public class FightingRenderer {
         }
         String name = fighter.getMotionAnimation() == Fighter.MotionAnimation.WALKING ? "Walk" : "Idle";
         return sprites.get(name).frameAtTime(elapsed, left, true);
+    }
+
+    /**
+     * Animacion del segundo golpe: el otro brazo dibujado (Punch2) o el punetazo de los artistas
+     * (Punch, Machoke); el coletazo (Swing) tras el Ataque Rapido; si no, otra animacion de ataque.
+     */
+    private static String secondHitAnimation(SpriteCollabAnimationSet sprites, String move, String first) {
+        if (sprites.get("Punch2") != null) return "Punch2";
+        if (sprites.get("Punch") != null) return "Punch";
+        if ("QUICK_ATTACK_2".equals(move) && sprites.get("Swing") != null) return "Swing";
+        for (String other : new String[]{"Strike", "Attack", "Swing", "QuickStrike"}) {
+            if (!other.equals(first) && sprites.get(other) != null) return other;
+        }
+        return first;
     }
 
     private double jumpProgress(Fighter fighter) {
