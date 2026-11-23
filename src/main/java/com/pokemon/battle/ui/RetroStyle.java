@@ -47,7 +47,7 @@ public final class RetroStyle {
         registerType(Type.NORMAL, 0x899597, "NORMAL");
         registerType(Type.FIRE, 0xF99944, "FUEGO");
         registerType(Type.WATER, 0x4AADD9, "AGUA");
-        registerType(Type.ELECTRIC, 0x5F90B9, "ELECTRICO");
+        registerType(Type.ELECTRIC, 0xE7C531, "ELECTRICO");
         registerType(Type.GRASS, 0x46C06C, "PLANTA");
         registerType(Type.ICE, 0x6BC5C9, "HIELO");
         registerType(Type.FIGHTING, 0xE86C8A, "LUCHA");
