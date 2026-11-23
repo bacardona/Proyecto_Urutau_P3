@@ -1,6 +1,6 @@
 package com.pokemon.battle.fighting;
 
-import com.pokemon.battle.MainGUI;
+import com.pokemon.battle.Main;
 import com.pokemon.battle.model.Player;
 import com.pokemon.battle.model.Pokemon;
 import com.pokemon.battle.model.Type;
@@ -282,7 +282,7 @@ public final class FreeFightEvolutionCheck {
     }
     private static void window()throws Exception{
         final Throwable[] error={null};Thread.setDefaultUncaughtExceptionHandler((t,e)->{error[0]=e;e.printStackTrace();});
-        MainGUI.main(new String[0]);SwingUtilities.invokeAndWait(()->{});
+        Main.main(new String[0]);SwingUtilities.invokeAndWait(()->{});
         final GameWindow[] window={null};final FightingGamePanel[] panel={null};final FightingGameSession[] session={null};
         for(int index=0;index<BASE.length;index++){
             final int idx=index;

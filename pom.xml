@@ -26,6 +26,18 @@
         </dependency>
 
         <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>6.2.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.36</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.badlogicgames.jamepad</groupId>
             <artifactId>jamepad</artifactId>
             <version>2.30.0.0</version>
@@ -69,7 +81,7 @@
             <transformers>
               <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                 <manifestEntries>
-                  <Main-Class>com.pokemon.battle.MainGUI</Main-Class>
+                  <Main-Class>com.pokemon.battle.Main</Main-Class>
                   <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
                 </manifestEntries>
               </transformer>

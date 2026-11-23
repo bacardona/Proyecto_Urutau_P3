@@ -4,139 +4,98 @@ import com.pokemon.battle.exceptions.PersistenceException;
 import com.pokemon.battle.model.Machine;
 import com.pokemon.battle.model.Player;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads the trainers from Oracle. JUGADOR and MAQUINA share their identifier
- * with ENTRENADOR, so each one is joined with it to get the name.
+ * Reads and writes trainers in Oracle via stored procedures (ENTRENADOR, JUGADOR, MAQUINA).
  */
 public class JdbcTrainerRepository implements TrainerRepository {
 
-    private static final String PLAYERS_SQL =
-            "SELECT e.id_entrenador, e.nombre, j.batallas_ganadas, j.batallas_perdidas " +
-                    "FROM entrenador e " +
-                    "JOIN jugador j ON j.id_entrenador = e.id_entrenador " +
-                    "ORDER BY e.nombre";
+    private static final String CALL_LOAD_PLAYERS =
+            "{ call entrenador__listar_jugadores(?) }";
 
-    private static final String MACHINES_SQL =
-            "SELECT e.id_entrenador, e.nombre, m.rango " +
-                    "FROM entrenador e " +
-                    "JOIN maquina m ON m.id_entrenador = e.id_entrenador " +
-                    "ORDER BY e.nombre";
+    private static final String CALL_LOAD_MACHINES =
+            "{ call entrenador__listar_maquinas(?) }";
 
-    private static final String NEXT_ID_SQL =
-            "SELECT NVL(MAX(id_entrenador), 0) + 1 FROM entrenador";
+    private static final String CALL_CREATE_PLAYER =
+            "{ call entrenador__crear_jugador(?, ?) }";
 
-    private static final String INSERT_TRAINER_SQL =
-            "INSERT INTO entrenador (id_entrenador, nombre) VALUES (?, ?)";
-
-    private static final String INSERT_PLAYER_SQL =
-            "INSERT INTO jugador (id_entrenador, batallas_ganadas, batallas_perdidas) VALUES (?, 0, 0)";
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public List<Player> loadPlayers() {
         List<Player> players = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(PLAYERS_SQL);
-             ResultSet rs = stmt.executeQuery()) {
+             CallableStatement stmt = conn.prepareCall(CALL_LOAD_PLAYERS)) {
 
-            while (rs.next()) {
-                players.add(new Player(
-                        rs.getInt("id_entrenador"),
-                        rs.getString("nombre"),
-                        rs.getInt("batallas_ganadas"),
-                        rs.getInt("batallas_perdidas")));
+            stmt.registerOutParameter(1, Types.REF_CURSOR);
+            stmt.execute();
+
+            try (ResultSet rs = (ResultSet) stmt.getObject(1)) {
+                while (rs.next()) {
+                    Player player = new Player(
+                            rs.getInt("id_entrenador"),
+                            rs.getString("nombre"),
+                            rs.getInt("batallas_ganadas"),
+                            rs.getInt("batallas_perdidas"));
+
+                    double played = rs.getDouble("partidas_jugadas");
+                    if (!rs.wasNull()) {
+                        player.setGamesPlayed((int) Math.round(played));
+                    }
+
+                    double rate = rs.getDouble("winrate");
+                    if (!rs.wasNull()) {
+                        player.setWinRate(rate);
+                    }
+
+                    players.add(player);
+                }
             }
         } catch (SQLException e) {
-            throw new PersistenceException("Error al consultar jugadores en Oracle BD", e);
+            throw new PersistenceException("Error al consultar jugadores en Oracle BD");
         }
-        loadPlayerStats(players);
         return players;
     }
 
-    private static final String GAMES_PLAYED_SQL =
-            "SELECT id_entrenador, func_partidas_jugadas_jugador(id_entrenador) AS valor FROM jugador";
-
-    private static final String WIN_RATE_SQL =
-            "SELECT id_entrenador, func_winrate_entrendaor(id_entrenador) AS valor FROM jugador";
-
-    /**
-     * Fills the games played and the win rate of each player with the stored functions
-     * func_partidas_jugadas_jugador and func_winrate_entrendaor. If a function fails the
-     * players still load and the screen shows "--" for that value.
-     */
-    private void loadPlayerStats(List<Player> players) {
-        java.util.Map<Integer, Double> games = readFunction(GAMES_PLAYED_SQL, "func_partidas_jugadas_jugador");
-        java.util.Map<Integer, Double> rates = readFunction(WIN_RATE_SQL, "func_winrate_entrendaor");
-        for (Player p : players) {
-            Double played = games.get(p.getId());
-            if (played != null) {
-                p.setGamesPlayed((int) Math.round(played));
-            }
-            Double rate = rates.get(p.getId());
-            if (rate != null) {
-                p.setWinRate(rate);
-            }
-        }
-    }
-
-    // id_entrenador -> valor que devuelve la funcion
-    private java.util.Map<Integer, Double> readFunction(String sql, String functionName) {
-        java.util.Map<Integer, Double> values = new java.util.HashMap<>();
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                values.put(rs.getInt("id_entrenador"), rs.getDouble("valor"));
-            }
-        } catch (SQLException e) {
-            System.err.println("No se pudo usar " + functionName + ": " + e.getMessage());
-        }
-        return values;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public List<Machine> loadMachines() {
         List<Machine> machines = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(MACHINES_SQL);
-             ResultSet rs = stmt.executeQuery()) {
+             CallableStatement stmt = conn.prepareCall(CALL_LOAD_MACHINES)) {
 
-            while (rs.next()) {
-                machines.add(new Machine(
-                        rs.getInt("id_entrenador"),
-                        rs.getString("nombre"),
-                        rs.getString("rango")));
+            stmt.registerOutParameter(1, Types.REF_CURSOR);
+            stmt.execute();
+
+            try (ResultSet rs = (ResultSet) stmt.getObject(1)) {
+                while (rs.next()) {
+                    machines.add(new Machine(
+                            rs.getInt("id_entrenador"),
+                            rs.getString("nombre"),
+                            rs.getString("rango")));
+                }
             }
         } catch (SQLException e) {
-            throw new PersistenceException("Error al consultar maquinas en Oracle BD", e);
+            throw new PersistenceException("Error al consultar maquinas en Oracle BD");
         }
         return machines;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public Player createPlayer(String name) {
         try (Connection conn = DatabaseConnection.getConnection()) {
-            // Sin autocommit, ENTRENADOR y JUGADOR se confirman juntos con commit() o se deshacen con rollback()
             conn.setAutoCommit(false);
-            try {
-                int id = nextTrainerId(conn);
-                insertTrainer(conn, id, name);
-                insertPlayer(conn, id);
+            try (CallableStatement stmt = conn.prepareCall(CALL_CREATE_PLAYER)) {
+                stmt.setString(1, name);
+                stmt.registerOutParameter(2, Types.NUMERIC);
+
+                stmt.execute();
+                int id = stmt.getInt(2);
+
                 conn.commit();
                 return new Player(id, name, 0, 0);
             } catch (SQLException e) {
@@ -144,30 +103,7 @@ public class JdbcTrainerRepository implements TrainerRepository {
                 throw e;
             }
         } catch (SQLException e) {
-            throw new PersistenceException("Error al crear el jugador en Oracle BD", e);
-        }
-    }
-
-    private int nextTrainerId(Connection conn) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(NEXT_ID_SQL);
-             ResultSet rs = stmt.executeQuery()) {
-            rs.next();
-            return rs.getInt(1);
-        }
-    }
-
-    private void insertTrainer(Connection conn, int id, String name) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(INSERT_TRAINER_SQL)) {
-            stmt.setInt(1, id);
-            stmt.setString(2, name);
-            stmt.executeUpdate();
-        }
-    }
-
-    private void insertPlayer(Connection conn, int id) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(INSERT_PLAYER_SQL)) {
-            stmt.setInt(1, id);
-            stmt.executeUpdate();
+            throw new PersistenceException("Error al crear el jugador en Oracle BD");
         }
     }
 }
