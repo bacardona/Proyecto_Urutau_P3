@@ -70,6 +70,8 @@ public class PokedexPanel extends RetroScreen {
     private String spriteOwner;
     private boolean spriteReady;
     private int frame;
+    private boolean hexStats = false;
+
 
     /**
      * @param catalog catalog of Pokemon, read from the database (injected)
@@ -165,7 +167,9 @@ public class PokedexPanel extends RetroScreen {
             firstVisible = selected - VISIBLE_ROWS + 1;
         }
         repaint();
+
     }
+
 
     // Pide el GIF del Pokemon seleccionado; si no esta en memoria se lee en el otro hilo
     private void requestSprite(String name) {
@@ -192,6 +196,11 @@ public class PokedexPanel extends RetroScreen {
         });
     }
 
+    private void toggleStats() {   // <-- NUEVO
+        hexStats = !hexStats;
+        repaint();
+    }
+
     @Override
     protected void goBack() {
         onBack.run();
@@ -204,10 +213,15 @@ public class PokedexPanel extends RetroScreen {
         bindKey("DOWN", () -> moveSelection(1));
         bindKey("LEFT", () -> moveSelection(-VISIBLE_ROWS));
         bindKey("RIGHT", () -> moveSelection(VISIBLE_ROWS));
+        bindKey("H", this::toggleStats);
     }
 
     @Override
     protected void onBoardClick(int x, int y, int clickCount) {
+        if (STATS_BOX.contains(x, y)) {   // <-- NUEVO
+            toggleStats();
+            return;
+        }
         if (LIST.contains(x, y) && y >= LIST_TOP) {
             int index = firstVisible + (y - LIST_TOP) / ROW_H;
             if (index < pokemon.size()) {
@@ -352,6 +366,22 @@ public class PokedexPanel extends RetroScreen {
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
+        g.setFont(RetroStyle.font(18));
+        String hint = hexStats ? "H / Y  BARRAS" : "H / Y  HEXAGONO";
+        int hw = g.getFontMetrics().stringWidth(hint);
+        RetroStyle.shadowText(g, hint, r.x + r.width - 14 - hw, r.y + 28, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        if (hexStats) {
+            String[] hexLabels = {"PS", "ATAQUE", "DEFENSA", "VELOC.", "DEF.ESP.", "AT.ESP."};
+            int[] hexValues = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpeed(),
+                    p.getSpecialDefense(), p.getSpecialAttack()};
+            RetroStyle.drawStatRadar(g, r.x + 191, r.y + 126, 60, hexLabels, hexValues, MAX_STAT);
+            g.setFont(RetroStyle.font(20));
+            String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
+            RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
+                    RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+            return;
+        }
         int rowH = 25;
         int top = r.y + 40;
         int lineX = r.x + 150;

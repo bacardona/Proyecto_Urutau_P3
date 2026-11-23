@@ -36,9 +36,11 @@ public class GamepadInput {
                 GameAction.LEFT, GameAction.RIGHT, GameAction.CONFIRM, GameAction.BACK);
         EnumSet<GameAction> lista = EnumSet.copyOf(menu);
         lista.add(GameAction.PAGE_PREV);
+        lista.add(GameAction.TOGGLE_VIEW);
         lista.add(GameAction.PAGE_NEXT);
         EnumSet<GameAction> equipo = EnumSet.copyOf(lista);
         equipo.add(GameAction.REMOVE_LAST);
+        equipo.add(GameAction.START);
 
         ALLOWED.put(InputProfile.CUALQUIER_BOTON, EnumSet.of(GameAction.ANY_BUTTON));
         ALLOWED.put(InputProfile.MENU, menu);
@@ -50,7 +52,6 @@ public class GamepadInput {
     // ---- Compartido entre hilos
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
     private volatile Consumer<GameAction> listener = a -> {};
-    private volatile ControllerState lastState;   // para el modo LIBRE
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
 
@@ -88,8 +89,6 @@ public class GamepadInput {
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
     /** Para el modo LIBRE: ultimo estado crudo del mando (puede ser null). */
-    public ControllerState raw() { return lastState; }
-
     /**
      * Combate libre: foto del mando de un jugador (0 = mando 1, 1 = mando 2).
      * Nunca devuelve null; si no hay mando, todo sale suelto.
@@ -105,36 +104,32 @@ public class GamepadInput {
 
     private void run() {
         try {
-            long t0 = System.nanoTime();
             controllers = new ControllerManager();
-            System.out.println("ControllerManager: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
-
-            long t1 = System.nanoTime();
             controllers.initSDLGamepad();
-            System.out.println("initSDLGamepad: " + (System.nanoTime() - t1) / 1_000_000 + " ms");
         } catch (Throwable t) {
             t.printStackTrace();   // el juego sigue con teclado y mouse
             return;
         }
         try {
             while (running) {
-                ControllerState s = controllers.getState(0);
-                lastState = s;
                 // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
+                ControllerState[] states = new ControllerState[MAX_PADS];
+                ControllerState menuPad = null;   // el primer mando conectado maneja los menus
                 boolean any = false;
                 for (int i = 0; i < MAX_PADS; i++) {
-                    ControllerState pad = i == 0 ? s : controllers.getState(i);
-                    PadSnapshot snap = toSnapshot(pad);
+                    states[i] = controllers.getState(i);
+                    PadSnapshot snap = toSnapshot(states[i]);
                     synchronized (snapshots) {
                         snapshots[i] = snap;
                     }
                     any |= snap.connected();
+                    if (menuPad == null && states[i].isConnected) menuPad = states[i];
                 }
                 if (!any) {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                if (s.isConnected) poll(s, System.nanoTime());   // menus: mando 1
+                if (menuPad != null) poll(menuPad, System.nanoTime());   // menus
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
@@ -160,12 +155,16 @@ public class GamepadInput {
             return;
         }
 
+
         directions(s, now);
         if (SWAP_AB ? s.bJustPressed : s.aJustPressed) emit(GameAction.CONFIRM);
         if (SWAP_AB ? s.aJustPressed : s.bJustPressed) emit(GameAction.BACK);
         if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
         if (allowed.contains(GameAction.PAGE_NEXT) && s.rbJustPressed) emit(GameAction.PAGE_NEXT);
         if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
+        if (allowed.contains(GameAction.TOGGLE_VIEW) && s.yJustPressed) emit(GameAction.TOGGLE_VIEW);
+        if (allowed.contains(GameAction.START) && s.startJustPressed) emit(GameAction.START);
+
     }
 
     private void directions(ControllerState s, long now) {

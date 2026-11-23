@@ -31,11 +31,20 @@ public class TeamSelectScreen extends RetroScreen {
     private static final Rectangle SPRITE_BOX = new Rectangle(336, 148, 210, 220);
     private static final Rectangle STATS_BOX = new Rectangle(558, 148, 382, 220);
     private static final Rectangle MOVES_BOX = new Rectangle(336, 380, 604, 200);
-
     // Botones de la barra gris (tambien se pueden pulsar con el mouse)
     private static final Rectangle ADD_BUTTON = new Rectangle(374, 598, 190, 36);
     private static final Rectangle REMOVE_BUTTON = new Rectangle(574, 598, 190, 36);
     private static final Rectangle DONE_BUTTON = new Rectangle(774, 598, 160, 36);
+    private static final boolean CONFIRM_ON_ADD = false;
+    private static final boolean CONFIRM_ON_FINISH = true;
+    private static final Rectangle DIALOG = new Rectangle(280, 250, 400, 160);
+    private static final Rectangle YES_BUTTON = new Rectangle(310, 348, 150, 44);
+    private static final Rectangle NO_BUTTON = new Rectangle(500, 348, 150, 44);
+
+    private enum Dialog { NONE, ADD, FINISH }
+
+    private Dialog dialog = Dialog.NONE;
+    private boolean dialogYes = true;
 
     private static final int ROW_H = 40;
     private static final int LIST_TOP = LIST.y + 12;
@@ -58,6 +67,7 @@ public class TeamSelectScreen extends RetroScreen {
     private int firstVisible = 0;
     private int frame = 0;
     private String message = "";
+    private boolean hexStats = false;
 
     /**
      * @param onDone que hacer con el equipo de 3 cuando se confirma
@@ -83,6 +93,8 @@ public class TeamSelectScreen extends RetroScreen {
         bindKey("ENTER", this::enter);
         bindKey("BACK_SPACE", this::removeLast);
         bindKey("DELETE", this::removeLast);
+        bindKey("H", this::toggleStats);
+        bindKey("F2", this::requestFinish);
 
         animationTimer = new Timer(1000 / GifAnimation.FPS, e -> {
             frame++;
@@ -93,6 +105,9 @@ public class TeamSelectScreen extends RetroScreen {
             @Override
             public void componentShown(ComponentEvent e) {
                 animationTimer.start();
+                setFocusable(true);                                         // <-- NUEVO
+                javax.swing.SwingUtilities.invokeLater(
+                        TeamSelectScreen.this::requestFocusInWindow);       // <-- NUEVO
             }
 
             @Override
@@ -117,12 +132,18 @@ public class TeamSelectScreen extends RetroScreen {
         firstVisible = 0;
         frame = 0;
         message = "";
+        javax.swing.SwingUtilities.invokeLater(this::requestFocusInWindow);
         repaint();
     }
 
     // ------------------------------------------------------------------ acciones
 
     private void moveSelection(int delta) {
+        if (dialog != Dialog.NONE) {
+            dialogYes = !dialogYes;
+            repaint();
+            return;
+        }
         if (catalog.isEmpty()) {
             return;
         }
@@ -131,6 +152,8 @@ public class TeamSelectScreen extends RetroScreen {
 
     private void select(int index) {
         selected = index;
+        System.out.println("select -> selected=" + selected + " first=" + firstVisible
+                + " catalog=" + catalog.size() + " visible=" + isShowing());
         frame = 0;
         message = "";
         if (selected < firstVisible) {
@@ -143,13 +166,17 @@ public class TeamSelectScreen extends RetroScreen {
 
     // Enter agrega; con el equipo completo, confirma
     private void enter() {
+        if (dialog != Dialog.NONE) {
+            acceptDialog();
+            return;
+        }
         if (catalog.isEmpty()) {
             return;
         }
         if (chosen.size() >= teamSize) {
-            confirm();
+            requestFinish();
         } else {
-            addSelected();
+            requestAdd();
         }
     }
 
@@ -170,6 +197,7 @@ public class TeamSelectScreen extends RetroScreen {
     }
 
     private void removeLast() {
+        if (dialog != Dialog.NONE) return;
         if (!chosen.isEmpty()) {
             chosen.remove(chosen.size() - 1);
             message = "";
@@ -178,11 +206,64 @@ public class TeamSelectScreen extends RetroScreen {
     }
 
     private void removeAt(int index) {
+        if (dialog != Dialog.NONE) return;
         if (index >= 0 && index < chosen.size()) {
             chosen.remove(index);
             message = "";
             repaint();
         }
+    }
+
+    private void toggleStats() {   // <-- NUEVO
+        hexStats = !hexStats;
+        repaint();
+    }
+
+
+
+    private void requestAdd() {
+        if (catalog.isEmpty()) {
+            return;
+        }
+        Pokemon p = catalog.get(selected);
+        // Si ya esta lleno o repetido, addSelected muestra el mensaje sin preguntar
+        if (!CONFIRM_ON_ADD || chosen.size() >= teamSize || chosen.contains(p)) {
+            addSelected();
+            return;
+        }
+        openDialog(Dialog.ADD);
+    }
+
+    private void requestFinish() {
+        if (dialog != Dialog.NONE) {
+            return;
+        }
+        // Si faltan Pokemon, confirm() muestra "ELIGE N POKEMON"
+        if (!CONFIRM_ON_FINISH || chosen.size() != teamSize) {
+            confirm();
+            return;
+        }
+        openDialog(Dialog.FINISH);
+    }
+
+    private void openDialog(Dialog d) {
+        dialog = d;
+        dialogYes = true;
+        repaint();
+    }
+
+    private void acceptDialog() {
+        Dialog d = dialog;
+        boolean yes = dialogYes;
+        dialog = Dialog.NONE;
+        if (yes) {
+            if (d == Dialog.ADD) {
+                addSelected();
+            } else if (d == Dialog.FINISH) {
+                confirm();
+            }
+        }
+        repaint();
     }
 
     private void confirm() {
@@ -196,11 +277,30 @@ public class TeamSelectScreen extends RetroScreen {
 
     @Override
     protected void goBack() {
+        if (dialog != Dialog.NONE) {   // <-- NUEVO
+            dialog = Dialog.NONE;
+            repaint();
+            return;
+        }
         onBack.run();
     }
 
     @Override
     protected void onBoardClick(int x, int y, int clickCount) {
+        if (dialog != Dialog.NONE) {
+            if (YES_BUTTON.contains(x, y)) {
+                dialogYes = true;
+                acceptDialog();
+            } else if (NO_BUTTON.contains(x, y)) {
+                dialogYes = false;
+                acceptDialog();
+            }
+            return;
+        }
+        if (STATS_BOX.contains(x, y)) {
+            toggleStats();
+            return;
+        }
         if (ADD_BUTTON.contains(x, y)) {
             enter();
             return;
@@ -265,6 +365,41 @@ public class TeamSelectScreen extends RetroScreen {
         drawSprite(g, current);
         drawStats(g, current);
         drawMoves(g, current);
+        if (dialog != Dialog.NONE) {
+            drawDialog(g, current);
+        }
+    }
+
+
+    private void drawDialog(Graphics2D g, Pokemon current) {
+        // Oscurece lo de atras
+        g.setColor(new Color(26, 31, 43, 150));
+        g.fillRect(0, CONTENT_TOP, BOARD_W, FOOTER_Y - CONTENT_TOP);
+        RetroStyle.drawRedFrame(g, DIALOG.x, DIALOG.y, DIALOG.width, DIALOG.height);
+
+        String text = dialog == Dialog.ADD
+                ? "ELEGIR A " + current.getName().toUpperCase() + "?"
+                : "LISTO CON ESTE EQUIPO?";
+        g.setFont(RetroStyle.font(30));
+        text = RetroText.fit(g.getFontMetrics(), text, DIALOG.width - 40);
+        int w = g.getFontMetrics().stringWidth(text);
+        RetroStyle.shadowText(g, text, DIALOG.x + (DIALOG.width - w) / 2, DIALOG.y + 75,
+                RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        g.setFont(RetroStyle.font(28));
+        drawChoice(g, "SI", YES_BUTTON, dialogYes);
+        drawChoice(g, "NO", NO_BUTTON, !dialogYes);
+    }
+
+    private void drawChoice(Graphics2D g, String label, Rectangle r, boolean active) {
+        if (active) {
+            RetroStyle.drawSelectedRow(g, r.x, r.y, r.width, r.height);
+        } else {
+            RetroStyle.drawKeyButton(g, "", r.x, r.y, r.width, r.height);
+        }
+        int w = g.getFontMetrics().stringWidth(label);
+        RetroStyle.shadowText(g, label, r.x + (r.width - w) / 2, r.y + 31,
+                active ? RetroStyle.RED_DARK : RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 
     private void drawList(Graphics2D g) {
@@ -379,6 +514,23 @@ public class TeamSelectScreen extends RetroScreen {
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
+        // Pista de la tecla, a la derecha del titulo
+        g.setFont(RetroStyle.font(18));
+        String hint = hexStats ? "H / Y  BARRAS" : "H / Y  HEXAGONO";
+        int hw = g.getFontMetrics().stringWidth(hint);
+        RetroStyle.shadowText(g, hint, r.x + r.width - 14 - hw, r.y + 28, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        if (hexStats) {
+            String[] hexLabels = {"PS", "ATAQUE", "DEFENSA", "VELOC.", "DEF.ESP.", "AT.ESP."};
+            int[] hexValues = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpeed(),
+                    p.getSpecialDefense(), p.getSpecialAttack()};
+            RetroStyle.drawStatRadar(g, r.x + 191, r.y + 126, 60, hexLabels, hexValues, MAX_STAT);
+            g.setFont(RetroStyle.font(20));
+            String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
+            RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
+                    RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+            return;
+        }
         int rowH = 25;
         int top = r.y + 40;
         int lineX = r.x + 150;

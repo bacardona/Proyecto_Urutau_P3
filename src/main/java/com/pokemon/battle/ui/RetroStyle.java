@@ -397,4 +397,78 @@ public final class RetroStyle {
     private static int centeredBaseline(Graphics2D g, int y, int h) {
         return y + (h + g.getFontMetrics().getAscent() - g.getFontMetrics().getDescent()) / 2;
     }
+    /** Hexagono regular con un vertice arriba. */
+    private static Polygon hexagon(int cx, int cy, double r) {
+        int[] xs = new int[6];
+        int[] ys = new int[6];
+        for (int i = 0; i < 6; i++) {
+            double a = Math.toRadians(-90 + 60 * i);
+            xs[i] = (int) Math.round(cx + Math.cos(a) * r);
+            ys[i] = (int) Math.round(cy + Math.sin(a) * r);
+        }
+        return new Polygon(xs, ys, 6);
+    }
+
+    /**
+     * Grafico de radar de 6 estadisticas, en el sentido del reloj desde arriba.
+     * Los valores se normalizan a maxValue.
+     */
+    public static void drawStatRadar(Graphics2D g, int cx, int cy, int radius,
+                                     String[] labels, int[] values, int maxValue) {
+        // Anillos de fondo (1/3, 2/3 y el borde)
+        for (int ring = 3; ring >= 1; ring--) {
+            Polygon p = hexagon(cx, cy, radius * ring / 3.0);
+            g.setColor(ring == 3 ? new Color(0xF1EEE2) : WHITE);
+            g.fillPolygon(p);
+            g.setColor(ring == 3 ? OUTLINE : new Color(0xC9C4B5));
+            g.setStroke(new BasicStroke(ring == 3 ? 3 : 1));
+            g.drawPolygon(p);
+        }
+        // Ejes
+        Polygon outer = hexagon(cx, cy, radius);
+        g.setColor(new Color(0xC9C4B5));
+        g.setStroke(new BasicStroke(1));
+        for (int i = 0; i < 6; i++) {
+            g.drawLine(cx, cy, outer.xpoints[i], outer.ypoints[i]);
+        }
+        // Poligono de datos
+        int[] xs = new int[6];
+        int[] ys = new int[6];
+        for (int i = 0; i < 6; i++) {
+            double k = Math.min(values[i], maxValue) / (double) maxValue;
+            double a = Math.toRadians(-90 + 60 * i);
+            xs[i] = (int) Math.round(cx + Math.cos(a) * radius * k);
+            ys[i] = (int) Math.round(cy + Math.sin(a) * radius * k);
+        }
+        g.setColor(new Color(BLUE.getRed(), BLUE.getGreen(), BLUE.getBlue(), 150));
+        g.fillPolygon(xs, ys, 6);
+        g.setColor(BLUE_DARK);
+        g.setStroke(new BasicStroke(3));
+        g.drawPolygon(xs, ys, 6);
+        g.setStroke(new BasicStroke(1));
+        for (int i = 0; i < 6; i++) {
+            g.setColor(OUTLINE);
+            g.fillOval(xs[i] - 4, ys[i] - 4, 8, 8);
+            g.setColor(WHITE);
+            g.fillOval(xs[i] - 2, ys[i] - 2, 4, 4);
+        }
+        // Etiquetas con el valor
+        g.setFont(font(18));
+        for (int i = 0; i < 6; i++) {
+            String text = labels[i] + " " + values[i];
+            int w = g.getFontMetrics().stringWidth(text);
+            double a = Math.toRadians(-90 + 60 * i);
+            int px = (int) Math.round(cx + Math.cos(a) * (radius + 8));
+            int py = (int) Math.round(cy + Math.sin(a) * (radius + 8));
+            if (i == 0) {
+                shadowText(g, text, px - w / 2, py - 2, DARK, SHADOW_LIGHT);
+            } else if (i == 3) {
+                shadowText(g, text, px - w / 2, py + 12, DARK, SHADOW_LIGHT);
+            } else if (i < 3) {
+                shadowText(g, text, px, py + 6, DARK, SHADOW_LIGHT);
+            } else {
+                shadowText(g, text, px - w, py + 6, DARK, SHADOW_LIGHT);
+            }
+        }
+    }
 }

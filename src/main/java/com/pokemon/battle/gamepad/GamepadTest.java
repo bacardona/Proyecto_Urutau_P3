@@ -3,68 +3,38 @@ package com.pokemon.battle.gamepad;
 import com.studiohartman.jamepad.ControllerManager;
 import com.studiohartman.jamepad.ControllerState;
 
-/**
- * Prueba aislada del mando: no usa el juego. Imprime el mando detectado y cada boton
- * que se pulsa, para saber como lo reporta la libreria. START para salir.
- */
 public class GamepadTest {
 
     public static void main(String[] args) throws InterruptedException {
-        ControllerManager controllers;
-        try {
-            controllers = new ControllerManager();
-            controllers.initSDLGamepad();
-        } catch (Throwable t) {
-            System.out.println("NO SE PUDO INICIAR LA LIBRERIA DE MANDOS:");
-            t.printStackTrace();
-            return;
-        }
+        ControllerManager controllers = new ControllerManager();
+        controllers.initSDLGamepad();
+        System.out.println("Conecten los mandos. Pulsen botones y muevan la palanca. BACK del mando 0 para salir.");
 
-        System.out.println("Mandos detectados: " + controllers.getNumControllers());
-        System.out.println("Pulsa botones, mueve el stick y la cruceta. START para salir.");
-
-        boolean wasConnected = false;
+        boolean[] was = new boolean[2];
         while (true) {
-            ControllerState s = controllers.getState(0);
-            if (!s.isConnected) {
-                if (wasConnected) {
-                    System.out.println("Mando desconectado");
+            for (int i = 0; i < 2; i++) {
+                ControllerState s = controllers.getState(i);
+                if (s.isConnected != was[i]) {
+                    was[i] = s.isConnected;
+                    System.out.println("Mando " + i + (s.isConnected ? " CONECTADO. Tipo: " + s.controllerType : " DESCONECTADO"));
                 }
-                wasConnected = false;
-                Thread.sleep(300);
-                continue;
+                if (!s.isConnected) continue;
+                String p = "[mando " + i + " " + s.controllerType + "] ";
+                if (s.aJustPressed) System.out.println(p + "Boton A");
+                if (s.bJustPressed) System.out.println(p + "Boton B");
+                if (s.xJustPressed) System.out.println(p + "Boton X");
+                if (s.yJustPressed) System.out.println(p + "Boton Y");
+                if (s.lbJustPressed) System.out.println(p + "LB");
+                if (s.rbJustPressed) System.out.println(p + "RB");
+                if (s.leftTrigger > 0.5) System.out.println(p + "LT " + s.leftTrigger);
+                if (s.rightTrigger > 0.5) System.out.println(p + "RT " + s.rightTrigger);
+                if (s.startJustPressed) System.out.println(p + "START");
+                if (s.backJustPressed) System.out.println(p + "BACK");
+                if (Math.abs(s.leftStickY) > 0.7) System.out.println(p + "Palanca Y=" + s.leftStickY);
             }
-            if (!wasConnected) {
-                System.out.println("Mando conectado. Tipo: " + s.controllerType);
-                wasConnected = true;
-            }
-            if (s.startJustPressed) {
-                break;
-            }
-            report("A", s.aJustPressed);
-            report("B", s.bJustPressed);
-            report("X", s.xJustPressed);
-            report("Y", s.yJustPressed);
-            report("LB", s.lbJustPressed);
-            report("RB", s.rbJustPressed);
-            report("BACK", s.backJustPressed);
-            report("DPAD ARRIBA", s.dpadUpJustPressed);
-            report("DPAD ABAJO", s.dpadDownJustPressed);
-            report("DPAD IZQUIERDA", s.dpadLeftJustPressed);
-            report("DPAD DERECHA", s.dpadRightJustPressed);
-            if (Math.abs(s.leftStickX) > 0.7 || Math.abs(s.leftStickY) > 0.7) {
-                System.out.println("STICK X=" + s.leftStickX + " Y=" + s.leftStickY);
-                Thread.sleep(200);
-            }
+            if (controllers.getState(0).backJustPressed) break;
             Thread.sleep(16);
         }
         controllers.quitSDLGamepad();
-        System.out.println("Fin de la prueba");
-    }
-
-    private static void report(String name, boolean pressed) {
-        if (pressed) {
-            System.out.println("Boton: " + name);
-        }
     }
 }
