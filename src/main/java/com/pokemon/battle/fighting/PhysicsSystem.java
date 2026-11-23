@@ -7,6 +7,14 @@ public class PhysicsSystem {
 
     static final double GRAVITY = 1400.0;
     private static final double JUMP_VELOCITY = -650.0;
+    /**
+     * Salto del bosque: un poco mas bajo (unos 125 px en vez de 150) para no quedar con el cuerpo
+     * metido en la plataforma de la derecha al saltar desde el piso. Igual alcanza para subir
+     * a las plataformas bajas y de una a otra.
+     */
+    static final double FOREST_JUMP_VELOCITY = -592.0;
+    private double jumpVelocity = JUMP_VELOCITY;
+    void setJumpVelocity(double velocity) { jumpVelocity = velocity; }
     /** Al soltar la tecla mientras sube, la velocidad baja a esto: toque corto = salto pequeno. */
     private static final double JUMP_CUT_VELOCITY = -330.0;
 
@@ -23,7 +31,7 @@ public class PhysicsSystem {
     public void update(Fighter fighter, List<Platform> platforms, double halfWidth,
                        boolean startJump, boolean jumpHeld, double deltaSeconds) {
         if (startJump && fighter.isOnGround()) {
-            fighter.setVelocityY(JUMP_VELOCITY);
+            fighter.setVelocityY(jumpVelocity);
             fighter.setOnGround(false);
             fighter.setPlayerJumpRising(true);
         }
@@ -83,6 +91,7 @@ public class PhysicsSystem {
     static void resolveBodies(Fighter first, Fighter second, Position firstBefore,
                               Position secondBefore, int arenaWidth) {
         if (first.isDefeated() || second.isDefeated()) return;
+        if (first.isDodging() || second.isDodging()) return;   // la esquiva pasa a traves del rival
         first.setX(clampX(first.getX(), first, arenaWidth));
         second.setX(clampX(second.getX(), second, arenaWidth));
         double halfWidths = halfWidthFor(first) + halfWidthFor(second);

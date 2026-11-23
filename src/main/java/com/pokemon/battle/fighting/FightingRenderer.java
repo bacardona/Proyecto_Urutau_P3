@@ -923,7 +923,8 @@ public class FightingRenderer {
         // so the sheet's jump and the game's jump do not add together.
         boolean physicalJump = !fighter.isOnGround() && ultimate == null && !fighter.isDefeated()
                 && !fighter.isShowingDamage() && !fighter.isHitStunned() && !fighter.isUltimateStunned()
-                && (visual == null || "FLY".equals(visual.definition().moveId()));
+                && (visual == null || "FLY".equals(visual.definition().moveId())
+                    || fighter.isBouncingAfterDive());   // el rebote usa la animacion de salto
         boolean squirtleBodyAnchor = "SQUIRTLE".equals(profile.species) && !fighter.isDefeated()
                 && !fighter.isHitStunned() && !fighter.isUltimateStunned() && !fighter.isShowingDamage()
                 && (visual == null || !"TACKLE".equals(visual.definition().moveId()));
@@ -949,6 +950,20 @@ public class FightingRenderer {
         if (aimingUp) {
             double lean = fighter.getAimUpAngle() * 0.6 * (fighter.isFacingLeft() ? 1 : -1);
             g.rotate(lean, centerX, fighter.getY());
+        } else if (fighter.isDiving()) {
+            // Picada: se inclina hacia abajo, hacia adelante
+            double lean = 0.7 * (fighter.isFacingLeft() ? -1 : 1);
+            g.rotate(lean, centerX, fighter.getY() - fighter.getRenderHeight() * 0.5);
+        }
+        if (fighter.isDodging()) {
+            // Estela de la esquiva: dos copias transparentes detras
+            java.awt.Composite keep = g.getComposite();
+            for (int k = 2; k >= 1; k--) {
+                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f * (3 - k)));
+                int behind = -fighter.getDodgeDirection() * 34 * k;
+                g.drawImage(image, x + behind, y, image.getWidth() * scale, image.getHeight() * scale, null);
+            }
+            g.setComposite(keep);
         }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         float flash = fx.whiteFlash(fighter);
@@ -996,9 +1011,18 @@ public class FightingRenderer {
                 default -> { }
             }
         }
+        if (visual != null && fighter.isBouncingAfterDive()) {
+            // Rebote tras la picada: animacion de salto, no la de ataque (que trae su propio
+            // movimiento y hacia ver un tiron a mitad del rebote)
+            visual = null;
+        }
         if (visual != null) {
             String move = visual.definition().moveId();
             String name = profile.attacks.get(move);
+            if (name == null && move.endsWith("_2")) {
+                name = secondHitAnimation(sprites, move, profile.attacks.get(FightingCombatSystem.baseMoveId(move)));
+                move = "SECOND_HIT";
+            }
             var animation = name == null ? null : sprites.get(name);
             if (animation != null) {
                 if ("TACKLE".equals(move) && !"SQUIRTLE".equals(profile.species)) {
@@ -1032,6 +1056,20 @@ public class FightingRenderer {
         }
         String name = fighter.getMotionAnimation() == Fighter.MotionAnimation.WALKING ? "Walk" : "Idle";
         return sprites.get(name).frameAtTime(elapsed, left, true);
+    }
+
+    /**
+     * Animacion del segundo golpe: el otro brazo dibujado (Punch2) o el punetazo de los artistas
+     * (Punch, Machoke); el coletazo (Swing) tras el Ataque Rapido; si no, otra animacion de ataque.
+     */
+    private static String secondHitAnimation(SpriteCollabAnimationSet sprites, String move, String first) {
+        if (sprites.get("Punch2") != null) return "Punch2";
+        if (sprites.get("Punch") != null) return "Punch";
+        if ("QUICK_ATTACK_2".equals(move) && sprites.get("Swing") != null) return "Swing";
+        for (String other : new String[]{"Strike", "Attack", "Swing", "QuickStrike"}) {
+            if (!other.equals(first) && sprites.get(other) != null) return other;
+        }
+        return first;
     }
 
     private double jumpProgress(Fighter fighter) {

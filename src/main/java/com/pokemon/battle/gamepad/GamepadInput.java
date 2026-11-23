@@ -49,10 +49,36 @@ public class GamepadInput {
         ALLOWED.put(InputProfile.LIBRE, EnumSet.noneOf(GameAction.class)); // la pantalla lee snapshot()
     }
 
+    /**
+     * Mandos cambiados de lado (opcion "MANDO: LADO DERECHO" de la pausa del combate).
+     * Normal: mando 1 = jugador 1, mando 2 = jugador 2. Cambiado: al reves.
+     */
+    private static volatile boolean padsSwapped;
+
+    public static boolean arePadsSwapped() { return padsSwapped; }
+
+    public static void setPadsSwapped(boolean swapped) { padsSwapped = swapped; }
+
+    /** Que mando (0 o 1) maneja a este jugador (0 = jugador 1, 1 = jugador 2). */
+    public static int padForPlayer(int player) {
+        return padsSwapped ? 1 - player : player;
+    }
+
+    /**
+     * Si este mando puede mover el menu. Sin jugador (menuPlayer < 0) sirven los dos.
+     * En las pantallas de un jugador solo sirve su mando; si ese mando no esta conectado,
+     * sirve el otro, para que con un solo mando se pueda elegir igual.
+     */
+    static boolean padMayNavigate(int pad, int menuPlayer, boolean ownerConnected) {
+        if (menuPlayer < 0) return true;
+        int owner = padForPlayer(menuPlayer);
+        return pad == owner || !ownerConnected;
+    }
+
     // ---- Compartido entre hilos
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
     private volatile Consumer<GameAction> listener = a -> {};
-    private volatile int menuPadIndex = -1;   // -1 = el primer mando conectado
+    private volatile int menuPlayer = -1;   // -1 = los dos mandos manejan el menu
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
 
@@ -60,8 +86,8 @@ public class GamepadInput {
     private Thread thread;
     private ControllerManager controllers;
     private InputProfile seenProfile;
-    private GameAction heldDir;
-    private long nextRepeat;
+    private final GameAction[] heldDir = new GameAction[MAX_PADS];
+    private final long[] nextRepeat = new long[MAX_PADS];
 
     /** Arranca el hilo del mando. Vuelve al instante: no bloquea la ventana. */
     public void start() {
@@ -89,8 +115,11 @@ public class GamepadInput {
 
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
-    /** Que mando maneja los menus (0 o 1); -1 = el primero conectado. */
-    public void setMenuPad(int index) { this.menuPadIndex = index; }
+    /**
+     * Que jugador maneja los menus (0 = jugador 1, 1 = jugador 2); -1 = los dos mandos.
+     * Respeta el cambio de lado de los mandos (padForPlayer).
+     */
+    public void setMenuPad(int player) { this.menuPlayer = player; }
 
     /**
      * Combate libre: foto del mando de un jugador (0 = mando 1, 1 = mando 2).
@@ -116,7 +145,6 @@ public class GamepadInput {
         try {
             while (running) {
                 ControllerState[] states = new ControllerState[MAX_PADS];
-                ControllerState menuPad = null;   // por defecto, el primer mando conectado
                 boolean any = false;
                 for (int i = 0; i < MAX_PADS; i++) {
                     states[i] = controllers.getState(i);
@@ -125,18 +153,24 @@ public class GamepadInput {
                         snapshots[i] = snap;
                     }
                     any |= snap.connected();
-                    if (menuPad == null && states[i].isConnected) menuPad = states[i];
                 }
                 if (!any) {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                int wanted = menuPadIndex;
-                if (wanted >= 0 && wanted < MAX_PADS) {
-                    // Pantalla de un jugador concreto: solo manda su mando
-                    menuPad = states[wanted].isConnected ? states[wanted] : null;
+                // Menus: los dos mandos por igual, salvo en las pantallas de un solo jugador
+                int player = menuPlayer;
+                int owner = player < 0 ? -1 : padForPlayer(player);
+                boolean ownerConnected = owner >= 0 && states[owner].isConnected;
+                long now = System.nanoTime();
+                resetHeldOnScreenChange();
+                for (int i = 0; i < MAX_PADS; i++) {
+                    if (states[i].isConnected && padMayNavigate(i, player, ownerConnected)) {
+                        poll(states[i], i, now);
+                    } else {
+                        heldDir[i] = null;
+                    }
                 }
-                if (menuPad != null) poll(menuPad, System.nanoTime());
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
@@ -148,12 +182,17 @@ public class GamepadInput {
         }
     }
 
-    private void poll(ControllerState s, long now) {
+    /** Cambio de pantalla: olvidar la direccion sostenida de los dos mandos. */
+    private void resetHeldOnScreenChange() {
         InputProfile p = profile;
-        if (p != seenProfile) {          // cambio de pantalla: olvidar direccion sostenida
+        if (p != seenProfile) {
             seenProfile = p;
-            heldDir = null;
+            java.util.Arrays.fill(heldDir, null);
         }
+    }
+
+    private void poll(ControllerState s, int pad, long now) {
+        InputProfile p = profile;
         EnumSet<GameAction> allowed = ALLOWED.get(p);
         if (allowed.isEmpty()) return;
 
@@ -168,7 +207,7 @@ public class GamepadInput {
         boolean removeLast = nintendo ? s.yJustPressed : s.xJustPressed;
         boolean toggleView = nintendo ? s.xJustPressed : s.yJustPressed;
 
-        directions(s, now);
+        directions(s, pad, now);
         if (confirm) emit(GameAction.CONFIRM);
         if (back) emit(GameAction.BACK);
         if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
@@ -178,7 +217,7 @@ public class GamepadInput {
         if (allowed.contains(GameAction.START) && s.startJustPressed) emit(GameAction.START);
     }
 
-    private void directions(ControllerState s, long now) {
+    private void directions(ControllerState s, int pad, long now) {
         double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
         GameAction dir = null;
         if (s.dpadUp    || stickY > DEADZONE)             dir = GameAction.UP;
@@ -186,13 +225,13 @@ public class GamepadInput {
         else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
         else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
 
-        if (dir == null) { heldDir = null; return; }
-        if (dir != heldDir) {
-            heldDir = dir;
-            nextRepeat = now + REPEAT_DELAY_NS;
+        if (dir == null) { heldDir[pad] = null; return; }
+        if (dir != heldDir[pad]) {
+            heldDir[pad] = dir;
+            nextRepeat[pad] = now + REPEAT_DELAY_NS;
             emit(dir);
-        } else if (now >= nextRepeat) {
-            nextRepeat = now + REPEAT_RATE_NS;
+        } else if (now >= nextRepeat[pad]) {
+            nextRepeat[pad] = now + REPEAT_RATE_NS;
             emit(dir);
         }
     }

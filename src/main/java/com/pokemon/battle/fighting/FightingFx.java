@@ -334,6 +334,11 @@ public final class FightingFx {
                     bossPopup("¡REFLEJADO!", e.x(), e.y() - 40, new Color(0xFF8FCB), 26);
                 }
                 case FIZZLE -> fizzle(e.x(), e.y());
+                case DODGE -> {
+                    sound.play(FightingSound.Sfx.WHOOSH, 1f);
+                    ring(e.x(), e.y(), 14, 90, 0.22, new Color(0x7FE7FF), 0, 3);
+                    bossPopup("¡ESQUIVA!", e.x(), e.y() - 40, new Color(0x7FE7FF), 26);
+                }
                 default -> { }
             }
         }
