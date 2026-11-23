@@ -9,7 +9,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import java.awt.Color;
-import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.Rectangle;
@@ -27,16 +26,16 @@ import java.util.concurrent.Executors;
  * data of the selected one (animated sprite, types, base stats and moves).
  * <p>
  * It is controlled with the keyboard (main way) and with the mouse (extra way);
- * both call the same methods. The common frame (grid, bars, scaling) comes from
+ * both call the same methods. The common frame (background, bars, scaling) comes from
  * {@link RetroScreen}.
  */
 public class PokedexPanel extends RetroScreen {
 
-    private static final Rectangle LIST = new Rectangle(20, 72, 300, 508);
-    private static final Rectangle NAME_PLATE = new Rectangle(336, 72, 604, 64);
-    private static final Rectangle SPRITE_BOX = new Rectangle(336, 148, 210, 220);
-    private static final Rectangle STATS_BOX = new Rectangle(558, 148, 382, 220);
-    private static final Rectangle MOVES_BOX = new Rectangle(336, 380, 604, 200);
+    private static final Rectangle LIST = new Rectangle(20, 28, 300, 544);
+    private static final Rectangle NAME_PLATE = new Rectangle(336, 28, 604, 64);
+    private static final Rectangle SPRITE_BOX = new Rectangle(336, 122, 210, 220);
+    private static final Rectangle STATS_BOX = new Rectangle(558, 122, 382, 220);
+    private static final Rectangle MOVES_BOX = new Rectangle(336, 372, 604, 200);
 
     private static final int ROW_H = 40;
     private static final int LIST_TOP = LIST.y + 12;
@@ -196,7 +195,7 @@ public class PokedexPanel extends RetroScreen {
         });
     }
 
-    private void toggleStats() {   // <-- NUEVO
+    private void toggleStats() {
         hexStats = !hexStats;
         repaint();
     }
@@ -218,7 +217,7 @@ public class PokedexPanel extends RetroScreen {
 
     @Override
     protected void onBoardClick(int x, int y, int clickCount) {
-        if (STATS_BOX.contains(x, y)) {   // <-- NUEVO
+        if (STATS_BOX.contains(x, y)) {
             toggleStats();
             return;
         }
@@ -263,56 +262,23 @@ public class PokedexPanel extends RetroScreen {
     }
 
     private void drawList(Graphics2D g) {
-        // Marco con franja roja a la izquierda
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRoundRect(LIST.x, LIST.y, LIST.width, LIST.height, 14, 14);
-        g.setPaint(new GradientPaint(LIST.x, LIST.y, RetroStyle.RED, LIST.x + 26, LIST.y, RetroStyle.RED_DARK));
-        g.fillRoundRect(LIST.x + 3, LIST.y + 3, 30, LIST.height - 6, 10, 10);
-        g.setPaint(new GradientPaint(0, LIST.y + LIST.height * 0.7f, RetroStyle.WHITE, 0, LIST.y + LIST.height, RetroStyle.PANEL_BOTTOM));
-        g.fillRect(LIST.x + 30, LIST.y + 3, LIST.width - 33, LIST.height - 6);
-
+        RetroStyle.drawListFrame(g, LIST.x, LIST.y, LIST.width, LIST.height);
         g.setFont(RetroStyle.font(26));
         int last = Math.min(pokemon.size(), firstVisible + VISIBLE_ROWS);
         for (int i = firstVisible; i < last; i++) {
             int y = LIST_TOP + (i - firstVisible) * ROW_H;
             boolean isSelected = i == selected;
             if (isSelected) {
-                // La seleccion sobresale un poco de la fila y del marco
-                g.setColor(RetroStyle.OUTLINE);
-                g.fillRoundRect(LIST.x + 22, y - 3, LIST.width - 40, ROW_H + 6, 14, 14);
-                g.setColor(RetroStyle.RED);
-                g.fillRoundRect(LIST.x + 25, y, LIST.width - 46, ROW_H, 10, 10);
-                g.setColor(new Color(0xFDECEA));
-                g.fillRoundRect(LIST.x + 30, y + 5, LIST.width - 56, ROW_H - 10, 6, 6);
+                RetroStyle.drawSelectedRow(g, LIST.x + 22, y - 3, LIST.width - 44, ROW_H + 6);
             }
             Pokemon p = pokemon.get(i);
             Color main = isSelected ? RetroStyle.RED_DARK : RetroStyle.DARK;
-            int baseline = y + 29;
-            // Punto: relleno si esta seleccionado
-            g.setColor(RetroStyle.OUTLINE);
-            g.fillOval(LIST.x + 44, y + 12, 16, 16);
-            g.setColor(isSelected ? RetroStyle.RED : RetroStyle.WHITE);
-            g.fillOval(LIST.x + 47, y + 15, 10, 10);
-            RetroStyle.shadowText(g, String.format("%03d", p.getId()), LIST.x + 72, baseline, main, RetroStyle.SHADOW_LIGHT);
-            RetroStyle.shadowText(g, p.getName().toUpperCase(), LIST.x + 124, baseline, main, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.drawListDot(g, LIST.x + 46, y + ROW_H / 2, isSelected);
+            RetroStyle.shadowText(g, String.format("%03d", p.getId()), LIST.x + 72, y + 29, main, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, p.getName().toUpperCase(), LIST.x + 124, y + 29, main, RetroStyle.SHADOW_LIGHT);
         }
-        drawScrollBar(g);
-    }
-
-    private void drawScrollBar(Graphics2D g) {
-        int x = LIST.x + LIST.width - 16;
-        int top = LIST.y + 14;
-        int height = LIST.height - 28;
-        g.setColor(new Color(0xD9D4C2));
-        g.fillRoundRect(x, top, 8, height, 8, 8);
-        if (pokemon.size() > VISIBLE_ROWS) {
-            int thumbH = Math.max(30, height * VISIBLE_ROWS / pokemon.size());
-            int thumbY = top + (height - thumbH) * firstVisible / (pokemon.size() - VISIBLE_ROWS);
-            g.setColor(RetroStyle.BLUE_DARK);
-            g.fillRoundRect(x - 2, thumbY, 12, thumbH, 8, 8);
-            g.setColor(RetroStyle.BLUE);
-            g.fillRoundRect(x, thumbY + 2, 6, thumbH - 4, 6, 6);
-        }
+        RetroStyle.drawScrollBar(g, LIST.x + LIST.width - 16, LIST.y + 14, LIST.height - 28,
+                firstVisible, VISIBLE_ROWS, pokemon.size());
     }
 
     private void drawNamePlate(Graphics2D g, Pokemon p) {
@@ -335,7 +301,7 @@ public class PokedexPanel extends RetroScreen {
         Rectangle r = SPRITE_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
         // Cuadricula suave dentro del recuadro del sprite
-        g.setColor(new Color(0xEFEBDD));
+        g.setColor(new Color(255, 255, 255, 14));
         for (int i = 20; i < r.width - 6; i += 20) {
             g.fillRect(r.x + i, r.y + 6, 1, r.height - 12);
             g.fillRect(r.x + 6, r.y + i, r.width - 12, 1);
@@ -362,7 +328,7 @@ public class PokedexPanel extends RetroScreen {
         Rectangle r = STATS_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "ESTADISTICAS BASE", r.x + 16, r.y + 30, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "ESTADISTICAS BASE", r.x + 16, r.y + 30, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
@@ -385,7 +351,7 @@ public class PokedexPanel extends RetroScreen {
             g.setFont(RetroStyle.font(20));
             String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
             RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
-                    RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+                    RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
             return;
         }
         int rowH = 25;
@@ -396,8 +362,8 @@ public class PokedexPanel extends RetroScreen {
         g.setFont(RetroStyle.font(22));
         for (int i = 0; i < labels.length; i++) {
             int y = top + i * rowH;
-            // Filas alternadas blanco / gris claro, como una tabla
-            g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
+            // Filas alternadas, como una tabla
+            g.setColor(i % 2 == 0 ? RetroStyle.ROW_A : RetroStyle.ROW_B);
             g.fillRect(r.x + 6, y, r.width - 12, rowH);
             RetroStyle.shadowText(g, labels[i], r.x + 14, y + 19, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
             String value = String.valueOf(values[i]);
@@ -406,28 +372,29 @@ public class PokedexPanel extends RetroScreen {
             RetroStyle.drawStatBar(g, barX, y + 5, barMax, 15, values[i], MAX_STAT);
         }
         // Linea que separa los numeros de las barras
-        g.setColor(new Color(0xC9C4B5));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(lineX, top, 2, rowH * labels.length);
         drawTotalStats(g, p, r, top + rowH * labels.length, lineX);
     }
 
     /** Fila TOTAL: la suma de stats que calcula la funcion func_stats_totales_pokken de la BD. */
     private void drawTotalStats(Graphics2D g, Pokemon p, Rectangle r, int y, int lineX) {
-        g.setColor(new Color(0xFFF1C2));
+        g.setColor(new Color(255, 217, 90, 45));
         g.fillRect(r.x + 6, y, r.width - 12, 25);
-        g.setColor(new Color(0xC9C4B5));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(r.x + 6, y, r.width - 12, 2);
         g.setFont(RetroStyle.font(22));
-        RetroStyle.shadowText(g, "TOTAL", r.x + 14, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "TOTAL", r.x + 14, y + 20, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
         String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
         int tw = g.getFontMetrics().stringWidth(total);
-        RetroStyle.shadowText(g, total, lineX - 10 - tw, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, total, lineX - 10 - tw, y + 20, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
     }
+
     private void drawMoves(Graphics2D g, Pokemon p) {
         Rectangle r = MOVES_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "ATAQUES", r.x + 16, r.y + 32, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "ATAQUES", r.x + 16, r.y + 32, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         int categoryX = r.x + 330;
         int potRight = r.x + 470;
@@ -440,7 +407,7 @@ public class PokedexPanel extends RetroScreen {
         rightText(g, "POT.", potRight, headerY);
         rightText(g, "PREC.", accRight, headerY);
         rightText(g, "PP", ppRight, headerY);
-        g.setColor(new Color(0xE3DDC4));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(r.x + 14, r.y + 40, r.width - 28, 2);
 
         List<Move> moves = p.getMoves();

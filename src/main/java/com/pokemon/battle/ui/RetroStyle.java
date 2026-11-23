@@ -23,10 +23,15 @@ import javax.imageio.ImageIO;
  * helpers that give depth to panels, frames, badges and texts.
  */
 public final class RetroStyle {
-
+    public static final Color ACCENT = new Color(0xFFD95A);       // títulos de los paneles (antes BLUE_DARK)
+    public static final Color ROW_A = new Color(255, 255, 255, 22); // filas alternas de tablas
+    public static final Color ROW_B = new Color(255, 255, 255, 6);
+    public static final Color LINE = new Color(255, 255, 255, 55);  // líneas separadoras
+    public static final Color PANEL_TOP = new Color(16, 36, 28, 205);
+    public static final Color EDGE = new Color(0x7FD6A0);          // línea clara de los bordes
     public static final Color CREAM = new Color(0xF7F3E0);
     public static final Color GRID = new Color(0xE6DFC6);
-    public static final Color DARK = new Color(0x2D3A52);
+    public static final Color DARK = new Color(0xEAF2E3);          // color del texto (ahora claro)
     public static final Color OUTLINE = new Color(0x1A1F2B);
     public static final Color RED = new Color(0xD3352F);
     public static final Color RED_DARK = new Color(0x9E2420);
@@ -34,8 +39,8 @@ public final class RetroStyle {
     public static final Color BLUE = new Color(0x3D6FD1);
     public static final Color BLUE_DARK = new Color(0x24479A);
     public static final Color WHITE = Color.WHITE;
-    public static final Color PANEL_BOTTOM = new Color(0xE4E0D2);
-    public static final Color SHADOW_LIGHT = new Color(0xB9B4A2);
+    public static final Color PANEL_BOTTOM = new Color(8, 18, 15, 225);
+    public static final Color SHADOW_LIGHT = new Color(0x08130F);  // sombra del texto (ahora oscura)
     public static final int[] RADAR_MAX = {250, 150, 230, 150, 250, 150};
 
     private static final Map<Type, Color> TYPE_COLORS = new EnumMap<>(Type.class);
@@ -144,12 +149,14 @@ public final class RetroStyle {
      * gradient at the bottom, so it does not look flat.
      */
     public static void drawPanel(Graphics2D g, int x, int y, int w, int h) {
-        g.setColor(OUTLINE);
+        g.setPaint(new GradientPaint(x, y, PANEL_TOP, x, y + h, PANEL_BOTTOM));
         g.fillRoundRect(x, y, w, h, 14, 14);
-        g.setPaint(new GradientPaint(x, y + h * 0.6f, WHITE, x, y + h, PANEL_BOTTOM));
-        g.fillRoundRect(x + 3, y + 3, w - 6, h - 6, 10, 10);
-        g.setColor(new Color(255, 255, 255, 200));
-        g.fillRect(x + 8, y + 5, w - 16, 2);
+        g.setColor(OUTLINE);
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(x + 1, y + 1, w - 3, h - 3, 14, 14);
+        g.setColor(EDGE);
+        g.setStroke(new BasicStroke(1));
+        g.drawRoundRect(x + 4, y + 4, w - 9, h - 9, 10, 10);
     }
 
     /**
@@ -164,7 +171,7 @@ public final class RetroStyle {
         g.setColor(PINK);
         g.setStroke(new BasicStroke(2));
         g.drawRoundRect(x + 6, y + 6, w - 13, h - 13, 10, 10);
-        g.setPaint(new GradientPaint(x, y + h * 0.5f, WHITE, x, y + h, PANEL_BOTTOM));
+        g.setPaint(new GradientPaint(x, y, new Color(0x16352A), x, y + h, new Color(0x0C1E17)));
         g.fillRoundRect(x + 10, y + 10, w - 20, h - 20, 8, 8);
         g.setStroke(new BasicStroke(1));
     }
@@ -292,12 +299,14 @@ public final class RetroStyle {
      * Frame of a list: black outline, red strip on the left and white inside.
      */
     public static void drawListFrame(Graphics2D g, int x, int y, int w, int h) {
-        g.setColor(OUTLINE);
+        g.setPaint(new GradientPaint(x, y, PANEL_TOP, x, y + h, PANEL_BOTTOM));
         g.fillRoundRect(x, y, w, h, 14, 14);
         g.setPaint(new GradientPaint(x, y, RED, x + 26, y, RED_DARK));
         g.fillRoundRect(x + 3, y + 3, 30, h - 6, 10, 10);
-        g.setPaint(new GradientPaint(0, y + h * 0.7f, WHITE, 0, y + h, PANEL_BOTTOM));
-        g.fillRect(x + 30, y + 3, w - 33, h - 6);
+        g.setColor(OUTLINE);
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(x + 1, y + 1, w - 3, h - 3, 14, 14);
+        g.setStroke(new BasicStroke(1));
     }
 
     /**
@@ -331,8 +340,7 @@ public final class RetroStyle {
      * @param total   total rows
      */
     public static void drawScrollBar(Graphics2D g, int x, int top, int height, int first, int visible, int total) {
-        g.setColor(new Color(0xD9D4C2));
-        g.fillRoundRect(x, top, 8, height, 8, 8);
+        g.setColor(new Color(255, 255, 255, 40));        g.fillRoundRect(x, top, 8, height, 8, 8);
         if (total > visible) {
             int thumbH = Math.max(30, height * visible / total);
             int thumbY = top + (height - thumbH) * first / (total - visible);
@@ -389,10 +397,14 @@ public final class RetroStyle {
     }
 
     private static void drawButtonBox(Graphics2D g, int x, int y, int w, int h) {
-        g.setColor(OUTLINE);
+        g.setPaint(new GradientPaint(x, y, new Color(0x1E3D31), x, y + h, new Color(0x10241C)));
         g.fillRoundRect(x, y, w, h, 10, 10);
-        g.setPaint(new GradientPaint(x, y, WHITE, x, y + h, PANEL_BOTTOM));
-        g.fillRoundRect(x + 3, y + 3, w - 6, h - 6, 8, 8);
+        g.setColor(OUTLINE);
+        g.setStroke(new BasicStroke(3));
+        g.drawRoundRect(x + 1, y + 1, w - 3, h - 3, 10, 10);
+        g.setColor(EDGE);
+        g.setStroke(new BasicStroke(1));
+        g.drawRoundRect(x + 4, y + 4, w - 9, h - 9, 6, 6);
     }
 
     private static int centeredBaseline(Graphics2D g, int y, int h) {

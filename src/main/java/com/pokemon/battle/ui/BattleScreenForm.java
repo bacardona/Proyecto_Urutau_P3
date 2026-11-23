@@ -575,7 +575,7 @@ public class BattleScreenForm extends RetroScreen {
         int textY = y + h - 10;
         String status = statusText(c.getStatus());
         if (!status.isEmpty()) {
-            RetroStyle.shadowText(g, status, x + pad, textY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, status, x + pad, textY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
         }
         if (showNumbers) {
             String hp = (int) Math.ceil(shownHp) + " / " + c.getHitPoints().getMax();

@@ -39,10 +39,10 @@ public class TrainerHubScreen extends RetroScreen {
     private static final int MAX_NAME = 14;
     private static final DateTimeFormatter SHORT_DATE = DateTimeFormatter.ofPattern("dd/MM/yy");
 
-    private static final int COL_Y = 140;
+    private static final int COL_Y = 96;
     private static final int COL_W = 298;
-    private static final int COL_H = 440;
-    private static final Rectangle HEADER = new Rectangle(20, 72, 920, 56);
+    private static final int COL_H = 464;
+    private static final Rectangle HEADER = new Rectangle(20, 28, 920, 56);
     private static final Rectangle COL1 = new Rectangle(20, COL_Y, COL_W, COL_H);
     private static final Rectangle COL2 = new Rectangle(331, COL_Y, COL_W, COL_H);
     private static final Rectangle COL3 = new Rectangle(642, COL_Y, COL_W, COL_H);
@@ -55,7 +55,7 @@ public class TrainerHubScreen extends RetroScreen {
     // Columna 2: resumen
     private static final int SUMMARY_TOP = COL2.y + 136;
     private static final int SUMMARY_ROW_H = 36;
-    private static final int SUMMARY_ROWS = 7;
+    private static final int SUMMARY_ROWS = 8;
 
     // Columna 3
     private static final Rectangle NAME_BOX = new Rectangle(COL3.x + 16, COL3.y + 104, COL_W - 32, 44);
@@ -82,7 +82,7 @@ public class TrainerHubScreen extends RetroScreen {
     private String message = "";
 
     /**
-     * @param title      texto de la barra azul
+     * @param title      nombre de la pantalla (se muestra dentro del cuadro rojo de arriba)
      * @param header     texto del encabezado
      * @param onPickTeam que hacer cuando hay un entrenador y toca elegir su equipo
      *                   (recibe el entrenador y el catalogo de Pokemon)
@@ -392,11 +392,13 @@ public class TrainerHubScreen extends RetroScreen {
         drawFocusOutline(g);
     }
 
+    // El nombre de la pantalla (antes en la barra azul) ahora va dentro del cuadro rojo
     private void drawHeaderPlate(Graphics2D g) {
         RetroStyle.drawRedFrame(g, HEADER.x, HEADER.y, HEADER.width, HEADER.height);
         g.setFont(RetroStyle.font(28));
-        int w = g.getFontMetrics().stringWidth(header);
-        RetroStyle.shadowText(g, header, HEADER.x + (HEADER.width - w) / 2, HEADER.y + 37,
+        String text = RetroText.fit(g.getFontMetrics(), screenTitle() + "  -  " + header, HEADER.width - 40);
+        int w = g.getFontMetrics().stringWidth(text);
+        RetroStyle.shadowText(g, text, HEADER.x + (HEADER.width - w) / 2, HEADER.y + 37,
                 RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 
@@ -428,7 +430,7 @@ public class TrainerHubScreen extends RetroScreen {
     private void drawSummary(Graphics2D g) {
         RetroStyle.drawPanel(g, COL2.x, COL2.y, COL2.width, COL2.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "RESUMEN", COL2.x + 16, COL2.y + 34, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "RESUMEN", COL2.x + 16, COL2.y + 34, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         Player p = current();
         if (p == null) {
@@ -453,7 +455,7 @@ public class TrainerHubScreen extends RetroScreen {
         drawChip(g, "D " + p.getBattlesLost(), next + 8, COL2.y + 86,
                 new Color(0xE0603A), new Color(0xA8361A));
 
-        g.setColor(new Color(0xE3DDC4));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(COL2.x + 12, COL2.y + 126, COL2.width - 24, 2);
 
         List<CombatHistoryEntry> entries = historyCache.get(String.valueOf(p.getId()));
@@ -474,7 +476,7 @@ public class TrainerHubScreen extends RetroScreen {
         for (int i = 0; i < rows; i++) {
             CombatHistoryEntry entry = entries.get(i);
             int y = SUMMARY_TOP + i * SUMMARY_ROW_H;
-            g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
+            g.setColor(i % 2 == 0 ? RetroStyle.ROW_A : RetroStyle.ROW_B);
             g.fillRect(COL2.x + 10, y, COL2.width - 20, SUMMARY_ROW_H - 2);
 
             boolean win = CombatResult.WIN.getDbValue().equalsIgnoreCase(entry.getResult());
@@ -532,7 +534,7 @@ public class TrainerHubScreen extends RetroScreen {
         RetroStyle.drawPanel(g, COL3.x, COL3.y, COL3.width, COL3.height);
         g.setFont(RetroStyle.font(26));
         RetroStyle.shadowText(g, "NUEVO ENTRENADOR", COL3.x + 16, COL3.y + 34,
-                RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+                RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
         g.setFont(RetroStyle.font(22));
         RetroStyle.shadowText(g, "ESCRIBE EL NOMBRE:", COL3.x + 16, COL3.y + 90,
                 RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
@@ -542,7 +544,7 @@ public class TrainerHubScreen extends RetroScreen {
         g.fillRoundRect(b.x, b.y, b.width, b.height, 10, 10);
         g.setColor(RetroStyle.BLUE);
         g.fillRoundRect(b.x + 2, b.y + 2, b.width - 4, b.height - 4, 8, 8);
-        g.setColor(RetroStyle.WHITE);
+        g.setColor(new Color(0x0B1A14));
         g.fillRoundRect(b.x + 5, b.y + 5, b.width - 10, b.height - 10, 6, 6);
 
         g.setFont(RetroStyle.font(28));
@@ -575,7 +577,7 @@ public class TrainerHubScreen extends RetroScreen {
         Player p = current();
         RetroStyle.drawPanel(g, COL3.x, COL3.y, COL3.width, COL3.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "EQUIPO", COL3.x + 16, COL3.y + 34, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "EQUIPO", COL3.x + 16, COL3.y + 34, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         g.setFont(RetroStyle.font(30));
         String name = RetroText.fit(g.getFontMetrics(), p == null ? "" : p.getName().toUpperCase(), COL_W - 32);
@@ -603,7 +605,7 @@ public class TrainerHubScreen extends RetroScreen {
         g.setFont(RetroStyle.font(20));
         List<String> lines = RetroText.wrap(g.getFontMetrics(), message, maxWidth);
         for (int i = 0; i < lines.size() && i < maxLines; i++) {
-            RetroStyle.shadowText(g, lines.get(i), x, y + i * 22, RetroStyle.RED_DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, lines.get(i), x, y + i * 22, RetroStyle.PINK, RetroStyle.SHADOW_LIGHT);
         }
     }
 

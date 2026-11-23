@@ -91,7 +91,15 @@ public class StageSelectScreen extends RetroScreen {
     @Override
     protected void paintContent(Graphics2D g) {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g.setFont(RetroStyle.font(30));
+
+        // Nombre de la pantalla dentro del cuadro rojo, como en las demas pantallas
+        RetroStyle.drawRedFrame(g, 20, 28, 920, 56);
+        g.setFont(RetroStyle.font(28));
+        String title = screenTitle();
+        int tw = g.getFontMetrics().stringWidth(title);
+        RetroStyle.shadowText(g, title, (BOARD_W - tw) / 2, 65, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+
+        g.setFont(RetroStyle.font(26));
         String hint = "TAMBIEN PUEDES HACER DOBLE CLIC EN UN MAPA";
         int hw = g.getFontMetrics().stringWidth(hint);
         RetroStyle.shadowText(g, hint, (BOARD_W - hw) / 2, 130, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
@@ -103,11 +111,11 @@ public class StageSelectScreen extends RetroScreen {
             // marco
             g.setColor(RetroStyle.OUTLINE);
             g.fillRoundRect(r.x - 6, r.y - 6 - lift, r.width + 12, r.height + 12, 14, 14);
-            g.setColor(isSelected ? RetroStyle.RED : new Color(0xD9D4C2));
+            g.setColor(isSelected ? RetroStyle.RED : new Color(0x4E6B5C));
             g.fillRoundRect(r.x - 3, r.y - 3 - lift, r.width + 6, r.height + 6, 10, 10);
             g.drawImage(preview(STAGES[i]), r.x, r.y - lift, r.width, r.height, null);
             if (!isSelected) {
-                g.setColor(new Color(247, 243, 224, 90));
+                g.setColor(new Color(0, 0, 0, 110));
                 g.fillRect(r.x, r.y, r.width, r.height);
             }
             // nombre debajo
@@ -115,7 +123,7 @@ public class StageSelectScreen extends RetroScreen {
             String name = STAGES[i].title();
             int nw = g.getFontMetrics().stringWidth(name);
             RetroStyle.shadowText(g, name, r.x + (r.width - nw) / 2, r.y + r.height + 44,
-                    isSelected ? RetroStyle.RED_DARK : RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
+                    isSelected ? RetroStyle.ACCENT : RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         }
 
         // Descripcion del mapa marcado

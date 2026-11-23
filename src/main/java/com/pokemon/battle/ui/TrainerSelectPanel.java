@@ -23,8 +23,8 @@ import java.util.function.Consumer;
  */
 public class TrainerSelectPanel extends RetroScreen {
 
-    private static final Rectangle HINT_BOX = new Rectangle(180, 72, 600, 56);
-    private static final Rectangle LIST = new Rectangle(180, 140, 600, 440);
+    private static final Rectangle HINT_BOX = new Rectangle(180, 28, 600, 56);
+    private static final Rectangle LIST = new Rectangle(180, 96, 600, 464);
     private static final int ROW_H = 44;
     private static final int LIST_TOP = LIST.y + 12;
     private static final int VISIBLE_ROWS = (LIST.height - 24) / ROW_H;

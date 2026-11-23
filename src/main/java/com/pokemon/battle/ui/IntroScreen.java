@@ -14,6 +14,7 @@ public class IntroScreen extends JPanel {
     private final String[] members;
     private final Runnable onFinish;
     private final Timer timer;
+    private final AnimatedBackground background = new AnimatedBackground("/backgrounds/loading.gif");
     private int tick = 0;
     private boolean finished = false;
 
@@ -49,15 +50,16 @@ public class IntroScreen extends JPanel {
         requestFocusInWindow();
     }
 
-    public void skip() {
-        finish();
-    }
-
     private void finish() {
         if (finished) return;
         finished = true;
         timer.stop();
+        background.stop();
         onFinish.run();
+    }
+
+    public void skip() {
+        finish();
     }
 
     @Override
@@ -68,6 +70,10 @@ public class IntroScreen extends JPanel {
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         int w = getWidth();
         int h = getHeight();
+
+        background.draw(g2, 0, 0, w, h, this);
+        g2.setColor(new Color(13, 20, 36, 140));
+        g2.fillRect(0, 0, w, h);
 
         // Título: aparece en los primeros 30 ticks
         float alpha = Math.min(1f, tick / 30f);
@@ -94,7 +100,7 @@ public class IntroScreen extends JPanel {
         g2.fillRect(barX + 3, barY + 3, (int) ((barW - 6) * (tick / (float) TOTAL_TICKS)), 12);
 
         g2.setFont(PixelFont.get(11));
-        drawCentered(g2, "PRESIONA ENTER O CUALQUIER BOTON PARA OMITIR", w, barY + 48);
+        drawCentered(g2, "PRESIONA ENTER PARA SALTAR", w, barY + 48);
         g2.dispose();
     }
 

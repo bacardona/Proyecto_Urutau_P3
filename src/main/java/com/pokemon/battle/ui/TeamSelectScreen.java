@@ -25,12 +25,12 @@ import java.util.function.Consumer;
  */
 public class TeamSelectScreen extends RetroScreen {
 
-    private static final Rectangle LIST = new Rectangle(20, 72, 300, 366);
-    private static final Rectangle TEAM_BOX = new Rectangle(20, 450, 300, 134);
-    private static final Rectangle NAME_PLATE = new Rectangle(336, 72, 604, 64);
-    private static final Rectangle SPRITE_BOX = new Rectangle(336, 148, 210, 220);
-    private static final Rectangle STATS_BOX = new Rectangle(558, 148, 382, 220);
-    private static final Rectangle MOVES_BOX = new Rectangle(336, 380, 604, 200);
+    private static final Rectangle LIST = new Rectangle(20, 28, 300, 386);
+    private static final Rectangle TEAM_BOX = new Rectangle(20, 426, 300, 134);
+    private static final Rectangle NAME_PLATE = new Rectangle(336, 28, 604, 64);
+    private static final Rectangle SPRITE_BOX = new Rectangle(336, 116, 210, 220);
+    private static final Rectangle STATS_BOX = new Rectangle(558, 116, 382, 220);
+    private static final Rectangle MOVES_BOX = new Rectangle(336, 360, 604, 200);
     // Botones de la barra gris (tambien se pueden pulsar con el mouse)
     private static final Rectangle ADD_BUTTON = new Rectangle(374, 598, 190, 36);
     private static final Rectangle REMOVE_BUTTON = new Rectangle(574, 598, 190, 36);
@@ -105,9 +105,9 @@ public class TeamSelectScreen extends RetroScreen {
             @Override
             public void componentShown(ComponentEvent e) {
                 animationTimer.start();
-                setFocusable(true);                                         // <-- NUEVO
+                setFocusable(true);
                 javax.swing.SwingUtilities.invokeLater(
-                        TeamSelectScreen.this::requestFocusInWindow);       // <-- NUEVO
+                        TeamSelectScreen.this::requestFocusInWindow);
             }
 
             @Override
@@ -214,12 +214,10 @@ public class TeamSelectScreen extends RetroScreen {
         }
     }
 
-    private void toggleStats() {   // <-- NUEVO
+    private void toggleStats() {
         hexStats = !hexStats;
         repaint();
     }
-
-
 
     private void requestAdd() {
         if (catalog.isEmpty()) {
@@ -277,7 +275,7 @@ public class TeamSelectScreen extends RetroScreen {
 
     @Override
     protected void goBack() {
-        if (dialog != Dialog.NONE) {   // <-- NUEVO
+        if (dialog != Dialog.NONE) {
             dialog = Dialog.NONE;
             repaint();
             return;
@@ -347,7 +345,7 @@ public class TeamSelectScreen extends RetroScreen {
         RetroStyle.drawKeyButton(g, "LISTO", DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height);
         if (chosen.size() < teamSize) {
             // LISTO se ve apagado hasta que haya 3 Pokemon
-            g.setColor(new Color(214, 214, 214, 170));
+            g.setColor(new Color(0, 0, 0, 140));
             g.fillRoundRect(DONE_BUTTON.x, DONE_BUTTON.y, DONE_BUTTON.width, DONE_BUTTON.height, 10, 10);
         }
     }
@@ -369,7 +367,6 @@ public class TeamSelectScreen extends RetroScreen {
             drawDialog(g, current);
         }
     }
-
 
     private void drawDialog(Graphics2D g, Pokemon current) {
         // Oscurece lo de atras
@@ -447,12 +444,12 @@ public class TeamSelectScreen extends RetroScreen {
         String title = RetroText.fit(g.getFontMetrics(),
                 hasMessage ? message : "EQUIPO: " + trainerName, TEAM_BOX.width - 32);
         RetroStyle.shadowText(g, title, TEAM_BOX.x + 16, TEAM_BOX.y + 30,
-                hasMessage ? RetroStyle.RED_DARK : RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+                hasMessage ? RetroStyle.PINK : RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         g.setFont(RetroStyle.font(22));
         for (int i = 0; i < teamSize; i++) {
             int y = SLOTS_TOP + i * SLOT_H;
-            g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
+            g.setColor(i % 2 == 0 ? RetroStyle.ROW_A : RetroStyle.ROW_B);
             g.fillRect(TEAM_BOX.x + 10, y, TEAM_BOX.width - 20, SLOT_H);
             String name = i < chosen.size() ? chosen.get(i).getName().toUpperCase() : "---";
             RetroStyle.shadowText(g, (i + 1) + ". " + name, TEAM_BOX.x + 18, y + 21,
@@ -481,7 +478,7 @@ public class TeamSelectScreen extends RetroScreen {
     private void drawSprite(Graphics2D g, Pokemon p) {
         Rectangle r = SPRITE_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
-        g.setColor(new Color(0xEFEBDD));
+        g.setColor(new Color(255, 255, 255, 14));
         for (int i = 20; i < r.width - 6; i += 20) {
             g.fillRect(r.x + i, r.y + 6, 1, r.height - 12);
             g.fillRect(r.x + 6, r.y + i, r.width - 12, 1);
@@ -510,7 +507,7 @@ public class TeamSelectScreen extends RetroScreen {
         Rectangle r = STATS_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "ESTADISTICAS BASE", r.x + 16, r.y + 30, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "ESTADISTICAS BASE", r.x + 16, r.y + 30, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         String[] labels = {"PS", "ATAQUE", "DEFENSA", "AT. ESP.", "DEF. ESP.", "VELOCIDAD"};
         int[] values = {p.getHp(), p.getAttack(), p.getDefense(), p.getSpecialAttack(), p.getSpecialDefense(), p.getSpeed()};
@@ -534,7 +531,7 @@ public class TeamSelectScreen extends RetroScreen {
             g.setFont(RetroStyle.font(20));
             String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
             RetroStyle.shadowText(g, "TOTAL " + total, r.x + 14, r.y + r.height - 12,
-                    RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+                    RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
             return;
         }
         int rowH = 25;
@@ -545,7 +542,7 @@ public class TeamSelectScreen extends RetroScreen {
         g.setFont(RetroStyle.font(22));
         for (int i = 0; i < labels.length; i++) {
             int y = top + i * rowH;
-            g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
+            g.setColor(i % 2 == 0 ? RetroStyle.ROW_A : RetroStyle.ROW_B);
             g.fillRect(r.x + 6, y, r.width - 12, rowH);
             RetroStyle.shadowText(g, labels[i], r.x + 14, y + 19, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
             String value = String.valueOf(values[i]);
@@ -553,28 +550,29 @@ public class TeamSelectScreen extends RetroScreen {
             RetroStyle.shadowText(g, value, lineX - 10 - vw, y + 19, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
             RetroStyle.drawStatBar(g, barX, y + 5, barMax, 15, values[i], MAX_STAT);
         }
-        g.setColor(new Color(0xC9C4B5));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(lineX, top, 2, rowH * labels.length);
         drawTotalStats(g, p, r, top + rowH * labels.length, lineX);
     }
 
     /** Fila TOTAL: la suma de stats que calcula la funcion func_stats_totales_pokken de la BD. */
     private void drawTotalStats(Graphics2D g, Pokemon p, Rectangle r, int y, int lineX) {
-        g.setColor(new Color(0xFFF1C2));
+        g.setColor(new Color(255, 217, 90, 45));
         g.fillRect(r.x + 6, y, r.width - 12, 25);
-        g.setColor(new Color(0xC9C4B5));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(r.x + 6, y, r.width - 12, 2);
         g.setFont(RetroStyle.font(22));
-        RetroStyle.shadowText(g, "TOTAL", r.x + 14, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "TOTAL", r.x + 14, y + 20, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
         String total = p.getTotalStats() >= 0 ? String.valueOf(p.getTotalStats()) : "--";
         int tw = g.getFontMetrics().stringWidth(total);
-        RetroStyle.shadowText(g, total, lineX - 10 - tw, y + 20, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, total, lineX - 10 - tw, y + 20, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
     }
+
     private void drawMoves(Graphics2D g, Pokemon p) {
         Rectangle r = MOVES_BOX;
         RetroStyle.drawPanel(g, r.x, r.y, r.width, r.height);
         g.setFont(RetroStyle.font(26));
-        RetroStyle.shadowText(g, "ATAQUES", r.x + 16, r.y + 32, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "ATAQUES", r.x + 16, r.y + 32, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
 
         int categoryX = r.x + 330;
         int potRight = r.x + 470;
@@ -587,7 +585,7 @@ public class TeamSelectScreen extends RetroScreen {
         rightText(g, "POT.", potRight, headerY);
         rightText(g, "PREC.", accRight, headerY);
         rightText(g, "PP", ppRight, headerY);
-        g.setColor(new Color(0xE3DDC4));
+        g.setColor(RetroStyle.LINE);
         g.fillRect(r.x + 14, r.y + 40, r.width - 28, 2);
 
         List<Move> moves = p.getMoves();
