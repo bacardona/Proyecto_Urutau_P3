@@ -43,7 +43,7 @@ public class FightingCombatSystem {
     // ===== Picada: golpe cuerpo a cuerpo en el aire =====
     private static final double AIR_DIVE_SPEED_X = 430;
     private static final double AIR_DIVE_SPEED_Y = 820;
-    private static final double AIR_DIVE_BOUNCE = 430;
+    private static final double AIR_DIVE_BOUNCE = 280;
     private static final double AIR_DIVE_LEAN = 0.85;
     private static final double AIR_DIVE_MAX_SECONDS = 0.9;
     /** Paso corto hacia adelante de Placaje y los golpes cercanos (no llega a ser un Ataque Rapido). */
