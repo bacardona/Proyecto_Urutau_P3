@@ -410,12 +410,6 @@ public final class RetroStyle {
         return new Polygon(xs, ys, 6);
     }
 
-    private static Color blend(Color a, Color b) {
-        return new Color((a.getRed() + b.getRed()) / 2,
-                (a.getGreen() + b.getGreen()) / 2,
-                (a.getBlue() + b.getBlue()) / 2);
-    }
-
     /**
      * Grafico de radar de 6 estadisticas, en el sentido del reloj desde arriba.
      * Los valores se normalizan a maxValue.
@@ -443,21 +437,30 @@ public final class RetroStyle {
         int[] xs = new int[6];
         int[] ys = new int[6];
         for (int i = 0; i < 6; i++) {
-            double k = Math.min(values[i], maxValues[i]) / (double) maxValues[i];            double a = Math.toRadians(-90 + 60 * i);
+            double k = Math.min(values[i], maxValues[i]) / (double) maxValues[i];
+            double a = Math.toRadians(-90 + 60 * i);
             xs[i] = (int) Math.round(cx + Math.cos(a) * radius * k);
             ys[i] = (int) Math.round(cy + Math.sin(a) * radius * k);
         }
-        // Relleno: degradado entre los colores de los dos tipos (o uno solo)
-        Color fillA = new Color(colorA.getRed(), colorA.getGreen(), colorA.getBlue(), 170);
-        Color fillB = new Color(colorB.getRed(), colorB.getGreen(), colorB.getBlue(), 170);
-        g.setPaint(new GradientPaint(cx - radius, cy - radius, fillA, cx + radius, cy + radius, fillB));
-        g.fillPolygon(xs, ys, 6);
 
-        // Borde y puntos: color intermedio, mas oscuro
-        Color edge = blend(colorA, colorB).darker();
-        g.setColor(edge);
-        g.setStroke(new BasicStroke(3));
-        g.drawPolygon(xs, ys, 6);
+        // Cada mitad con el color de un tipo
+        java.awt.Shape oldClip = g.getClip();
+        Color[] halves = {colorA, colorB};
+        for (int half = 0; half < 2; half++) {
+            Color c = halves[half];
+            g.setClip(oldClip);
+            if (half == 0) {
+                g.clipRect(cx - radius * 2, cy - radius * 2, radius * 2, radius * 4);
+            } else {
+                g.clipRect(cx, cy - radius * 2, radius * 2, radius * 4);
+            }
+            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 190));
+            g.fillPolygon(xs, ys, 6);
+            g.setColor(c.darker());
+            g.setStroke(new BasicStroke(3));
+            g.drawPolygon(xs, ys, 6);
+        }
+        g.setClip(oldClip);
         g.setStroke(new BasicStroke(1));
         for (int i = 0; i < 6; i++) {
             g.setColor(OUTLINE);
@@ -465,6 +468,7 @@ public final class RetroStyle {
             g.setColor(WHITE);
             g.fillOval(xs[i] - 2, ys[i] - 2, 4, 4);
         }
+
         // Etiquetas con el valor
         g.setFont(font(18));
         for (int i = 0; i < 6; i++) {
