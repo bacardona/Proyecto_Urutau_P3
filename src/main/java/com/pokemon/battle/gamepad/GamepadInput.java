@@ -9,20 +9,20 @@ import java.util.EnumSet;
 import java.util.function.Consumer;
 
 /**
- * Lee el mando en un hilo propio (SDL se inicia y se usa SIEMPRE desde ese hilo)
+ * Lee los mandos en un hilo propio (SDL se inicia y se usa SIEMPRE desde ese hilo)
  * y entrega las acciones al hilo de Swing con invokeLater.
  */
 public class GamepadInput {
 
     // ---- Ajustes en un solo lugar
     private static final double DEADZONE = 0.6;
-    private static final boolean INVERT_STICK_Y = true;  // tu palanca daba arriba/abajo al reves
-    private static final boolean SWAP_AB = false;        // ponlo en true si A y B salen cruzados
+    private static final boolean INVERT_STICK_Y = true;  // palanca arriba/abajo al reves
+    private static final boolean SWAP_AB = false;        // true = forzar el cambio en TODOS los mandos
     private static final long REPEAT_DELAY_NS = 350_000_000L;
     private static final long REPEAT_RATE_NS  = 120_000_000L;
     private static final long POLL_CONNECTED_MS = 16;    // ~60 Hz con mando
     private static final long POLL_IDLE_MS = 250;        // sin mando, casi no gasta nada
-    // Combate libre: zona muerta mas chica para caminar, y gatillos (LT/RT) desde la mitad
+    // Combate libre: zona muerta mas chica para caminar, y gatillos desde la mitad
     private static final double FIGHT_DEADZONE = 0.45;
     private static final double TRIGGER_PRESSED = 0.5;
     /** Mandos que se leen: uno por jugador. */
@@ -36,8 +36,8 @@ public class GamepadInput {
                 GameAction.LEFT, GameAction.RIGHT, GameAction.CONFIRM, GameAction.BACK);
         EnumSet<GameAction> lista = EnumSet.copyOf(menu);
         lista.add(GameAction.PAGE_PREV);
-        lista.add(GameAction.TOGGLE_VIEW);
         lista.add(GameAction.PAGE_NEXT);
+        lista.add(GameAction.TOGGLE_VIEW);
         EnumSet<GameAction> equipo = EnumSet.copyOf(lista);
         equipo.add(GameAction.REMOVE_LAST);
         equipo.add(GameAction.START);
@@ -46,12 +46,13 @@ public class GamepadInput {
         ALLOWED.put(InputProfile.MENU, menu);
         ALLOWED.put(InputProfile.LISTA, lista);
         ALLOWED.put(InputProfile.EQUIPO, equipo);
-        ALLOWED.put(InputProfile.LIBRE, EnumSet.noneOf(GameAction.class)); // la pantalla lee raw()
+        ALLOWED.put(InputProfile.LIBRE, EnumSet.noneOf(GameAction.class)); // la pantalla lee snapshot()
     }
 
     // ---- Compartido entre hilos
     private volatile InputProfile profile = InputProfile.CUALQUIER_BOTON;
     private volatile Consumer<GameAction> listener = a -> {};
+    private volatile int menuPadIndex = -1;   // -1 = el primer mando conectado
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
 
@@ -88,7 +89,9 @@ public class GamepadInput {
 
     public void setListener(Consumer<GameAction> l) { this.listener = l; }
 
-    /** Para el modo LIBRE: ultimo estado crudo del mando (puede ser null). */
+    /** Que mando maneja los menus (0 o 1); -1 = el primero conectado. */
+    public void setMenuPad(int index) { this.menuPadIndex = index; }
+
     /**
      * Combate libre: foto del mando de un jugador (0 = mando 1, 1 = mando 2).
      * Nunca devuelve null; si no hay mando, todo sale suelto.
@@ -112,9 +115,8 @@ public class GamepadInput {
         }
         try {
             while (running) {
-                // Fotos de los dos mandos para el combate libre (se leen aqui, en el hilo de SDL)
                 ControllerState[] states = new ControllerState[MAX_PADS];
-                ControllerState menuPad = null;   // el primer mando conectado maneja los menus
+                ControllerState menuPad = null;   // por defecto, el primer mando conectado
                 boolean any = false;
                 for (int i = 0; i < MAX_PADS; i++) {
                     states[i] = controllers.getState(i);
@@ -129,7 +131,12 @@ public class GamepadInput {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                if (menuPad != null) poll(menuPad, System.nanoTime());   // menus
+                int wanted = menuPadIndex;
+                if (wanted >= 0 && wanted < MAX_PADS) {
+                    // Pantalla de un jugador concreto: solo manda su mando
+                    menuPad = states[wanted].isConnected ? states[wanted] : null;
+                }
+                if (menuPad != null) poll(menuPad, System.nanoTime());
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
@@ -155,23 +162,27 @@ public class GamepadInput {
             return;
         }
 
+        boolean nintendo = SWAP_AB || isNintendo(s);
+        boolean confirm = nintendo ? s.bJustPressed : s.aJustPressed;
+        boolean back = nintendo ? s.aJustPressed : s.bJustPressed;
+        boolean removeLast = nintendo ? s.yJustPressed : s.xJustPressed;
+        boolean toggleView = nintendo ? s.xJustPressed : s.yJustPressed;
 
         directions(s, now);
-        if (SWAP_AB ? s.bJustPressed : s.aJustPressed) emit(GameAction.CONFIRM);
-        if (SWAP_AB ? s.aJustPressed : s.bJustPressed) emit(GameAction.BACK);
+        if (confirm) emit(GameAction.CONFIRM);
+        if (back) emit(GameAction.BACK);
         if (allowed.contains(GameAction.PAGE_PREV) && s.lbJustPressed) emit(GameAction.PAGE_PREV);
         if (allowed.contains(GameAction.PAGE_NEXT) && s.rbJustPressed) emit(GameAction.PAGE_NEXT);
-        if (allowed.contains(GameAction.REMOVE_LAST) && s.xJustPressed) emit(GameAction.REMOVE_LAST);
-        if (allowed.contains(GameAction.TOGGLE_VIEW) && s.yJustPressed) emit(GameAction.TOGGLE_VIEW);
+        if (allowed.contains(GameAction.REMOVE_LAST) && removeLast) emit(GameAction.REMOVE_LAST);
+        if (allowed.contains(GameAction.TOGGLE_VIEW) && toggleView) emit(GameAction.TOGGLE_VIEW);
         if (allowed.contains(GameAction.START) && s.startJustPressed) emit(GameAction.START);
-
     }
 
     private void directions(ControllerState s, long now) {
         double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
         GameAction dir = null;
-        if (s.dpadUp    || stickY > DEADZONE)          dir = GameAction.UP;
-        else if (s.dpadDown  || stickY < -DEADZONE)    dir = GameAction.DOWN;
+        if (s.dpadUp    || stickY > DEADZONE)             dir = GameAction.UP;
+        else if (s.dpadDown  || stickY < -DEADZONE)       dir = GameAction.DOWN;
         else if (s.dpadLeft  || s.leftStickX < -DEADZONE) dir = GameAction.LEFT;
         else if (s.dpadRight || s.leftStickX >  DEADZONE) dir = GameAction.RIGHT;
 
@@ -189,14 +200,25 @@ public class GamepadInput {
     private static PadSnapshot toSnapshot(ControllerState s) {
         if (s == null || !s.isConnected) return PadSnapshot.NONE;
         double stickY = INVERT_STICK_Y ? -s.leftStickY : s.leftStickY;
+        boolean nintendo = SWAP_AB || isNintendo(s);
+        boolean a = nintendo ? s.b : s.a;
+        boolean b = nintendo ? s.a : s.b;
+        boolean x = nintendo ? s.y : s.x;
+        boolean y = nintendo ? s.x : s.y;
         return new PadSnapshot(true,
                 s.dpadLeft || s.leftStickX < -FIGHT_DEADZONE,
                 s.dpadRight || s.leftStickX > FIGHT_DEADZONE,
                 s.dpadUp || stickY > FIGHT_DEADZONE,
                 s.dpadDown || stickY < -FIGHT_DEADZONE,
-                SWAP_AB ? s.b : s.a, SWAP_AB ? s.a : s.b, s.x, s.y,
+                a, b, x, y,
                 s.lb, s.rb, s.leftTrigger > TRIGGER_PRESSED, s.rightTrigger > TRIGGER_PRESSED,
                 s.start, s.back);
+    }
+
+    /** True si el mando es de Nintendo (Pro Controller / Switch). */
+    private static boolean isNintendo(ControllerState s) {
+        String type = String.valueOf(s.controllerType).toUpperCase();
+        return type.contains("SWITCH") || type.contains("NINTENDO");
     }
 
     private boolean anyButton(ControllerState s) {

@@ -228,6 +228,8 @@ public class PvpBattleFlow {
     private void setPerspective(BattleSide side) {
         BattleSide other = side == side1 ? side2 : side1;
         form.setCombatants(active(side), active(other));
+        // El mando de ese jugador es el que maneja los menus (lado 1 = mando 1, lado 2 = mando 2)
+        window.getGamepad().setMenuPad(side == side1 ? 0 : 1);   // <-- NUEVO
     }
 
     private void addFainted(List<String> messages, BattleSide side) {
@@ -286,4 +288,4 @@ public class PvpBattleFlow {
                     index -> onExit.run(), onExit);
         }
     }
-}
+}

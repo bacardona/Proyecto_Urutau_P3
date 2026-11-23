@@ -36,6 +36,7 @@ public final class RetroStyle {
     public static final Color WHITE = Color.WHITE;
     public static final Color PANEL_BOTTOM = new Color(0xE4E0D2);
     public static final Color SHADOW_LIGHT = new Color(0xB9B4A2);
+    public static final int[] RADAR_MAX = {250, 150, 230, 150, 250, 150};
 
     private static final Map<Type, Color> TYPE_COLORS = new EnumMap<>(Type.class);
     private static final Map<Type, String> TYPE_NAMES = new EnumMap<>(Type.class);
@@ -43,24 +44,24 @@ public final class RetroStyle {
     private static Font baseFont;
 
     static {
-        registerType(Type.NORMAL, 0xA8A878, "NORMAL");
-        registerType(Type.FIRE, 0xF08030, "FUEGO");
-        registerType(Type.WATER, 0x6890F0, "AGUA");
-        registerType(Type.ELECTRIC, 0xE8B820, "ELECTRICO");
-        registerType(Type.GRASS, 0x78C850, "PLANTA");
-        registerType(Type.ICE, 0x78C8C8, "HIELO");
-        registerType(Type.FIGHTING, 0xC03028, "LUCHA");
-        registerType(Type.POISON, 0xA040A0, "VENENO");
-        registerType(Type.GROUND, 0xD0A850, "TIERRA");
-        registerType(Type.FLYING, 0xA890F0, "VOLADOR");
-        registerType(Type.PSYCHIC, 0xF85888, "PSIQUICO");
-        registerType(Type.BUG, 0xA8B820, "BICHO");
-        registerType(Type.ROCK, 0xB8A038, "ROCA");
-        registerType(Type.GHOST, 0x705898, "FANTASMA");
-        registerType(Type.DRAGON, 0x7038F8, "DRAGON");
-        registerType(Type.DARK, 0x705848, "SINIESTRO");
-        registerType(Type.STEEL, 0x9898B8, "ACERO");
-        registerType(Type.FAIRY, 0xE890A8, "HADA");
+        registerType(Type.NORMAL, 0x899597, "NORMAL");
+        registerType(Type.FIRE, 0xF99944, "FUEGO");
+        registerType(Type.WATER, 0x4AADD9, "AGUA");
+        registerType(Type.ELECTRIC, 0xE7C531, "ELECTRICO");
+        registerType(Type.GRASS, 0x46C06C, "PLANTA");
+        registerType(Type.ICE, 0x6BC5C9, "HIELO");
+        registerType(Type.FIGHTING, 0xE86C8A, "LUCHA");
+        registerType(Type.POISON, 0xB55FDB, "VENENO");
+        registerType(Type.GROUND, 0xD5864A, "TIERRA");
+        registerType(Type.FLYING, 0x6185CF, "VOLADOR");
+        registerType(Type.PSYCHIC, 0xFFA847E, "PSIQUICO");
+        registerType(Type.BUG, 0xA4CA40, "BICHO");
+        registerType(Type.ROCK, 0xBBAA72, "ROCA");
+        registerType(Type.GHOST, 0x6C72CD, "FANTASMA");
+        registerType(Type.DRAGON, 0x5F90B9, "DRAGON");
+        registerType(Type.DARK, 0x6C7895, "SINIESTRO");
+        registerType(Type.STEEL, 0x689FAC, "ACERO");
+        registerType(Type.FAIRY, 0xFC8ADB, "HADA");
         registerType(Type.NONE, 0x9AA0AA, "---");
     }
 
@@ -414,7 +415,8 @@ public final class RetroStyle {
      * Los valores se normalizan a maxValue.
      */
     public static void drawStatRadar(Graphics2D g, int cx, int cy, int radius,
-                                     String[] labels, int[] values, int maxValue) {
+                                     String[] labels, int[] values, int[] maxValues,
+                                     Color colorA, Color colorB) {
         // Anillos de fondo (1/3, 2/3 y el borde)
         for (int ring = 3; ring >= 1; ring--) {
             Polygon p = hexagon(cx, cy, radius * ring / 3.0);
@@ -435,16 +437,30 @@ public final class RetroStyle {
         int[] xs = new int[6];
         int[] ys = new int[6];
         for (int i = 0; i < 6; i++) {
-            double k = Math.min(values[i], maxValue) / (double) maxValue;
+            double k = Math.min(values[i], maxValues[i]) / (double) maxValues[i];
             double a = Math.toRadians(-90 + 60 * i);
             xs[i] = (int) Math.round(cx + Math.cos(a) * radius * k);
             ys[i] = (int) Math.round(cy + Math.sin(a) * radius * k);
         }
-        g.setColor(new Color(BLUE.getRed(), BLUE.getGreen(), BLUE.getBlue(), 150));
-        g.fillPolygon(xs, ys, 6);
-        g.setColor(BLUE_DARK);
-        g.setStroke(new BasicStroke(3));
-        g.drawPolygon(xs, ys, 6);
+
+        // Cada mitad con el color de un tipo
+        java.awt.Shape oldClip = g.getClip();
+        Color[] halves = {colorA, colorB};
+        for (int half = 0; half < 2; half++) {
+            Color c = halves[half];
+            g.setClip(oldClip);
+            if (half == 0) {
+                g.clipRect(cx - radius * 2, cy - radius * 2, radius * 2, radius * 4);
+            } else {
+                g.clipRect(cx, cy - radius * 2, radius * 2, radius * 4);
+            }
+            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 190));
+            g.fillPolygon(xs, ys, 6);
+            g.setColor(c.darker());
+            g.setStroke(new BasicStroke(3));
+            g.drawPolygon(xs, ys, 6);
+        }
+        g.setClip(oldClip);
         g.setStroke(new BasicStroke(1));
         for (int i = 0; i < 6; i++) {
             g.setColor(OUTLINE);
@@ -452,6 +468,7 @@ public final class RetroStyle {
             g.setColor(WHITE);
             g.fillOval(xs[i] - 2, ys[i] - 2, 4, 4);
         }
+
         // Etiquetas con el valor
         g.setFont(font(18));
         for (int i = 0; i < 6; i++) {
