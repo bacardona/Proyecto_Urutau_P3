@@ -44,24 +44,24 @@ public final class RetroStyle {
     private static Font baseFont;
 
     static {
-        registerType(Type.NORMAL, 0xA8A878, "NORMAL");
-        registerType(Type.FIRE, 0xF08030, "FUEGO");
-        registerType(Type.WATER, 0x6890F0, "AGUA");
-        registerType(Type.ELECTRIC, 0xE8B820, "ELECTRICO");
-        registerType(Type.GRASS, 0x78C850, "PLANTA");
-        registerType(Type.ICE, 0x78C8C8, "HIELO");
-        registerType(Type.FIGHTING, 0xC03028, "LUCHA");
-        registerType(Type.POISON, 0xA040A0, "VENENO");
-        registerType(Type.GROUND, 0xD0A850, "TIERRA");
-        registerType(Type.FLYING, 0xA890F0, "VOLADOR");
-        registerType(Type.PSYCHIC, 0xF85888, "PSIQUICO");
-        registerType(Type.BUG, 0xA8B820, "BICHO");
-        registerType(Type.ROCK, 0xB8A038, "ROCA");
-        registerType(Type.GHOST, 0x705898, "FANTASMA");
-        registerType(Type.DRAGON, 0x7038F8, "DRAGON");
-        registerType(Type.DARK, 0x705848, "SINIESTRO");
-        registerType(Type.STEEL, 0x9898B8, "ACERO");
-        registerType(Type.FAIRY, 0xE890A8, "HADA");
+        registerType(Type.NORMAL, 0x899597, "NORMAL");
+        registerType(Type.FIRE, 0xF99944, "FUEGO");
+        registerType(Type.WATER, 0x4AADD9, "AGUA");
+        registerType(Type.ELECTRIC, 0x5F90B9, "ELECTRICO");
+        registerType(Type.GRASS, 0x46C06C, "PLANTA");
+        registerType(Type.ICE, 0x6BC5C9, "HIELO");
+        registerType(Type.FIGHTING, 0xE86C8A, "LUCHA");
+        registerType(Type.POISON, 0xB55FDB, "VENENO");
+        registerType(Type.GROUND, 0xD5864A, "TIERRA");
+        registerType(Type.FLYING, 0x6185CF, "VOLADOR");
+        registerType(Type.PSYCHIC, 0xFFA847E, "PSIQUICO");
+        registerType(Type.BUG, 0xA4CA40, "BICHO");
+        registerType(Type.ROCK, 0xBBAA72, "ROCA");
+        registerType(Type.GHOST, 0x6C72CD, "FANTASMA");
+        registerType(Type.DRAGON, 0x5F90B9, "DRAGON");
+        registerType(Type.DARK, 0x6C7895, "SINIESTRO");
+        registerType(Type.STEEL, 0x689FAC, "ACERO");
+        registerType(Type.FAIRY, 0xFC8ADB, "HADA");
         registerType(Type.NONE, 0x9AA0AA, "---");
     }
 
