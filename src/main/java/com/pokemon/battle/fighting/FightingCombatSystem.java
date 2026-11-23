@@ -43,7 +43,14 @@ public class FightingCombatSystem {
     // ===== Picada: golpe cuerpo a cuerpo en el aire =====
     private static final double AIR_DIVE_SPEED_X = 430;
     private static final double AIR_DIVE_SPEED_Y = 820;
-    private static final double AIR_DIVE_BOUNCE = 430;
+    /**
+     * La picada no arranca de golpe: frena la subida y va acelerando hacia abajo hasta
+     * AIR_DIVE_SPEED_Y (antes saltaba de subir a bajar rapidisimo en un solo cuadro).
+     */
+    private static final double AIR_DIVE_ACCEL = 3200;
+    /** Tiempo en que el avance hacia adelante llega a su velocidad completa. */
+    private static final double AIR_DIVE_RAMP_SECONDS = 0.12;
+    private static final double AIR_DIVE_BOUNCE = 280;
     private static final double AIR_DIVE_LEAN = 0.85;
     private static final double AIR_DIVE_MAX_SECONDS = 0.9;
     /** Paso corto hacia adelante de Placaje y los golpes cercanos (no llega a ser un Ataque Rapido). */
@@ -608,15 +615,20 @@ public class FightingCombatSystem {
             return;
         }
         attacker.setDiving(true);
+        double ramp = Math.min(1.0, state.activeElapsed / AIR_DIVE_RAMP_SECONDS);
         attacker.setX(Math.max(half, Math.min(arenaWidth - half,
-                attacker.getX() + dir * AIR_DIVE_SPEED_X * deltaSeconds)));
-        attacker.setVelocityY(Math.max(attacker.getVelocityY(), AIR_DIVE_SPEED_Y));
+                attacker.getX() + dir * AIR_DIVE_SPEED_X * ramp * deltaSeconds)));
+        double vy = attacker.getVelocityY();
+        if (vy < AIR_DIVE_SPEED_Y) {
+            attacker.setVelocityY(Math.min(AIR_DIVE_SPEED_Y, vy + AIR_DIVE_ACCEL * deltaSeconds));
+        }
         state.remaining = Math.max(state.remaining, 0.05);   // sigue activo mientras cae
     }
 
     /** Si la picada pega, rebota hacia arriba y puede seguir atacando. */
     private void bounceAfterDive(AttackState state, Fighter attacker) {
         attacker.setDiving(false);
+        attacker.setBouncingAfterDive(true);
         state.aerial = false;
         attacker.setVelocityY(-AIR_DIVE_BOUNCE);
         attacker.setOnGround(false);

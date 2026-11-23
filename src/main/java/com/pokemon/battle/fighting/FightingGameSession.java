@@ -57,6 +57,7 @@ public class FightingGameSession {
         this.groundY = 677;
         this.stage = stage == null ? FightingStage.BOSQUE : stage;
         this.platforms = platformsFor(this.stage, groundY, width);
+        if (this.stage == FightingStage.BOSQUE) physicsSystem.setJumpVelocity(PhysicsSystem.FOREST_JUMP_VELOCITY);
         List<Pokemon> firstTeam = usePrototypeTeams ? List.of() : teamOne;
         List<Pokemon> secondTeam = usePrototypeTeams ? List.of() : teamTwo;
         this.playerOneTeam = usePrototypeTeams
@@ -105,6 +106,7 @@ public class FightingGameSession {
         this.groundY = 677;
         this.stage = stage == null ? FightingStage.TEMPLO : stage;
         this.platforms = platformsFor(this.stage, groundY, width);
+        if (this.stage == FightingStage.BOSQUE) physicsSystem.setJumpVelocity(PhysicsSystem.FOREST_JUMP_VELOCITY);
         this.playerOneTeam = one;
         this.playerTwoTeam = two;
         this.fighters = new ArrayList<>(List.of(one.getActive(), two.getActive()));

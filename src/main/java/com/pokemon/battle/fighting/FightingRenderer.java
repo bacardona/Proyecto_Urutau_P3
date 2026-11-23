@@ -923,7 +923,8 @@ public class FightingRenderer {
         // so the sheet's jump and the game's jump do not add together.
         boolean physicalJump = !fighter.isOnGround() && ultimate == null && !fighter.isDefeated()
                 && !fighter.isShowingDamage() && !fighter.isHitStunned() && !fighter.isUltimateStunned()
-                && (visual == null || "FLY".equals(visual.definition().moveId()));
+                && (visual == null || "FLY".equals(visual.definition().moveId())
+                    || fighter.isBouncingAfterDive());   // el rebote usa la animacion de salto
         boolean squirtleBodyAnchor = "SQUIRTLE".equals(profile.species) && !fighter.isDefeated()
                 && !fighter.isHitStunned() && !fighter.isUltimateStunned() && !fighter.isShowingDamage()
                 && (visual == null || !"TACKLE".equals(visual.definition().moveId()));
@@ -1009,6 +1010,11 @@ public class FightingRenderer {
                 case INTERRUPTED -> { return sprites.get("Hurt").frameAtTime(fighter.getDamageAnimationSeconds(), left, false); }
                 default -> { }
             }
+        }
+        if (visual != null && fighter.isBouncingAfterDive()) {
+            // Rebote tras la picada: animacion de salto, no la de ataque (que trae su propio
+            // movimiento y hacia ver un tiron a mitad del rebote)
+            visual = null;
         }
         if (visual != null) {
             String move = visual.definition().moveId();
