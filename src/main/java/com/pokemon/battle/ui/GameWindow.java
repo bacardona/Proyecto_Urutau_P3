@@ -51,7 +51,8 @@ public class GameWindow extends JFrame {
             Map.entry("freeTeam2", InputProfile.EQUIPO),
             Map.entry("freeStage", InputProfile.MENU),
             Map.entry("fighting", InputProfile.LIBRE));
-
+    private static final java.util.Set<String> PLAYER_TWO_SCREENS =
+            java.util.Set.of("pvpHub2", "pvpTeam2", "freeHub2", "freeTeam2");
     public GameWindow() {
         setTitle("Pokken Battle");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -99,6 +100,7 @@ public class GameWindow extends JFrame {
         cards.show(container, name);
         currentScreen = name;
         gamepad.setProfile(PROFILES.getOrDefault(name, InputProfile.MENU));
+        gamepad.setMenuPad(PLAYER_TWO_SCREENS.contains(name) ? 1 : -1);   // <-- NUEVO
     }
 
     private void onGamepadAction(GameAction action) {

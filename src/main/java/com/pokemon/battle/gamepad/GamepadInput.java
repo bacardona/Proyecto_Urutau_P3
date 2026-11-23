@@ -54,6 +54,7 @@ public class GamepadInput {
     private volatile Consumer<GameAction> listener = a -> {};
     private final PadSnapshot[] snapshots = {PadSnapshot.NONE, PadSnapshot.NONE};
     private volatile boolean running;
+    private volatile int menuPadIndex = -1;
 
     // ---- Solo los toca el hilo del mando
     private Thread thread;
@@ -61,6 +62,7 @@ public class GamepadInput {
     private InputProfile seenProfile;
     private GameAction heldDir;
     private long nextRepeat;
+    public void setMenuPad(int index) { this.menuPadIndex = index; }
 
     /** Arranca el hilo del mando. Vuelve al instante: no bloquea la ventana. */
     public void start() {
@@ -124,12 +126,19 @@ public class GamepadInput {
                     }
                     any |= snap.connected();
                     if (menuPad == null && states[i].isConnected) menuPad = states[i];
-                }
+                }                                                            // <-- aquí cierra el for
                 if (!any) {
                     Thread.sleep(POLL_IDLE_MS);
                     continue;
                 }
-                if (menuPad != null) poll(menuPad, System.nanoTime());   // menus
+                // <-- NUEVO desde aquí
+                int wanted = menuPadIndex;
+                if (wanted >= 0 && wanted < MAX_PADS) {
+                    // Pantalla de un jugador concreto: solo manda su mando
+                    menuPad = states[wanted].isConnected ? states[wanted] : null;
+                }
+                if (menuPad != null) poll(menuPad, System.nanoTime());
+                // <-- NUEVO hasta aquí
                 Thread.sleep(POLL_CONNECTED_MS);
             }
         } catch (InterruptedException ignored) {
