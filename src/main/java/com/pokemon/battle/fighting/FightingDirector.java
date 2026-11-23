@@ -188,6 +188,9 @@ final class FightingDirector {
     /** Short evolution cinematic: rays, white silhouette that changes shape, flash and the new name. */
     private final java.util.ArrayDeque<Fighter> pendingEvolutions = new java.util.ArrayDeque<>();
 
+    /** Si quien evoluciona usa colores alternos (jugador 2 repetido): su especie; si no, null. */
+    private String evolutionAltId;
+
     void startEvolution(Fighter fighter) {
         if (evolutionTime >= 0) {
             // Si los dos evolucionan a la vez, se muestra uno y luego el otro
@@ -201,6 +204,7 @@ final class FightingDirector {
         evolutionTo = to;
         evolutionFromName = fighter.getBasePokemonId();
         evolutionToName = fighter.getName().toUpperCase();
+        evolutionAltId = fighter.usesAltColors() ? fighter.getPokemonId() : null;
         evolutionTime = 0;
         sound.play(FightingSound.Sfx.ULTI_CHARGE, 0.7f);
     }
@@ -621,7 +625,7 @@ final class FightingDirector {
                 g.fillRect(sx - 12, sy - 3, 24, 6);
             }
         } else {
-            drawProfile(g, evolutionTo, cx, cy, 300, false);
+            drawProfile(g, evolutionTo, cx, cy, 300, false, evolutionAltId);
             outlined(g, "¡" + evolutionFromName + " EVOLUCIONÓ", cx, 120, 56, new Color(0xFFE45A), OUTLINE, 4);
             outlined(g, "A " + evolutionToName + "!", cx, 180, 56, new Color(0xFFE45A), OUTLINE, 4);
             double f = u - EVOLUTION_FLASH_AT;
@@ -637,12 +641,18 @@ final class FightingDirector {
     }
 
     private void drawProfile(Graphics2D g, FightingSpriteProfile profile, int cx, int cy, int height, boolean white) {
+        drawProfile(g, profile, cx, cy, height, white, null);
+    }
+
+    private void drawProfile(Graphics2D g, FightingSpriteProfile profile, int cx, int cy, int height, boolean white,
+                             String altId) {
         if (profile == null) return;
         var animation = profile.sprites().get(white ? "Idle" : "Pose");
         if (animation == null) animation = profile.sprites().get("Idle");
         if (animation == null) return;
         BufferedImage image = animation.frameAtTime(white ? 0 : time, false, true).image();
         if (white) image = silhouettes.computeIfAbsent(image, FightingDirector::whiteOf);
+        else if (altId != null) image = AltPalette.recolor(altId, image);
         int[] box = opaqueBounds(image);
         if (box == null) return;
         int bw = box[2] - box[0];
@@ -1045,6 +1055,7 @@ final class FightingDirector {
         if (animation == null) animation = sprites.get("Idle");
         if (animation == null) return;
         BufferedImage image = animation.frameAtTime(time, facingLeft, true).image();
+        if (fighter.usesAltColors()) image = AltPalette.recolor(fighter.getPokemonId(), image);
         int[] box = opaqueBounds(image);
         if (box == null) return;
         int bw = box[2] - box[0];

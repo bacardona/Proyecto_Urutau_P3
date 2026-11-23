@@ -132,6 +132,7 @@ final class FightingHud {
         // Retrato con marco pixelado
         frame(g, portraitX, portraitY, 26 * P, 26 * P, TEAM_COLOR[side]);
         BufferedImage img = icon(f.getPokemonId(), !left, frameIndex, repaint);
+        if (f.usesAltColors()) img = AltPalette.recolor(f.getPokemonId(), img);
         if (img != null) {
             int h = 21 * P;
             int w = Math.min(22 * P, Math.round(h * img.getWidth() / (float) img.getHeight()));
@@ -226,6 +227,7 @@ final class FightingHud {
             boolean active = i == team.getActiveIndex() && !member.isDefeated();
             frame(g, x, y, iconSize, iconSize, active ? TEAM_COLOR[side] : new Color(90, 96, 120, 150));
             BufferedImage mini = icon(member.getPokemonId(), !left, frameIndex, repaint);
+            if (member.usesAltColors()) mini = AltPalette.recolor(member.getPokemonId(), mini);
             if (mini != null) {
                 int h = iconSize - 4 * P;
                 int w = Math.min(iconSize - 4 * P, Math.round(h * mini.getWidth() / (float) mini.getHeight()));
