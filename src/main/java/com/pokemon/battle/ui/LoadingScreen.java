@@ -4,6 +4,8 @@ import javax.swing.Timer;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.Shape;
+import java.awt.Color;
+import java.awt.RadialGradientPaint;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.List;
@@ -63,6 +65,15 @@ public class LoadingScreen extends RetroScreen {
             onCancel.run();
         }
     }
+
+    @Override
+    protected void paintBackdrop(Graphics2D g, int w, int h) {
+        g.setPaint(new RadialGradientPaint(w / 2f, h / 2f, Math.max(w, h) * 0.7f,
+                new float[]{0f, 1f},
+                new Color[]{new Color(0x2C4A3B), new Color(0x0B1712)}));
+        g.fillRect(0, 0, w, h);
+    }
+
 
     @Override
     protected void paintFooterButtons(Graphics2D g) {
