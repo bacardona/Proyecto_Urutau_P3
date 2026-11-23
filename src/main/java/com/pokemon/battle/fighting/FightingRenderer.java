@@ -954,6 +954,16 @@ public class FightingRenderer {
             double lean = 0.7 * (fighter.isFacingLeft() ? -1 : 1);
             g.rotate(lean, centerX, fighter.getY() - fighter.getRenderHeight() * 0.5);
         }
+        if (fighter.isDodging()) {
+            // Estela de la esquiva: dos copias transparentes detras
+            java.awt.Composite keep = g.getComposite();
+            for (int k = 2; k >= 1; k--) {
+                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f * (3 - k)));
+                int behind = -fighter.getDodgeDirection() * 34 * k;
+                g.drawImage(image, x + behind, y, image.getWidth() * scale, image.getHeight() * scale, null);
+            }
+            g.setComposite(keep);
+        }
         g.drawImage(image, x, y, image.getWidth() * scale, image.getHeight() * scale, null);
         float flash = fx.whiteFlash(fighter);
         if (flash > 0) {

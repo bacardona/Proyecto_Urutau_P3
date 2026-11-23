@@ -177,6 +177,40 @@ public class Fighter {
     }
 
     public boolean hasBarrier() { return barrierSeconds > 0; }
+    // ===== Esquiva rapida (escudo + direccion) =====
+    /** Dura 0,20 s y recorre unos 140 px; atraviesa al rival. */
+    static final double DODGE_SECONDS = 0.20;
+    /** Solo al inicio cuenta como esquiva: si el golpe llega ahi, falla. Despues pega normal. */
+    static final double DODGE_PERFECT_SECONDS = 0.15;
+    static final double DODGE_SPEED = 720;
+    static final double DODGE_COOLDOWN_SECONDS = 0.80;
+    private double dodgeLeft;
+    private double dodgeElapsed;
+    private double dodgeCooldownLeft;
+    private int dodgeDirection;
+
+    public boolean isDodging() { return dodgeLeft > 0; }
+    /** Esquiva a tiempo: el golpe que llegue ahora no le hace nada. No hay invulnerabilidad despues. */
+    boolean isPerfectDodge() { return dodgeLeft > 0 && dodgeElapsed < DODGE_PERFECT_SECONDS; }
+    int getDodgeDirection() { return dodgeDirection; }
+    boolean canDodge() {
+        return dodgeLeft <= 0 && dodgeCooldownLeft <= 0 && onGround && !defeated
+                && !isAsleep() && !isHitStunned();
+    }
+    void startDodge(int direction) {
+        dodgeDirection = direction;
+        dodgeLeft = DODGE_SECONDS;
+        dodgeElapsed = 0;
+        dodgeCooldownLeft = DODGE_COOLDOWN_SECONDS;
+    }
+    void advanceDodge(double deltaSeconds) {
+        dodgeCooldownLeft = Math.max(0, dodgeCooldownLeft - deltaSeconds);
+        if (dodgeLeft > 0) {
+            dodgeLeft -= deltaSeconds;
+            dodgeElapsed += deltaSeconds;
+        }
+    }
+
     /** Cae en picada (golpe cuerpo a cuerpo empezado en el aire). */
     private boolean diving;
     public boolean isDiving() { return diving; }
