@@ -542,7 +542,7 @@ public class TrainerHubScreen extends RetroScreen {
         Rectangle b = NAME_BOX;
         g.setColor(RetroStyle.OUTLINE);
         g.fillRoundRect(b.x, b.y, b.width, b.height, 10, 10);
-        g.setColor(RetroStyle.BLUE);
+        g.setColor(RetroStyle.GOLD);
         g.fillRoundRect(b.x + 2, b.y + 2, b.width - 4, b.height - 4, 8, 8);
         g.setColor(new Color(0x0B1A14));
         g.fillRoundRect(b.x + 5, b.y + 5, b.width - 10, b.height - 10, 6, 6);
@@ -552,7 +552,7 @@ public class TrainerHubScreen extends RetroScreen {
         RetroStyle.shadowText(g, text, b.x + 12, b.y + 32, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
         if (cursorOn && !busy) {
             int cx = b.x + 12 + g.getFontMetrics().stringWidth(text) + 3;
-            g.setColor(RetroStyle.RED);
+            g.setColor(RetroStyle.GOLD);
             g.fillRect(cx, b.y + 10, 3, 26);
         }
 
@@ -612,7 +612,7 @@ public class TrainerHubScreen extends RetroScreen {
     // Marco azul alrededor de la columna donde esta el cursor
     private void drawFocusOutline(Graphics2D g) {
         Rectangle r = nameMode() ? COL3 : COL1;
-        g.setColor(RetroStyle.BLUE);
+        g.setColor(RetroStyle.GOLD);
         g.setStroke(new BasicStroke(4));
         g.drawRoundRect(r.x - 3, r.y - 3, r.width + 6, r.height + 6, 18, 18);
         g.setStroke(new BasicStroke(1));
