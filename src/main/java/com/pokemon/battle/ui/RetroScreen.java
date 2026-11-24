@@ -5,7 +5,6 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import java.awt.Color;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -19,8 +18,8 @@ import java.util.Map;
 
 /**
  * Base of every retro screen of the game (Pokedex, trainer selection, combat
- * history). It draws what all of them share: the notebook grid, the blue title
- * bar, the gray key bar and the "ESC VOLVER" button. Each screen is designed on
+ * history). It draws what all of them share: the animated GIF background, the
+ * dark key bar and the "ESC VOLVER" button. Each screen is designed on
  * a fixed 960x640 board that is scaled to the window, so it also works in full
  * screen. Subclasses only paint their own content and react to their keys.
  */
@@ -28,14 +27,18 @@ public abstract class RetroScreen extends JPanel {
 
     protected static final int BOARD_W = 960;
     protected static final int BOARD_H = 640;
-    protected static final int CONTENT_TOP = 72;
+    protected static final int CONTENT_TOP = 20;
     protected static final int FOOTER_Y = 590;
     protected static final Rectangle BACK_BUTTON = new Rectangle(24, 598, 170, 36);
+    private static final AnimatedBackground BACKGROUND = new AnimatedBackground("/backgrounds/loading.gif"); // usa la misma ruta que LoadingScreen
+    private static final Color OVERLAY = new Color(0, 0, 0, 60); // capa oscura suave para que el texto se lea
 
     private final String title;
     private final Map<String, Runnable> keyActions = new HashMap<>();
+
     /**
-     * @param title text of the blue bar, for example "POKEDEX"
+     * @param title name of the screen, for example "POKEDEX". It is no longer drawn
+     *              in a bar; screens can show it with {@link #screenTitle()}.
      */
     protected RetroScreen(String title) {
         this.title = title;
@@ -44,11 +47,18 @@ public abstract class RetroScreen extends JPanel {
         installMouse();
     }
 
+    /**
+     * @return the name of the screen, so subclasses can draw it where they want
+     */
+    protected final String screenTitle() {
+        return title;
+    }
+
     // ------------------------------------------------------------------ lo que cada pantalla define
 
     /**
-     * Paints the content of the screen on the 960x640 board, between the title
-     * bar and the key bar.
+     * Paints the content of the screen on the 960x640 board, between the top
+     * and the key bar.
      */
     protected abstract void paintContent(Graphics2D g);
 
@@ -86,7 +96,7 @@ public abstract class RetroScreen extends JPanel {
      * @param action what to do
      */
     protected final void bindKey(String key, Runnable action) {
-        keyActions.put(key, action);   // <-- línea nueva
+        keyActions.put(key, action);
         String id = getClass().getSimpleName() + "-" + key;
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key), id);
         getActionMap().put(id, new AbstractAction() {
@@ -116,6 +126,22 @@ public abstract class RetroScreen extends JPanel {
         RetroStyle.shadowText(g, text, (BOARD_W - w) / 2, 314, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 
+    // ------------------------------------------------------------------ fondo
+
+    /** Fondo de la pantalla. Por defecto es el GIF nitido; una pantalla puede cambiarlo. */
+    protected void paintBackdrop(Graphics2D g, int w, int h) {
+        BACKGROUND.draw(g, 0, 0, w, h, this);
+        g.setColor(OVERLAY);
+        g.fillRect(0, 0, w, h);
+    }
+
+    /** Fondo con el mismo GIF pero borroso (carga y combate). */
+    protected final void paintBlurredBackdrop(Graphics2D g, int w, int h) {
+        BACKGROUND.drawBlurred(g, 0, 0, w, h, this);
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillRect(0, 0, w, h);
+    }
+
     // ------------------------------------------------------------------ dibujo comun
 
     @Override
@@ -128,46 +154,27 @@ public abstract class RetroScreen extends JPanel {
         double scale = scale();
         double offsetX = (getWidth() - BOARD_W * scale) / 2;
         double offsetY = (getHeight() - BOARD_H * scale) / 2;
-        RetroStyle.drawGrid(g, getWidth(), getHeight(), (int) Math.max(8, 28 * scale));
-        drawFullWidthBars(g, scale, offsetY);
+
+        paintBackdrop(g, getWidth(), getHeight());
+        drawFooterBar(g, scale, offsetY);
+
         g.translate(offsetX, offsetY);
         g.scale(scale, scale);
-
-        drawHeader(g);
         drawFooter(g);
         paintContent(g);
         g.dispose();
     }
 
-    // En pantallas mas anchas que el tablero, las barras de arriba y abajo llegan a los bordes
-    private void drawFullWidthBars(Graphics2D g, double scale, double offsetY) {
-        int headerBottom = (int) Math.round(offsetY + 56 * scale);
-        g.setPaint(new GradientPaint(0, (float) offsetY, RetroStyle.BLUE, 0, headerBottom, RetroStyle.BLUE_DARK));
-        g.fillRect(0, 0, getWidth(), headerBottom);
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRect(0, headerBottom, getWidth(), (int) Math.ceil(4 * scale));
+    // La barra de abajo llega de lado a lado de la ventana, aunque sea mas ancha que el tablero
+    private void drawFooterBar(Graphics2D g, double scale, double offsetY) {
         int footerTop = (int) Math.round(offsetY + FOOTER_Y * scale);
-        g.fillRect(0, footerTop, getWidth(), (int) Math.ceil(4 * scale));
-        g.setPaint(new GradientPaint(0, footerTop, new Color(0xD6D6D6), 0, getHeight(), new Color(0xAFAFAF)));
-        g.fillRect(0, footerTop + (int) Math.ceil(4 * scale), getWidth(), getHeight());
-    }
-
-    private void drawHeader(Graphics2D g) {
-        g.setPaint(new GradientPaint(0, 0, RetroStyle.BLUE, 0, 56, RetroStyle.BLUE_DARK));
-        g.fillRect(0, 0, BOARD_W, 56);
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRect(0, 56, BOARD_W, 4);
-        g.setColor(new Color(255, 255, 255, 90));
-        g.fillRect(0, 3, BOARD_W, 2);
-        g.setFont(RetroStyle.font(40));
-        RetroStyle.shadowText(g, title, 24, 42, RetroStyle.WHITE, RetroStyle.OUTLINE);
+        g.setColor(new Color(6, 14, 11, 215));
+        g.fillRect(0, footerTop, getWidth(), getHeight() - footerTop);
+        g.setColor(RetroStyle.EDGE);
+        g.fillRect(0, footerTop, getWidth(), (int) Math.ceil(3 * scale));
     }
 
     private void drawFooter(Graphics2D g) {
-        g.setColor(RetroStyle.OUTLINE);
-        g.fillRect(0, FOOTER_Y, BOARD_W, 4);
-        g.setPaint(new GradientPaint(0, FOOTER_Y + 4, new Color(0xD6D6D6), 0, BOARD_H, new Color(0xAFAFAF)));
-        g.fillRect(0, FOOTER_Y + 4, BOARD_W, BOARD_H - FOOTER_Y - 4);
         g.setFont(RetroStyle.font(24));
         paintFooterButtons(g);
     }

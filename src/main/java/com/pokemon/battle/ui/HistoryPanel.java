@@ -21,8 +21,8 @@ import java.util.concurrent.ExecutionException;
  */
 public class HistoryPanel extends RetroScreen {
 
-    private static final Rectangle NAME_PLATE = new Rectangle(20, 72, 920, 64);
-    private static final Rectangle TABLE = new Rectangle(20, 148, 920, 432);
+    private static final Rectangle NAME_PLATE = new Rectangle(20, 28, 920, 64);
+    private static final Rectangle TABLE = new Rectangle(20, 104, 920, 468);
     private static final int ROW_H = 40;
     private static final int TABLE_TOP = TABLE.y + 54;
     private static final int VISIBLE_ROWS = (TABLE.y + TABLE.height - 12 - TABLE_TOP) / ROW_H;
@@ -171,7 +171,7 @@ public class HistoryPanel extends RetroScreen {
         int nameW = g.getFontMetrics().stringWidth(name);
         g.setFont(RetroStyle.font(24));
         RetroStyle.shadowText(g, "WINRATE: " + formatWinRate(player.getWinRate()), r.x + 24 + nameW + 24, r.y + 41,
-                new Color(0x2E9E4A), RetroStyle.SHADOW_LIGHT);
+                new Color(0x6BE08A), RetroStyle.SHADOW_LIGHT);
 
         int won = player.getBattlesWon();
         int lost = player.getBattlesLost();
@@ -215,11 +215,11 @@ public class HistoryPanel extends RetroScreen {
 
         g.setFont(RetroStyle.font(24));
         int headerY = r.y + 36;
-        RetroStyle.shadowText(g, "N.", COL_NUMBER, headerY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
-        RetroStyle.shadowText(g, "FECHA", COL_DATE, headerY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
-        RetroStyle.shadowText(g, "RIVAL", COL_RIVAL, headerY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
-        RetroStyle.shadowText(g, "RESULTADO", COL_RESULT, headerY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
-        g.setColor(new Color(0xE3DDC4));
+        RetroStyle.shadowText(g, "N.", COL_NUMBER, headerY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "FECHA", COL_DATE, headerY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "RIVAL", COL_RIVAL, headerY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, "RESULTADO", COL_RESULT, headerY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
+        g.setColor(RetroStyle.LINE);
         g.fillRect(r.x + 14, r.y + 46, r.width - 28, 2);
 
         if (entries.isEmpty()) {
@@ -239,7 +239,7 @@ public class HistoryPanel extends RetroScreen {
             if (isSelected) {
                 RetroStyle.drawSelectedRow(g, r.x + 8, y, r.width - 34, ROW_H);
             } else {
-                g.setColor(i % 2 == 0 ? RetroStyle.WHITE : new Color(0xEEEBE2));
+                g.setColor(i % 2 == 0 ? RetroStyle.ROW_A : RetroStyle.ROW_B);
                 g.fillRect(r.x + 10, y + 2, r.width - 38, ROW_H - 4);
             }
             Color main = isSelected ? RetroStyle.RED_DARK : RetroStyle.DARK;

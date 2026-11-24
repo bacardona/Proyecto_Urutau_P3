@@ -64,6 +64,12 @@ public class LoadingScreen extends RetroScreen {
         }
     }
 
+    // El mismo GIF de las demas pantallas, pero borroso
+    @Override
+    protected void paintBackdrop(Graphics2D g, int w, int h) {
+        paintBlurredBackdrop(g, w, h);
+    }
+
     @Override
     protected void paintFooterButtons(Graphics2D g) {
         if (onCancel != null) {
@@ -130,7 +136,7 @@ public class LoadingScreen extends RetroScreen {
         g.setFont(RetroStyle.font(40));
         String title = "ERROR";
         int w = g.getFontMetrics().stringWidth(title);
-        RetroStyle.shadowText(g, title, (BOARD_W - w) / 2, 210, RetroStyle.RED_DARK, RetroStyle.SHADOW_LIGHT);
+        RetroStyle.shadowText(g, title, (BOARD_W - w) / 2, 210, RetroStyle.PINK, RetroStyle.SHADOW_LIGHT);
 
         g.setFont(RetroStyle.font(26));
         List<String> lines = RetroText.wrap(g.getFontMetrics(), errorText, 540);

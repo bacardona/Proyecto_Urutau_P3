@@ -43,6 +43,7 @@ public class BattleScreenForm extends RetroScreen {
     private static final int RIVAL_FEET_Y = 304;
     private static final int PLAYER_X = 250;
     private static final int PLAYER_FEET_Y = 434;
+    private static final Color DIM = new Color(0x6F8A7B);   // texto apagado (opción deshabilitada o vacía)
     // Cuanto se bajan los sprites desde el centro de la plataforma para que se vean
     // parados encima de ella y no en el borde de atras (parecian flotar)
     private static final int RIVAL_FEET_DROP = 16;
@@ -249,6 +250,11 @@ public class BattleScreenForm extends RetroScreen {
         if (inputEnabled && onBack != null) {
             onBack.run();
         }
+    }
+
+    @Override
+    protected void paintBackdrop(Graphics2D g, int w, int h) {
+        paintBlurredBackdrop(g, w, h);
     }
 
     @Override
@@ -562,7 +568,7 @@ public class BattleScreenForm extends RetroScreen {
         int barH = 14;
         g.setColor(RetroStyle.OUTLINE);
         g.fillRoundRect(barX - 2, barY - 2, barW + 4, barH + 4, barH, barH);
-        g.setColor(RetroStyle.DARK);
+        g.setColor(new Color(0x0B1A14));
         g.fillRoundRect(barX, barY, barW, barH, barH - 4, barH - 4);
         double ratio = shownHp / Math.max(1, c.getHitPoints().getMax());
         ratio = Math.max(0, Math.min(1, ratio));
@@ -575,7 +581,7 @@ public class BattleScreenForm extends RetroScreen {
         int textY = y + h - 10;
         String status = statusText(c.getStatus());
         if (!status.isEmpty()) {
-            RetroStyle.shadowText(g, status, x + pad, textY, RetroStyle.BLUE_DARK, RetroStyle.SHADOW_LIGHT);
+            RetroStyle.shadowText(g, status, x + pad, textY, RetroStyle.ACCENT, RetroStyle.SHADOW_LIGHT);
         }
         if (showNumbers) {
             String hp = (int) Math.ceil(shownHp) + " / " + c.getHitPoints().getMax();
@@ -669,7 +675,7 @@ public class BattleScreenForm extends RetroScreen {
             Rectangle cell = optionCell(i);
             if (i >= count) {
                 if (movesMode) {
-                    drawFitted(g, "-", cell, RetroStyle.SHADOW_LIGHT);
+                    drawFitted(g, "-", cell, DIM);
                 }
                 continue;
             }
@@ -678,7 +684,9 @@ public class BattleScreenForm extends RetroScreen {
                 RetroStyle.drawSelectedRow(g, cell.x, cell.y, cell.width, cell.height);
             }
             RetroStyle.drawListDot(g, cell.x + 16, cell.y + cell.height / 2, isSelected);
-            drawFitted(g, optionText(i), cell, inputEnabled ? RetroStyle.DARK : RetroStyle.SHADOW_LIGHT);
+            Color textColor = !inputEnabled ? DIM
+                    : (isSelected ? RetroStyle.RED_DARK : RetroStyle.DARK);
+            drawFitted(g, optionText(i), cell, textColor);
         }
     }
 
@@ -716,7 +724,7 @@ public class BattleScreenForm extends RetroScreen {
         int top = cell.y + (cell.height - lineHeight * lines.size()) / 2;
         for (int i = 0; i < lines.size(); i++) {
             RetroStyle.shadowText(g, lines.get(i), x, top + i * lineHeight + fm.getAscent(),
-                    color, RetroStyle.WHITE);
+                    color, RetroStyle.SHADOW_LIGHT);
         }
     }
 
