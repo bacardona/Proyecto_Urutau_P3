@@ -254,7 +254,7 @@ public class BattleScreenForm extends RetroScreen {
 
     @Override
     protected void paintBackdrop(Graphics2D g, int w, int h) {
-        RetroStyle.drawSoftBackdrop(g, w, h);
+        paintBlurredBackdrop(g, w, h);
     }
 
     @Override

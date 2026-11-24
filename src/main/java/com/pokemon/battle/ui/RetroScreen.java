@@ -16,7 +16,6 @@ import java.awt.event.MouseWheelEvent;
 import java.util.HashMap;
 import java.util.Map;
 
-
 /**
  * Base of every retro screen of the game (Pokedex, trainer selection, combat
  * history). It draws what all of them share: the animated GIF background, the
@@ -127,13 +126,23 @@ public abstract class RetroScreen extends JPanel {
         RetroStyle.shadowText(g, text, (BOARD_W - w) / 2, 314, RetroStyle.DARK, RetroStyle.SHADOW_LIGHT);
     }
 
-    // ------------------------------------------------------------------ dibujo comun
+    // ------------------------------------------------------------------ fondo
 
+    /** Fondo de la pantalla. Por defecto es el GIF nitido; una pantalla puede cambiarlo. */
     protected void paintBackdrop(Graphics2D g, int w, int h) {
         BACKGROUND.draw(g, 0, 0, w, h, this);
         g.setColor(OVERLAY);
         g.fillRect(0, 0, w, h);
     }
+
+    /** Fondo con el mismo GIF pero borroso (carga y combate). */
+    protected final void paintBlurredBackdrop(Graphics2D g, int w, int h) {
+        BACKGROUND.drawBlurred(g, 0, 0, w, h, this);
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillRect(0, 0, w, h);
+    }
+
+    // ------------------------------------------------------------------ dibujo comun
 
     @Override
     protected final void paintComponent(Graphics graphics) {
@@ -155,7 +164,6 @@ public abstract class RetroScreen extends JPanel {
         paintContent(g);
         g.dispose();
     }
-
 
     // La barra de abajo llega de lado a lado de la ventana, aunque sea mas ancha que el tablero
     private void drawFooterBar(Graphics2D g, double scale, double offsetY) {
