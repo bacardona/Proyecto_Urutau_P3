@@ -99,6 +99,11 @@ public class Fighter {
         return evolved && evolutionProfile != null
                 ? evolutionProfile.evolvedPokemonId() : basePokemonId;
     }
+    /** Colores alternos (jugador 2 con el mismo Pokemon que el jugador 1). */
+    private boolean altColors;
+    public boolean usesAltColors() { return altColors; }
+    void setAltColors(boolean altColors) { this.altColors = altColors; }
+
     /** Original species, kept stable so evolved fighters retain their move profile. */
     public String getBasePokemonId() { return basePokemonId; }
     public String getName() {

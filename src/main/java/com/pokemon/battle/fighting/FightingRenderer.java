@@ -934,6 +934,7 @@ public class FightingRenderer {
             y = (int) Math.round(bodyWorldY - frame.bodyY() * scale);
         }
         BufferedImage image = frame.image();
+        if (fighter.usesAltColors()) image = AltPalette.recolor(fighter.getPokemonId(), image);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         var oldComposite = g.getComposite();
