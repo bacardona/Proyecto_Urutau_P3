@@ -75,7 +75,11 @@ final class ControlsIntroScreen {
     boolean isReady(int player) { return ready[player]; }
 
     void markReady(int player) {
-        if (active && player >= 0 && player < 2) ready[player] = true;
+        if (!active || player < 0 || player > 1 || ready[player]) return;
+        ready[player] = true;
+        // Sonido al quedar listo; uno mas fuerte cuando ya estan los dos
+        boolean both = ready[0] && ready[1];
+        FightingSound.get().play(both ? FightingSound.Sfx.CUT_IN : FightingSound.Sfx.COUNT, both ? 1f : 0.8f);
     }
 
     void markBothReady() {
