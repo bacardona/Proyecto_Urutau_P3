@@ -35,6 +35,8 @@ import java.util.Map;
 final class ControlsIntroScreen {
 
     static final double TIMEOUT_SECONDS = 15.0;
+    /** Volumen de la musica mientras se muestran los controles (bajita). */
+    private static final float MUSIC_GAIN = 0.35f;
     /** Pausa corta despues de que los dos estan listos, para que se alcance a ver el LISTO. */
     private static final double READY_DELAY_SECONDS = 0.35;
 
@@ -65,21 +67,34 @@ final class ControlsIntroScreen {
         bothReadyTime = -1;
         nameOne = playerOne == null || playerOne.isBlank() ? "JUGADOR 1" : playerOne.toUpperCase();
         nameTwo = playerTwo == null || playerTwo.isBlank() ? "JUGADOR 2" : playerTwo.toUpperCase();
+        musicStarted = false;
     }
+
+    /** La musica arranca con el primer cuadro en pantalla (no al crear la pelea). */
+    private boolean musicStarted;
 
     boolean isActive() { return active; }
 
     /** La quita sin esperar (por ejemplo, al entrar directo contra Mewtwo). */
-    void stop() { active = false; }
+    void stop() {
+        if (active) finish();
+    }
+
+    /** Se quita: la musica para y vuelve a sonar normal desde el "¡PELEA!". */
+    private void finish() {
+        active = false;
+        FightingSound sound = FightingSound.get();
+        sound.stopMusicAndRewind();
+        sound.setMusicGain(1f);
+    }
 
     boolean isReady(int player) { return ready[player]; }
 
     void markReady(int player) {
         if (!active || player < 0 || player > 1 || ready[player]) return;
         ready[player] = true;
-        // Sonido al quedar listo; uno mas fuerte cuando ya estan los dos
-        boolean both = ready[0] && ready[1];
-        FightingSound.get().play(both ? FightingSound.Sfx.CUT_IN : FightingSound.Sfx.COUNT, both ? 1f : 0.8f);
+        // Sonido de boton al quedar listo
+        FightingSound.get().play(FightingSound.Sfx.COUNT, 0.8f);
     }
 
     void markBothReady() {
@@ -90,10 +105,17 @@ final class ControlsIntroScreen {
     /** Avanza el tiempo; se quita sola cuando los dos estan listos o se acaba el tiempo. */
     void update(double dt) {
         if (!active) return;
+        if (!musicStarted) {
+            // Musica de batalla bajita mientras se leen los controles
+            musicStarted = true;
+            FightingSound sound = FightingSound.get();
+            sound.setMusicGain(MUSIC_GAIN);
+            sound.startBattleMusic();
+        }
         elapsed += dt;
         if (ready[0] && ready[1] && bothReadyTime < 0) bothReadyTime = elapsed;
         boolean readyDone = bothReadyTime >= 0 && elapsed - bothReadyTime >= READY_DELAY_SECONDS;
-        if (readyDone || elapsed >= TIMEOUT_SECONDS) active = false;
+        if (readyDone || elapsed >= TIMEOUT_SECONDS) finish();
     }
 
     int secondsLeft() {

@@ -169,6 +169,7 @@ public class FightingGamePanel extends JPanel {
                     gamepadTimer.stop();
                     gamepadControls.reset();
                     input.clear();
+                    controlsIntro.stop();   // devuelve la musica a su volumen normal
                     FightingSound.get().stopMusic();
                 }
 

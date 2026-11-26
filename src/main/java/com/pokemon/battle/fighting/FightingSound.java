@@ -56,6 +56,8 @@ public final class FightingSound {
 
     // Musica de fondo (se repite sola) y su volumen
     private static final float MUSIC_VOLUME = 0.32f;
+    /** Volumen extra de la musica (1 = normal). La pantalla de controles la pone bajita. */
+    private volatile float musicGain = 1f;
     private volatile float[] music;
     private volatile boolean musicPlaying;
     private int musicPosition;
@@ -92,6 +94,17 @@ public final class FightingSound {
 
     public void stopMusic() {
         musicPlaying = false;
+    }
+
+    /** Cambia el volumen de la musica (1 = normal). */
+    public void setMusicGain(float gain) {
+        musicGain = Math.max(0f, Math.min(1f, gain));
+    }
+
+    /** Para la musica y la deja lista para empezar desde el principio. */
+    public void stopMusicAndRewind() {
+        musicPlaying = false;
+        musicPosition = 0;
     }
 
     public boolean isMusicPlaying() {
@@ -188,7 +201,7 @@ public final class FightingSound {
                 float[] track = music;
                 if (musicPlaying && !muted && track != null && track.length > 0) {
                     for (int i = 0; i < chunk; i++) {
-                        mix[i] += track[musicPosition] * MUSIC_VOLUME;
+                        mix[i] += track[musicPosition] * MUSIC_VOLUME * musicGain;
                         musicPosition = (musicPosition + 1) % track.length;
                     }
                 }
