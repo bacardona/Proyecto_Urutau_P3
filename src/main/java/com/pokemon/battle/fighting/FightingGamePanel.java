@@ -74,6 +74,9 @@ public class FightingGamePanel extends JPanel {
 
     private final FreeFightSetup setup;
     private FightingGameSession session;
+    /** Pantalla "¿COMO SE JUEGA?" antes de cada combate libre (ver ControlsIntroScreen). */
+    private final ControlsIntroScreen controlsIntro = new ControlsIntroScreen();
+
     private final FightingRenderer renderer =
             new FightingRenderer(SpriteLoader.shared());
     private final FightingInput input = new FightingInput();
@@ -166,6 +169,7 @@ public class FightingGamePanel extends JPanel {
                     gamepadTimer.stop();
                     gamepadControls.reset();
                     input.clear();
+                    controlsIntro.stop();   // devuelve la musica a su volumen normal
                     FightingSound.get().stopMusic();
                 }
 
@@ -380,6 +384,14 @@ public class FightingGamePanel extends JPanel {
                 repaint();
             }
             FightingGameSession.State state = session.getState();
+            if (state == FightingGameSession.State.RUNNING && controlsIntro.isActive()) {
+                // Pantalla de controles: A marca LISTO a ese jugador (ST queda para la pausa)
+                if (gamepadControls.justPressed(player, pad, PadSnapshot::a)) {
+                    controlsIntro.markReady(player);
+                }
+                gamepadControls.remember(player, pad);
+                continue;
+            }
             if (state == FightingGameSession.State.RUNNING) {
                 boolean pause = gamepadControls.justPressed(player, pad, PadSnapshot::start);
                 gamepadControls.apply(player, pad, input);
@@ -431,6 +443,16 @@ public class FightingGamePanel extends JPanel {
         long now = System.nanoTime();
         long elapsed = Math.min(now - lastSimulationNanos, 250_000_000L);
         lastSimulationNanos = now;
+        if (controlsIntro.isActive()) {
+            // Pantalla de controles: la pelea espera. Con teclado, la tecla de salto marca LISTO
+            if (input.isPlayerOneJumpHeld()) controlsIntro.markReady(0);
+            if (input.isPlayerTwoJumpHeld()) controlsIntro.markReady(1);
+            controlsIntro.update(elapsed / 1_000_000_000.0);
+            if (!controlsIntro.isActive()) input.clear();
+            simulationAccumulatorNanos = 0;
+            repaint();
+            return;
+        }
         simulationAccumulatorNanos += elapsed;
 
         while (simulationAccumulatorNanos >= SIMULATION_STEP_NANOS) {
@@ -516,6 +538,12 @@ public class FightingGamePanel extends JPanel {
     }
 
     private void activateSelected() {
+
+        // ENTER en la pantalla de controles: los dos listos (sirve para saltarla con teclado)
+        if (session.getState() == FightingGameSession.State.RUNNING && controlsIntro.isActive()) {
+            controlsIntro.markBothReady();
+            return;
+        }
 
         if (session.getState() == FightingGameSession.State.FINISHED) {
             activateResultOption();
@@ -662,6 +690,7 @@ public class FightingGamePanel extends JPanel {
     /** El ganador (con su equipo y la vida llena) contra Mewtwo, en el mismo mapa. */
     private FightingGameSession createBossSession() {
         renderer.reset();
+        controlsIntro.stop();   // contra Mewtwo se entra directo
         int challenger = Math.max(0, bossChallenger);
         String name = session.getTrainerName(challenger);
         FightingStage stage = session.getStage();
@@ -695,9 +724,12 @@ public class FightingGamePanel extends JPanel {
 
     private FightingGameSession createSession() {
         renderer.reset();
-        return setup != null && setup.isComplete()
+        FightingGameSession created = setup != null && setup.isComplete()
                 ? new FightingGameSession(setup)
                 : new FightingGameSession();
+        // Antes de cada combate libre se muestran los controles hasta que los dos esten listos
+        controlsIntro.start(created.getTrainerName(0), created.getTrainerName(1));
+        return created;
     }
 
     private void debugDefeat(int playerIndex) {
@@ -768,6 +800,7 @@ public class FightingGamePanel extends JPanel {
         );
 
         renderer.draw(sceneGraphics, session, frameIndex, this::repaint);
+        if (controlsIntro.isActive()) controlsIntro.draw(sceneGraphics);
         // Las teclas de prueba (F6 a F11) funcionan sin mostrar ningun aviso en pantalla
 
         sceneGraphics.dispose();

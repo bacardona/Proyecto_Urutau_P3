@@ -4,37 +4,45 @@ import com.pokemon.battle.ui.GifAnimation;
 import com.pokemon.battle.ui.RetroStyle;
 import com.pokemon.battle.ui.SpriteLoader;
 
-import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Composite;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * Top bar of the free fight: portrait of the active Pokemon, life in blocks that
+ * Top bar of the free fight: portrait inside a Poke Ball, life in arrows that
  * change color (green, yellow, red), a trail that shows the damage just received,
- * the evolution / ultimate bar and the team of each trainer.
+ * the evolution / ultimate bar in blue squares and the team in small circles.
+ * The Poke Ball in the middle is the pause button.
  */
 final class FightingHud {
 
     // Paleta pixel art: contorno oscuro, borde claro y nada de fondo negro detras
     private static final Color INK = new Color(0x1A1C2C);
-    private static final Color RIM = new Color(0xF4F0E0);
-    private static final Color RIM_SHADE = new Color(0xB8B2A0);
-    private static final Color EMPTY = new Color(40, 44, 66, 120);
-    private static final Color[] TEAM_COLOR = {new Color(0xE8784A), new Color(0x4A8FE8)};
-    private static final int SEGMENTS = 20;
-    /** Tamano de un "pixel" del HUD en pantalla: todo se dibuja en una cuadricula de 4x4. */
-    private static final int P = 4;
+    private static final Color[] TEAM_COLOR = {new Color(0xFFD447), new Color(0x7FB8FF)};
+    // Estilo de la barra: fondo azul oscuro con borde celeste
+    private static final Color NAVY = new Color(0x262B45);
+    private static final Color DARK = new Color(0x161A2E);
+    private static final Color FRAME = new Color(0xBFE3F5);
+    private static final Color EVO_BLUE = new Color(0x4AA8FF);
+    private static final int ARROWS = 14;
+    private static final int EVO_SQUARES = 16;
 
     /** Boton de pausa del centro (coordenadas del escenario 1280x720). */
-    static final int PAUSE_X = 640 - 17 * P / 2;
-    static final int PAUSE_Y = 6 * P;
-    static final int PAUSE_SIZE = 17 * P;
+    static final int PAUSE_SIZE = 92;
+    static final int PAUSE_X = 640 - PAUSE_SIZE / 2;
+    static final int PAUSE_Y = 58 - PAUSE_SIZE / 2;
 
     private final SpriteLoader sprites;
     // Vida que se muestra con retraso (la estela roja del dano)
@@ -64,7 +72,7 @@ final class FightingHud {
     void draw(Graphics2D g, FightingGameSession session, int frameIndex, Runnable repaint, double dt) {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         Object aa = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         for (int side = 0; side < 2; side++) {
             Fighter f = session.getFighters().get(side);
             FightingTeam team = side == 0 ? session.getPlayerOneTeam() : session.getPlayerTwoTeam();
@@ -74,206 +82,267 @@ final class FightingHud {
         if (aa != null) g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
     }
 
-    /** Boton estilo Poke Ball con el simbolo de pausa en el centro. */
+    /**
+     * Boton de pausa: Poke Ball pixel art dentro de un anillo oscuro con borde celeste.
+     * Al pasar el mouse se ilumina; en pausa muestra un triangulo de "seguir".
+     */
     private void drawPauseButton(Graphics2D g, boolean paused) {
-        int n = 17;
-        double c = (n - 1) / 2.0;
-        Color red = pauseHover ? new Color(0xFF6A5C) : new Color(0xE8463A);
-        Color redDark = new Color(0xA82A26);
-        Color white = pauseHover ? Color.WHITE : new Color(0xF0EEE6);
-        Color whiteDark = new Color(0xB9B6AE);
-        for (int j = 0; j < n; j++) {
-            for (int i = 0; i < n; i++) {
-                if (!inside(i, j, c, 8.4)) continue;
-                boolean edge = !inside(i - 1, j, c, 8.4) || !inside(i + 1, j, c, 8.4)
-                        || !inside(i, j - 1, c, 8.4) || !inside(i, j + 1, c, 8.4);
+        int cx = PAUSE_X + PAUSE_SIZE / 2;
+        int cy = PAUSE_Y + PAUSE_SIZE / 2;
+        int r = PAUSE_SIZE / 2 - 4;
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillOval(cx - r + 3, cy - r + 4, 2 * r, 2 * r);
+        g.setColor(new Color(0x0D1424));
+        g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
+        g.setColor(pauseHover ? Color.WHITE : FRAME);
+        g.setStroke(new BasicStroke(5));
+        g.drawOval(cx - r, cy - r, 2 * r, 2 * r);
+        g.setColor(new Color(0x6FDCFF));
+        g.setStroke(new BasicStroke(2));
+        g.drawOval(cx - r + 5, cy - r + 5, 2 * r - 10, 2 * r - 10);
+        // Poke Ball de 24x24 pixeles, agrandada x3
+        int n = 24;
+        int scale = 3;
+        double c = 11.5;
+        Color red = pauseHover ? new Color(0xFF5A5A) : new Color(0xE8323C);
+        Color redLight = brighten(red, 60);
+        Color redDark = new Color(0x9A1820);
+        Color white = pauseHover ? Color.WHITE : new Color(0xF0F0F0);
+        Color whiteDark = new Color(0xB8BCC6);
+        int ox = cx - n * scale / 2;
+        int oy = cy - n * scale / 2;
+        for (int y = 0; y < n; y++) {
+            for (int x = 0; x < n; x++) {
+                double d = Math.hypot(x - c, y - c);
+                if (d > 11) continue;
                 Color col;
-                if (edge || j == 8) col = INK;
-                else if (j < 8) col = (i + j < 7) ? brighten(red, 50) : (j > 5 && i > 10) ? redDark : red;
-                else col = (j > 13 || (i > 12 && j > 10)) ? whiteDark : white;
+                if (d > 9.8 || Math.abs(y - c) < 1.3 || (d < 4.2 && d >= 3.0)) col = INK;
+                else if (d < 3.0) col = Color.WHITE;
+                else if (y < c) col = x + y < 14 ? redLight : (x - y > 8 ? redDark : red);
+                else col = x - y > -4 ? whiteDark : white;
                 g.setColor(col);
-                g.fillRect(PAUSE_X + i * P, PAUSE_Y + j * P, P, P);
+                g.fillRect(ox + x * scale, oy + y * scale, scale, scale);
             }
         }
-        // Disco del centro con "II" (o un triangulo si ya esta en pausa)
-        for (int j = 4; j <= 12; j++) {
-            for (int i = 4; i <= 12; i++) {
-                if (!inside(i, j, c, 4.3)) continue;
-                boolean edge = !inside(i - 1, j, c, 4.3) || !inside(i + 1, j, c, 4.3)
-                        || !inside(i, j - 1, c, 4.3) || !inside(i, j + 1, c, 4.3);
-                g.setColor(edge ? INK : Color.WHITE);
-                g.fillRect(PAUSE_X + i * P, PAUSE_Y + j * P, P, P);
-            }
-        }
-        g.setColor(INK);
+        g.setColor(Color.WHITE);
+        g.fillRect(ox + 6 * scale, oy + 5 * scale, 2 * scale, scale);
+        g.fillRect(ox + 6 * scale, oy + 6 * scale, scale, scale);
         if (paused) {
-            for (int k = 0; k < 3; k++) g.fillRect(PAUSE_X + (7 + k) * P, PAUSE_Y + (6 + k) * P, P, (5 - 2 * k) * P);
-        } else {
-            g.fillRect(PAUSE_X + 6 * P + P / 2, PAUSE_Y + 6 * P, P, 5 * P);
-            g.fillRect(PAUSE_X + 9 * P + P / 2, PAUSE_Y + 6 * P, P, 5 * P);
+            // Triangulo de "seguir" en el boton del centro
+            g.setColor(INK);
+            g.fillPolygon(new int[]{cx - 3, cx + 4, cx - 3}, new int[]{cy - 5, cy, cy + 5}, 3);
         }
-    }
-
-    private static boolean inside(int i, int j, double c, double r) {
-        double dx = i - c;
-        double dy = j - c;
-        return dx * dx + dy * dy <= r * r;
     }
 
     private void drawSide(Graphics2D g, FightingGameSession session, Fighter f, FightingTeam team,
                           int side, int frameIndex, Runnable repaint, double dt) {
         boolean left = side == 0;
         int width = session.getWidth();
-        int portraitX = left ? 8 * P : width - 8 * P - 26 * P;
-        int portraitY = 5 * P;
-        int barW = 104 * P;
-        int barX = left ? portraitX + 30 * P : portraitX - 4 * P - barW;
+        Color accent = TEAM_COLOR[side];
 
-        // Retrato con marco pixelado
-        frame(g, portraitX, portraitY, 26 * P, 26 * P, TEAM_COLOR[side]);
-        BufferedImage img = icon(f.getPokemonId(), !left, frameIndex, repaint);
-        if (f.usesAltColors()) img = AltPalette.recolor(f.getPokemonId(), img);
-        if (img != null) {
-            int h = 21 * P;
-            int w = Math.min(22 * P, Math.round(h * img.getWidth() / (float) img.getHeight()));
-            g.drawImage(img, portraitX + 13 * P - w / 2, portraitY + 3 * P, w, h, null);
-        }
-
-        // Nombre
-        String name = f.isMega() ? "MEGA MEWTWO Y" : f.getName().toUpperCase();
-        g.setFont(RetroStyle.font(36));
-        FontMetrics m = g.getFontMetrics();
-        int nameX = left ? barX + P : barX + barW - P - m.stringWidth(name);
-        g.setColor(INK);
-        g.drawString(name, nameX + P / 2, 13 * P + P / 2);
-        g.drawString(name, nameX, 13 * P + P / 2);
-        g.setColor(Color.WHITE);
-        g.drawString(name, nameX, 13 * P);
-
-        // Vida en bloques con la estela del dano
+        // Vida que baja con retraso (la estela del dano)
         double ratio = Math.max(0, f.getHealth() / (double) f.getMaxHealth());
         double shown = trail.getOrDefault(f, ratio);
         if (shown < ratio) shown = ratio;
         else shown = Math.max(ratio, shown - dt * 0.35);
         trail.put(f, shown);
-        int barY = 15 * P;
-        int barH = 8 * P;
-        frame(g, barX, barY, barW, barH, null);
-        Color full = ratio > 0.5 ? new Color(0x58D660) : ratio > 0.25 ? new Color(0xFAC83C) : new Color(0xF05046);
+        Color life = ratio > 0.5 ? new Color(0x3FD46A) : ratio > 0.2 ? new Color(0xF6C83B) : new Color(0xFF4D5A);
         // Mega Mewtwo Y: barra rosada para que se note que es la fase final
-        if (f.isMega()) full = ratio > 0.25 ? new Color(0xFF5FB8) : new Color(0xFF2E7A);
-        boolean blink = ratio <= 0.25 && (frameIndex / 3) % 2 == 0;
-        int innerX = barX + 2 * P;
-        int innerY = barY + 2 * P;
-        int innerH = barH - 4 * P;
-        int segW = (barW - 4 * P) / SEGMENTS;   // 5 pixeles: 4 de color y 1 de separacion
-        for (int i = 0; i < SEGMENTS; i++) {
-            int k = left ? i : SEGMENTS - 1 - i;
-            int x0 = innerX + k * segW;
-            int w = segW - P;
-            if (k < SEGMENTS - 1) {
-                g.setColor(INK);
-                g.fillRect(x0 + w, innerY, P, innerH);
+        if (f.isMega()) life = ratio > 0.25 ? new Color(0xFF5FB8) : new Color(0xFF2E7A);
+        boolean blink = ratio <= 0.2 && (frameIndex / 3) % 2 == 0;
+        if (blink) life = brighten(life, 60);
+
+        double energy = Math.min(1, f.getEvolutionEnergy() / 100.0);
+        boolean ready = f.isEvolutionReady() || f.isUltimateReady();
+        Color evo = ready && (frameIndex / 4) % 2 == 0 ? new Color(0x9FE6FF) : EVO_BLUE;
+
+        // Las barras se dibujan como el lado izquierdo; el derecho es su reflejo
+        Graphics2D b = (Graphics2D) g.create();
+        if (!left) b.transform(new AffineTransform(-1, 0, 0, 1, width, 0));
+        Polygon body = new Polygon(new int[]{90, 560, 580, 560, 90}, new int[]{36, 36, 57, 78, 78}, 5);
+        plate(b, body, 5);
+        int filled = (int) Math.ceil(ratio * ARROWS - 1e-9);
+        int trailed = (int) Math.ceil(shown * ARROWS - 1e-9);
+        for (int i = 0; i < ARROWS; i++) {
+            int x = 124 + i * 30;
+            Polygon arrow = new Polygon(new int[]{x, x + 24, x + 34, x + 24, x, x + 10},
+                    new int[]{44, 44, 57, 70, 70, 57}, 6);
+            if (i < filled) gloss(b, arrow, life);
+            else if (i < trailed) gloss(b, arrow, new Color(0xFF6B5E));
+            else {
+                b.setColor(DARK);
+                b.fill(arrow);
             }
-            double from = i / (double) SEGMENTS;
-            Color body;
-            if (from < ratio) body = blink ? full.brighter() : full;
-            else if (from < shown) body = new Color(0xFF6B5E);
-            else body = null;
-            if (body == null) {
-                g.setColor(EMPTY);
-                g.fillRect(x0, innerY, w, innerH);
-                continue;
+        }
+        Polygon evoBody = new Polygon(new int[]{120, 420, 432, 420, 120}, new int[]{88, 88, 99, 110, 110}, 5);
+        plate(b, evoBody, 4);
+        int evoFilled = (int) Math.floor(energy * EVO_SQUARES + 1e-9);
+        for (int i = 0; i < EVO_SQUARES; i++) {
+            Rectangle2D sq = new Rectangle2D.Double(128 + i * 18, 93, 13, 12);
+            if (i < evoFilled) gloss(b, sq, evo);
+            else {
+                b.setColor(DARK);
+                b.fill(sq);
             }
-            g.setColor(body);
-            g.fillRect(x0, innerY, w, innerH);
-            g.setColor(brighten(body, 70));
-            g.fillRect(x0, innerY, w, P);
-            g.setColor(darken(body, 50));
-            g.fillRect(x0, innerY + innerH - P, w, P);
+        }
+        b.dispose();
+
+        // Retrato dentro de una Poke Ball
+        int cx = left ? 70 : width - 70;
+        int cy = 62;
+        drawPortraitBall(g, cx, cy, f, !left, accent, frameIndex, repaint);
+
+        // Nombre del Pokemon y del entrenador
+        String name = f.isMega() ? "MEGA MEWTWO Y" : f.getName().toUpperCase();
+        String trainer = session.getTrainerName(side);
+        trainer = trainer == null ? "" : trainer.toUpperCase();
+        g.setFont(RetroStyle.font(28));
+        int nameW = g.getFontMetrics().stringWidth(name);
+        int nameX = left ? 140 : width - 140 - nameW;
+        outlined(g, name, nameX, 28, 28, Color.WHITE);
+        if (!trainer.isEmpty() && !f.isBoss()) {
+            g.setFont(RetroStyle.font(20));
+            int tw = g.getFontMetrics().stringWidth(trainer);
+            outlined(g, trainer, left ? nameX + nameW + 14 : nameX - 14 - tw, 26, 20, accent);
         }
 
-        // Barra de evolucion / ulti
-        String label = energyLabel(f, left ? 0 : 1);
-        int evoW = 66 * P;
-        int evoH = 5 * P;
-        int evoX = left ? barX : barX + barW - evoW;
-        int evoY = 24 * P + P;
-        frame(g, evoX, evoY, evoW, evoH, null);
-        double energy = Math.min(1, f.getEvolutionEnergy() / 100.0);
-        boolean ready = f.isEvolutionReady();
-        Color evo = ready && (frameIndex / 4) % 2 == 0 ? new Color(0xFFF0A0) : new Color(0xFFD25A);
-        int innerW = evoW - 4 * P;
-        int fill = (int) Math.round(innerW * energy / P) * P;
-        g.setColor(EMPTY);
-        g.fillRect(evoX + 2 * P, evoY + 2 * P, innerW, P);
-        g.setColor(evo);
-        int fx = left ? evoX + 2 * P : evoX + 2 * P + innerW - fill;
-        g.fillRect(fx, evoY + 2 * P, fill, P);
-        g.setFont(RetroStyle.font(22));
-        m = g.getFontMetrics();
-        int labelX = left ? evoX + evoW + 3 * P : evoX - 3 * P - m.stringWidth(label);
-        g.setColor(INK);
-        g.drawString(label, labelX + P / 2, evoY + evoH - P / 2);
-        g.setColor(ready ? new Color(0xFFE27A) : new Color(0xEDE6D2));
-        g.drawString(label, labelX, evoY + evoH - P);
+        // Etiqueta de la barra EVO (con la tecla cuando ya se puede usar)
+        String label = energyLabel(f, side);
+        g.setFont(RetroStyle.font(20));
+        int lw = g.getFontMetrics().stringWidth(label);
+        outlined(g, label, left ? 445 : width - 445 - lw, 108, 20, ready ? new Color(0xFFE27A) : new Color(0x9FD8FF));
 
-        // Equipo: tres iconos chicos debajo, el activo marcado y los caidos en gris
-        int iconSize = 11 * P;
+        // Equipo en circulos: el activo con brillo, los caidos en gris con una X
         for (int i = 0; i < team.getMembers().size(); i++) {
             Fighter member = team.getMembers().get(i);
-            int x = left ? portraitX + i * (iconSize + 2 * P) - P : portraitX + 26 * P - (i + 1) * iconSize - i * 2 * P + P;
-            int y = 33 * P;
+            int mx = left ? 40 + i * 70 : width - 40 - i * 70;
             boolean active = i == team.getActiveIndex() && !member.isDefeated();
-            frame(g, x, y, iconSize, iconSize, active ? TEAM_COLOR[side] : new Color(90, 96, 120, 150));
-            BufferedImage mini = icon(member.getPokemonId(), !left, frameIndex, repaint);
-            if (member.usesAltColors()) mini = AltPalette.recolor(member.getPokemonId(), mini);
-            if (mini != null) {
-                int h = iconSize - 4 * P;
-                int w = Math.min(iconSize - 4 * P, Math.round(h * mini.getWidth() / (float) mini.getHeight()));
-                Composite old = g.getComposite();
-                if (member.isDefeated()) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
-                g.drawImage(mini, x + iconSize / 2 - w / 2, y + 2 * P, w, h, null);
-                g.setComposite(old);
-            }
-            if (member.isDefeated()) {
-                // X pixelada
-                for (int k = 0; k < 7; k++) {
-                    g.setColor(INK);
-                    g.fillRect(x + (2 + k) * P, y + (2 + k) * P + P / 2, P, P);
-                    g.fillRect(x + (8 - k) * P, y + (2 + k) * P + P / 2, P, P);
-                    g.setColor(new Color(0xF05046));
-                    g.fillRect(x + (2 + k) * P, y + (2 + k) * P, P, P);
-                    g.fillRect(x + (8 - k) * P, y + (2 + k) * P, P, P);
-                }
-            }
+            drawTeamCircle(g, mx, 162, 27, member, !left, active, accent, frameIndex, repaint);
         }
     }
 
-    /**
-     * Marco pixel art: contorno oscuro con esquinas recortadas y un borde claro con sombra.
-     * El interior se rellena con {@code fill}, o se deja transparente si es null.
-     */
-    private static void frame(Graphics2D g, int x, int y, int w, int h, Color fill) {
-        // contorno (sin las esquinas)
-        g.setColor(INK);
-        g.fillRect(x + P, y, w - 2 * P, P);
-        g.fillRect(x + P, y + h - P, w - 2 * P, P);
-        g.fillRect(x, y + P, P, h - 2 * P);
-        g.fillRect(x + w - P, y + P, P, h - 2 * P);
-        // borde claro arriba/izquierda, sombra abajo/derecha
-        g.setColor(RIM);
-        g.fillRect(x + P, y + P, w - 2 * P, P);
-        g.fillRect(x + P, y + P, P, h - 2 * P);
-        g.setColor(RIM_SHADE);
-        g.fillRect(x + P, y + h - 2 * P, w - 2 * P, P);
-        g.fillRect(x + w - 2 * P, y + 2 * P, P, h - 3 * P);
-        if (fill != null) {
-            g.setColor(fill);
-            g.fillRect(x + 2 * P, y + 2 * P, w - 4 * P, h - 4 * P);
-            g.setColor(brighten(fill, 45));
-            g.fillRect(x + 2 * P, y + 2 * P, w - 4 * P, P);
+    private void drawPortraitBall(Graphics2D g, int cx, int cy, Fighter f, boolean facingLeft, Color accent,
+                                  int frameIndex, Runnable repaint) {
+        int r = 54;
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillOval(cx - r + 3, cy - r + 5, 2 * r, 2 * r);
+        g.setColor(FRAME);
+        g.fillOval(cx - r - 5, cy - r - 5, 2 * r + 10, 2 * r + 10);
+        g.setColor(new Color(0xE8434A));
+        g.fill(new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, 0, 180, Arc2D.CHORD));
+        g.setColor(new Color(0xF4F4F4));
+        g.fill(new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, 180, 180, Arc2D.CHORD));
+        g.setColor(DARK);
+        g.fillRect(cx - r, cy - 4, 2 * r, 8);
+        g.setColor(NAVY);
+        g.fillOval(cx - 38, cy - 38, 76, 76);
+        g.setColor(accent);
+        g.setStroke(new BasicStroke(4));
+        g.drawOval(cx - 38, cy - 38, 76, 76);
+        BufferedImage img = icon(f.getPokemonId(), facingLeft, frameIndex, repaint);
+        if (f.usesAltColors()) img = AltPalette.recolor(f.getPokemonId(), img);
+        drawFitted(g, img, cx, cy + 2, 56, 62, new Ellipse2D.Double(cx - 36, cy - 36, 72, 72));
+    }
+
+    private void drawTeamCircle(Graphics2D g, int cx, int cy, int r, Fighter member, boolean facingLeft,
+                                boolean active, Color accent, int frameIndex, Runnable repaint) {
+        boolean down = member.isDefeated();
+        Ellipse2D circle = new Ellipse2D.Double(cx - r, cy - r, 2 * r, 2 * r);
+        if (active) {
+            g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 80));
+            g.setStroke(new BasicStroke(12));
+            g.draw(circle);
         }
+        g.setColor(new Color(0, 0, 0, 100));
+        g.fillOval(cx - r + 2, cy - r + 3, 2 * r, 2 * r);
+        g.setColor(FRAME);
+        g.setStroke(new BasicStroke(7));
+        g.draw(circle);
+        g.setColor(down ? new Color(0x3A3D48) : NAVY);
+        g.fill(circle);
+        g.setColor(active ? accent : down ? new Color(0x6B7080) : new Color(0x8A93A8));
+        g.setStroke(new BasicStroke(3));
+        g.draw(circle);
+        BufferedImage mini = icon(member.getPokemonId(), facingLeft, frameIndex, repaint);
+        if (member.usesAltColors()) mini = AltPalette.recolor(member.getPokemonId(), mini);
+        if (down && mini != null) mini = grayOf(mini);
+        drawFitted(g, mini, cx, cy, (int) (r * 1.35), (int) (r * 1.6), circle);
+        if (down) {
+            g.setColor(new Color(0xE5484D));
+            g.setStroke(new BasicStroke(3.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int k = (int) (r * 0.55);
+            g.drawLine(cx - k, cy - k, cx + k, cy + k);
+            g.drawLine(cx + k, cy - k, cx - k, cy + k);
+        }
+    }
+
+    /** Dibuja el sprite a cierta altura (sin pasarse de maxW), recortado a la forma. */
+    private static void drawFitted(Graphics2D g, BufferedImage img, int cx, int cy, int h, int maxW, Shape clip) {
+        if (img == null) return;
+        int w = Math.round(h * img.getWidth() / (float) img.getHeight());
+        if (w > maxW) {
+            h = Math.round(h * maxW / (float) w);
+            w = maxW;
+        }
+        Shape old = g.getClip();
+        g.clip(clip);
+        g.drawImage(img, cx - w / 2, cy - h / 2, w, h, null);
+        g.setClip(old);
+    }
+
+    private final Map<BufferedImage, BufferedImage> grays = new IdentityHashMap<>();
+
+    private BufferedImage grayOf(BufferedImage src) {
+        return grays.computeIfAbsent(src, s -> {
+            BufferedImage out = new BufferedImage(s.getWidth(), s.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < s.getHeight(); y++) {
+                for (int x = 0; x < s.getWidth(); x++) {
+                    int p = s.getRGB(x, y);
+                    int l = (int) (0.3 * ((p >> 16) & 255) + 0.59 * ((p >> 8) & 255) + 0.11 * (p & 255)) / 2 + 40;
+                    out.setRGB(x, y, (p & 0xFF000000) | (l << 16) | (l << 8) | l);
+                }
+            }
+            return out;
+        });
+    }
+
+    /** Placa azul oscura con borde celeste grueso y sombra. */
+    private static void plate(Graphics2D g, Shape shape, int rim) {
+        g.setColor(new Color(0, 0, 0, 90));
+        g.translate(3, 5);
+        g.fill(shape);
+        g.translate(-3, -5);
+        g.setColor(FRAME);
+        g.setStroke(new BasicStroke(rim * 2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(shape);
+        g.setColor(NAVY);
+        g.fill(shape);
+    }
+
+    /** Relleno con degradado y un brillo arriba. */
+    private static void gloss(Graphics2D g, Shape shape, Color c) {
+        Rectangle2D bounds = shape.getBounds2D();
+        g.setPaint(new GradientPaint(0, (float) bounds.getY(), c.brighter(),
+                0, (float) (bounds.getY() + bounds.getHeight()), c.darker()));
+        g.fill(shape);
+        Shape old = g.getClip();
+        g.clip(shape);
+        g.setColor(new Color(255, 255, 255, 85));
+        g.fill(new Rectangle2D.Double(bounds.getX(), bounds.getY() + 2, bounds.getWidth(),
+                Math.max(2, bounds.getHeight() / 3)));
+        g.setClip(old);
+    }
+
+    private static void outlined(Graphics2D g, String text, int x, int y, int size, Color color) {
+        g.setFont(RetroStyle.font(size));
+        g.setColor(new Color(0, 0, 0, 220));
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                if (dx != 0 || dy != 0) g.drawString(text, x + dx, y + dy);
+            }
+        }
+        g.setColor(color);
+        g.drawString(text, x, y);
     }
 
     /**
@@ -350,15 +419,4 @@ final class FightingHud {
                 Math.min(255, c.getBlue() + amount), c.getAlpha());
     }
 
-    private static Color darken(Color c, int amount) {
-        return new Color(Math.max(0, c.getRed() - amount), Math.max(0, c.getGreen() - amount),
-                Math.max(0, c.getBlue() - amount), c.getAlpha());
-    }
-
-    private static void centered(Graphics2D g, String text, int cx, int baseline, int size, Color color) {
-        g.setFont(RetroStyle.font(size));
-        FontMetrics m = g.getFontMetrics();
-        g.setColor(color);
-        g.drawString(text, cx - m.stringWidth(text) / 2, baseline);
-    }
 }
