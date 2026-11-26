@@ -1,0 +1,319 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1778 1056" width="1778" height="1056" role="img" aria-labelledby="title description">
+  <title id="title">Pokken database entity relationship diagram</title>
+  <desc id="description">The physical Oracle schema for Pokken, including twelve game tables, thirteen foreign keys, column types and nullability, and relationship cardinalities.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0L8 4L0 8z" fill="#267a72"/>
+    </marker>
+    <marker id="slots-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0L8 4L0 8z" fill="#566e97"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: "Segoe UI", Arial, sans-serif; fill: #18383e; }
+    .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 2px; fill: #267a72; }
+    .heading { font-size: 38px; font-weight: 700; }
+    .subtitle { font-size: 17px; fill: #486268; }
+    .section { font-size: 19px; font-weight: 700; }
+    .section-note { font-size: 13px; fill: #486268; }
+    .table-name { font: 700 14px "Consolas", "DejaVu Sans Mono", monospace; fill: #fff; }
+    .col { font: 12.5px "Consolas", "DejaVu Sans Mono", monospace; }
+    .left-panel .col { font-size: 11px; }
+    .type { font: 11px "Consolas", "DejaVu Sans Mono", monospace; fill: #486268; }
+    .key { font-size: 10px; font-weight: 700; fill: #17665b; }
+    .cardinality { font-size: 11px; font-weight: 700; fill: #215f56; }
+    .edge-note { font-size: 12px; font-weight: 700; fill: #51688d; }
+    .notes-heading { font-size: 14px; font-weight: 700; }
+    .note { font-size: 12.6px; fill: #344e54; }
+    .edge { fill: none; stroke: #267a72; stroke-width: 1.7px; marker-end: url(#arrow); }
+    .slot-edge { fill: none; stroke: #566e97; stroke-width: 2px; marker-end: url(#slots-arrow); }
+  </style>
+  <rect x="0" y="0" width="1778" height="1056" rx="0" fill="#f6faf9" stroke="none"/>
+  <rect x="0" y="0" width="1778" height="8" rx="0" fill="#267a72" stroke="none"/>
+  <text x="38" y="42" class="eyebrow" text-anchor="start">POKKEN   /   ORACLE DATABASE</text>
+  <text x="38" y="91" class="heading" text-anchor="start">Database entity relationship diagram</text>
+  <text x="39" y="123" class="subtitle" text-anchor="start">12 game tables and 13 foreign keys in the deployed Oracle schema</text>
+  <rect x="34" y="151" width="552" height="710" rx="13" fill="#fff" stroke="#d4e2df"/>
+  <rect x="605" y="151" width="1139" height="710" rx="13" fill="#fff" stroke="#d4e2df"/>
+  <text x="52" y="184" class="section" text-anchor="start">Trainers and combat history</text>
+  <text x="52" y="207" class="section-note" text-anchor="start">A combat has one history row per participant.</text>
+  <text x="624" y="184" class="section" text-anchor="start">Species and move catalog</text>
+  <text x="624" y="207" class="section-note" text-anchor="start">Move IDs link species and the details that describe each move class.</text>
+  <path d="M326 273H286V395H266" class="edge"/>
+  <text x="311" y="265" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="276" y="388" class="cardinality" text-anchor="middle">1</text>
+  <path d="M326 421H266" class="edge"/>
+  <text x="310" y="412" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="276" y="412" class="cardinality" text-anchor="middle">1</text>
+  <path d="M326 572H298V448H266" class="edge"/>
+  <text x="312" y="563" class="cardinality" text-anchor="middle">0..N</text>
+  <text x="276" y="444" class="cardinality" text-anchor="middle">1</text>
+  <path d="M326 610H294V728H266" class="edge"/>
+  <text x="312" y="603" class="cardinality" text-anchor="middle">0..N</text>
+  <text x="276" y="720" class="cardinality" text-anchor="middle">1</text>
+  <path d="M899 559H1001" class="slot-edge"/>
+  <text x="950" y="548" class="edge-note" text-anchor="middle">Slot 1 FK</text>
+  <text x="918" y="575" class="edge-note" text-anchor="middle">0..N</text>
+  <text x="985" y="575" class="edge-note" text-anchor="middle">1</text>
+  <path d="M899 607H1001" class="slot-edge"/>
+  <text x="950" y="596" class="edge-note" text-anchor="middle">Slot 2–4 FKs</text>
+  <text x="918" y="623" class="edge-note" text-anchor="middle">0..N</text>
+  <text x="985" y="623" class="edge-note" text-anchor="middle">0..1</text>
+  <path d="M1415 262H1359V414H1296" class="edge"/>
+  <text x="1401" y="255" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="1307" y="407" class="cardinality" text-anchor="middle">1</text>
+  <path d="M1415 373H1370V443H1296" class="edge"/>
+  <text x="1401" y="366" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="1307" y="436" class="cardinality" text-anchor="middle">1</text>
+  <path d="M1415 485H1381V472H1296" class="edge"/>
+  <text x="1401" y="478" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="1307" y="465" class="cardinality" text-anchor="middle">1</text>
+  <path d="M1415 605H1370V501H1296" class="edge"/>
+  <text x="1401" y="598" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="1307" y="494" class="cardinality" text-anchor="middle">1</text>
+  <path d="M1415 740H1359V530H1296" class="edge"/>
+  <text x="1401" y="733" class="cardinality" text-anchor="middle">0..1</text>
+  <text x="1307" y="523" class="cardinality" text-anchor="middle">1</text>
+  <g id="entrenador" class="left-panel">
+  <rect x="51" y="375" width="215" height="83" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="51.5" y="375.5" width="214" height="34" rx="7" fill="#145a52" stroke="none"/>
+  <text x="63" y="397" class="table-name" text-anchor="start">ENTRENADOR</text>
+  <rect x="52" y="410" width="213" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="60" y="425" class="key" text-anchor="start">PK · ID</text>
+  <text x="102" y="425" class="col" text-anchor="start">id_entrenador</text>
+  <text x="256" y="425" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="60" y="449" class="key" text-anchor="start"></text>
+  <text x="102" y="449" class="col" text-anchor="start">nombre</text>
+  <text x="256" y="449" class="type" text-anchor="end">VARCHAR2(40) *</text>
+  </g>
+  <g id="combate" class="left-panel">
+  <rect x="51" y="690" width="215" height="83" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="51.5" y="690.5" width="214" height="34" rx="7" fill="#145a52" stroke="none"/>
+  <text x="63" y="712" class="table-name" text-anchor="start">COMBATE</text>
+  <rect x="52" y="725" width="213" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="60" y="740" class="key" text-anchor="start">PK · ID</text>
+  <text x="102" y="740" class="col" text-anchor="start">id_combate</text>
+  <text x="256" y="740" class="type" text-anchor="end">NUMBER(6) *</text>
+  <text x="60" y="764" class="key" text-anchor="start"></text>
+  <text x="102" y="764" class="col" text-anchor="start">fecha_combate</text>
+  <text x="256" y="764" class="type" text-anchor="end">DATE *</text>
+  </g>
+  <g id="jugador" class="left-panel">
+  <rect x="326" y="235" width="242" height="107" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="326.5" y="235.5" width="241" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="338" y="257" class="table-name" text-anchor="start">JUGADOR</text>
+  <rect x="327" y="270" width="240" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="335" y="285" class="key" text-anchor="start">PK/FK</text>
+  <text x="377" y="285" class="col" text-anchor="start">id_entrenador</text>
+  <text x="558" y="285" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="335" y="309" class="key" text-anchor="start"></text>
+  <text x="377" y="309" class="col" text-anchor="start">batallas_ganadas</text>
+  <text x="558" y="309" class="type" text-anchor="end">NUMBER(4) *</text>
+  <rect x="327" y="318" width="240" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="335" y="333" class="key" text-anchor="start"></text>
+  <text x="377" y="333" class="col" text-anchor="start">batallas_perdidas</text>
+  <text x="558" y="333" class="type" text-anchor="end">NUMBER(4) *</text>
+  </g>
+  <g id="maquina" class="left-panel">
+  <rect x="326" y="385" width="242" height="83" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="326.5" y="385.5" width="241" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="338" y="407" class="table-name" text-anchor="start">MAQUINA</text>
+  <rect x="327" y="420" width="240" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="335" y="435" class="key" text-anchor="start">PK/FK</text>
+  <text x="377" y="435" class="col" text-anchor="start">id_entrenador</text>
+  <text x="558" y="435" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="335" y="459" class="key" text-anchor="start"></text>
+  <text x="377" y="459" class="col" text-anchor="start">rango</text>
+  <text x="558" y="459" class="type" text-anchor="end">VARCHAR2(30) *</text>
+  </g>
+  <g id="historial_combates" class="left-panel">
+  <rect x="326" y="535" width="242" height="107" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="326.5" y="535.5" width="241" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="338" y="557" class="table-name" text-anchor="start">HISTORIAL_COMBATES</text>
+  <rect x="327" y="570" width="240" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="335" y="585" class="key" text-anchor="start">PK/FK</text>
+  <text x="377" y="585" class="col" text-anchor="start">id_entrenador</text>
+  <text x="558" y="585" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="335" y="609" class="key" text-anchor="start">PK/FK</text>
+  <text x="377" y="609" class="col" text-anchor="start">id_combate</text>
+  <text x="558" y="609" class="type" text-anchor="end">NUMBER(6) *</text>
+  <rect x="327" y="618" width="240" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="335" y="633" class="key" text-anchor="start"></text>
+  <text x="377" y="633" class="col" text-anchor="start">resultado</text>
+  <text x="558" y="633" class="type" text-anchor="end">VARCHAR2(10) *</text>
+  </g>
+  <g id="pokken">
+  <rect x="626" y="273" width="273" height="371" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="626.5" y="273.5" width="272" height="34" rx="7" fill="#145a52" stroke="none"/>
+  <text x="638" y="295" class="table-name" text-anchor="start">POKKEN</text>
+  <rect x="627" y="308" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="323" class="key" text-anchor="start">PK · ID</text>
+  <text x="677" y="323" class="col" text-anchor="start">id_pokken</text>
+  <text x="889" y="323" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="635" y="347" class="key" text-anchor="start">UQ</text>
+  <text x="677" y="347" class="col" text-anchor="start">nombre_pokken</text>
+  <text x="889" y="347" class="type" text-anchor="end">VARCHAR2(30) *</text>
+  <rect x="627" y="356" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="371" class="key" text-anchor="start"></text>
+  <text x="677" y="371" class="col" text-anchor="start">hp</text>
+  <text x="889" y="371" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="635" y="395" class="key" text-anchor="start"></text>
+  <text x="677" y="395" class="col" text-anchor="start">atk</text>
+  <text x="889" y="395" class="type" text-anchor="end">NUMBER(4) *</text>
+  <rect x="627" y="404" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="419" class="key" text-anchor="start"></text>
+  <text x="677" y="419" class="col" text-anchor="start">def</text>
+  <text x="889" y="419" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="635" y="443" class="key" text-anchor="start"></text>
+  <text x="677" y="443" class="col" text-anchor="start">atk_sp</text>
+  <text x="889" y="443" class="type" text-anchor="end">NUMBER(4) *</text>
+  <rect x="627" y="452" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="467" class="key" text-anchor="start"></text>
+  <text x="677" y="467" class="col" text-anchor="start">def_sp</text>
+  <text x="889" y="467" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="635" y="491" class="key" text-anchor="start"></text>
+  <text x="677" y="491" class="col" text-anchor="start">spd</text>
+  <text x="889" y="491" class="type" text-anchor="end">NUMBER(4) *</text>
+  <rect x="627" y="500" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="515" class="key" text-anchor="start"></text>
+  <text x="677" y="515" class="col" text-anchor="start">tipo1</text>
+  <text x="889" y="515" class="type" text-anchor="end">VARCHAR2(25) *</text>
+  <text x="635" y="539" class="key" text-anchor="start"></text>
+  <text x="677" y="539" class="col" text-anchor="start">tipo2</text>
+  <text x="889" y="539" class="type" text-anchor="end">VARCHAR2(25)</text>
+  <rect x="627" y="548" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="563" class="key" text-anchor="start">FK</text>
+  <text x="677" y="563" class="col" text-anchor="start">ataque1</text>
+  <text x="889" y="563" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="635" y="587" class="key" text-anchor="start">FK</text>
+  <text x="677" y="587" class="col" text-anchor="start">ataque2</text>
+  <text x="889" y="587" class="type" text-anchor="end">NUMBER(4)</text>
+  <rect x="627" y="596" width="271" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="635" y="611" class="key" text-anchor="start">FK</text>
+  <text x="677" y="611" class="col" text-anchor="start">ataque3</text>
+  <text x="889" y="611" class="type" text-anchor="end">NUMBER(4)</text>
+  <text x="635" y="635" class="key" text-anchor="start">FK</text>
+  <text x="677" y="635" class="col" text-anchor="start">ataque4</text>
+  <text x="889" y="635" class="type" text-anchor="end">NUMBER(4)</text>
+  </g>
+  <g id="ataque">
+  <rect x="1001" y="390" width="295" height="251" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1001.5" y="390.5" width="294" height="34" rx="7" fill="#145a52" stroke="none"/>
+  <text x="1013" y="412" class="table-name" text-anchor="start">ATAQUE</text>
+  <rect x="1002" y="425" width="293" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1010" y="440" class="key" text-anchor="start"></text>
+  <text x="1052" y="440" class="col" text-anchor="start">clase</text>
+  <text x="1286" y="440" class="type" text-anchor="end">VARCHAR2(25) *</text>
+  <text x="1010" y="464" class="key" text-anchor="start">PK · ID</text>
+  <text x="1052" y="464" class="col" text-anchor="start">id_ataque</text>
+  <text x="1286" y="464" class="type" text-anchor="end">NUMBER(4) *</text>
+  <rect x="1002" y="473" width="293" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1010" y="488" class="key" text-anchor="start">UQ</text>
+  <text x="1052" y="488" class="col" text-anchor="start">nombre</text>
+  <text x="1286" y="488" class="type" text-anchor="end">VARCHAR2(30) *</text>
+  <text x="1010" y="512" class="key" text-anchor="start"></text>
+  <text x="1052" y="512" class="col" text-anchor="start">tipo</text>
+  <text x="1286" y="512" class="type" text-anchor="end">VARCHAR2(25) *</text>
+  <rect x="1002" y="521" width="293" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1010" y="536" class="key" text-anchor="start"></text>
+  <text x="1052" y="536" class="col" text-anchor="start">categoria</text>
+  <text x="1286" y="536" class="type" text-anchor="end">VARCHAR2(15) *</text>
+  <text x="1010" y="560" class="key" text-anchor="start"></text>
+  <text x="1052" y="560" class="col" text-anchor="start">dano</text>
+  <text x="1286" y="560" class="type" text-anchor="end">NUMBER(3) *</text>
+  <rect x="1002" y="569" width="293" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1010" y="584" class="key" text-anchor="start"></text>
+  <text x="1052" y="584" class="col" text-anchor="start">precision</text>
+  <text x="1286" y="584" class="type" text-anchor="end">NUMBER(3) *</text>
+  <text x="1010" y="608" class="key" text-anchor="start"></text>
+  <text x="1052" y="608" class="col" text-anchor="start">pp</text>
+  <text x="1286" y="608" class="type" text-anchor="end">NUMBER(2) *</text>
+  <rect x="1002" y="617" width="293" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1010" y="632" class="key" text-anchor="start"></text>
+  <text x="1052" y="632" class="col" text-anchor="start">prioridad</text>
+  <text x="1286" y="632" class="type" text-anchor="end">NUMBER(1) *</text>
+  </g>
+  <g id="ataque_dano_estado">
+  <rect x="1415" y="222" width="312" height="107" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1415.5" y="222.5" width="311" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="1427" y="244" class="table-name" text-anchor="start">ATAQUE_DANO_ESTADO</text>
+  <rect x="1416" y="257" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="272" class="key" text-anchor="start">PK/FK</text>
+  <text x="1466" y="272" class="col" text-anchor="start">id_ataque</text>
+  <text x="1717" y="272" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="1424" y="296" class="key" text-anchor="start"></text>
+  <text x="1466" y="296" class="col" text-anchor="start">estado_alterado</text>
+  <text x="1717" y="296" class="type" text-anchor="end">VARCHAR2(15) *</text>
+  <rect x="1416" y="305" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="320" class="key" text-anchor="start"></text>
+  <text x="1466" y="320" class="col" text-anchor="start">probabilidad</text>
+  <text x="1717" y="320" class="type" text-anchor="end">NUMBER(3) *</text>
+  </g>
+  <g id="ataque_dano_retroceso">
+  <rect x="1415" y="335" width="312" height="83" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1415.5" y="335.5" width="311" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="1427" y="357" class="table-name" text-anchor="start">ATAQUE_DANO_RETROCESO</text>
+  <rect x="1416" y="370" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="385" class="key" text-anchor="start">PK/FK</text>
+  <text x="1466" y="385" class="col" text-anchor="start">id_ataque</text>
+  <text x="1717" y="385" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="1424" y="409" class="key" text-anchor="start"></text>
+  <text x="1466" y="409" class="col" text-anchor="start">probabilidad</text>
+  <text x="1717" y="409" class="type" text-anchor="end">NUMBER(3) *</text>
+  </g>
+  <g id="ataque_estado">
+  <rect x="1415" y="447" width="312" height="83" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1415.5" y="447.5" width="311" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="1427" y="469" class="table-name" text-anchor="start">ATAQUE_ESTADO</text>
+  <rect x="1416" y="482" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="497" class="key" text-anchor="start">PK/FK</text>
+  <text x="1466" y="497" class="col" text-anchor="start">id_ataque</text>
+  <text x="1717" y="497" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="1424" y="521" class="key" text-anchor="start"></text>
+  <text x="1466" y="521" class="col" text-anchor="start">tipo_de_estado</text>
+  <text x="1717" y="521" class="type" text-anchor="end">VARCHAR2(15) *</text>
+  </g>
+  <g id="ataque_estadisticas">
+  <rect x="1415" y="567" width="312" height="131" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1415.5" y="567.5" width="311" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="1427" y="589" class="table-name" text-anchor="start">ATAQUE_ESTADISTICAS</text>
+  <rect x="1416" y="602" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="617" class="key" text-anchor="start">PK/FK</text>
+  <text x="1466" y="617" class="col" text-anchor="start">id_ataque</text>
+  <text x="1717" y="617" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="1424" y="641" class="key" text-anchor="start"></text>
+  <text x="1466" y="641" class="col" text-anchor="start">tipo_de_estadistica</text>
+  <text x="1717" y="641" class="type" text-anchor="end">VARCHAR2(20) *</text>
+  <rect x="1416" y="650" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="665" class="key" text-anchor="start"></text>
+  <text x="1466" y="665" class="col" text-anchor="start">etapa</text>
+  <text x="1717" y="665" class="type" text-anchor="end">NUMBER(2) *</text>
+  <text x="1424" y="689" class="key" text-anchor="start"></text>
+  <text x="1466" y="689" class="col" text-anchor="start">objetivo</text>
+  <text x="1717" y="689" class="type" text-anchor="end">VARCHAR2(15) *</text>
+  </g>
+  <g id="ataque_2_turnos">
+  <rect x="1415" y="702" width="312" height="107" rx="8" fill="#fff" stroke="#b6c9c7"/>
+  <rect x="1415.5" y="702.5" width="311" height="34" rx="7" fill="#2a535c" stroke="none"/>
+  <text x="1427" y="724" class="table-name" text-anchor="start">ATAQUE_2_TURNOS</text>
+  <rect x="1416" y="737" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="752" class="key" text-anchor="start">PK/FK</text>
+  <text x="1466" y="752" class="col" text-anchor="start">id_ataque</text>
+  <text x="1717" y="752" class="type" text-anchor="end">NUMBER(4) *</text>
+  <text x="1424" y="776" class="key" text-anchor="start"></text>
+  <text x="1466" y="776" class="col" text-anchor="start">mensaje</text>
+  <text x="1717" y="776" class="type" text-anchor="end">VARCHAR2(60) *</text>
+  <rect x="1416" y="785" width="310" height="24" rx="4" fill="#edf5f4" stroke="none"/>
+  <text x="1424" y="800" class="key" text-anchor="start"></text>
+  <text x="1466" y="800" class="col" text-anchor="start">invulnerable</text>
+  <text x="1717" y="800" class="type" text-anchor="end">VARCHAR2(10) *</text>
+  </g>
+  <text x="51" y="826" class="section-note" text-anchor="start">ENTRENADOR and COMBATE form a many-to-many relationship.</text>
+  <text x="624" y="826" class="section-note" text-anchor="start">A species requires ataque1. Slots 2–4 are optional. Each filled slot points to one move.</text>
+  <rect x="34" y="880" width="1710" height="141" rx="12" fill="#eaf3f1" stroke="#d2e2de"/>
+  <text x="52" y="907" class="notes-heading" text-anchor="start">Reading the diagram</text>
+  <text x="52" y="931" class="note" text-anchor="start">PK  Primary key     FK  Foreign key     UQ  Unique     ID  Identity (BY DEFAULT)     *  NOT NULL</text>
+  <text x="52" y="955" class="note" text-anchor="start">Arrows point from the foreign key to the parent. Numbers beside the ends show the allowed matches per relationship.</text>
+  <text x="52" y="979" class="note" text-anchor="start">The history PK combines id_entrenador and id_combate. The species PK is id_pokken. Its four move FKs restrict deletion.</text>
+  <text x="52" y="1003" class="note" text-anchor="start">All other FKs cascade on delete. Active triggers enforce stats 1–255, PP greater than 0, priority −7 to +5, and victory or defeat.</text>
+</svg>
